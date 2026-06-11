@@ -108,7 +108,7 @@ class EquityCalculator {
           equity: equity,
           potOdds: 0,
           ev: equity - 0.5,
-          reasoning: 'Equity $eqPct% — strong value hand. Bet \$${bet.toStringAsFixed(0)} (75% pot) to build pot and protect.',
+          reasoning: 'Equity $eqPct% — mano fuerte de valor. Bet de \$${bet.toStringAsFixed(0)} (75% del bote) para construir bote y protegerte.',
         );
       }
       if (equity > 0.40) {
@@ -120,7 +120,7 @@ class EquityCalculator {
             equity: equity,
             potOdds: 0,
             ev: equity - 0.45,
-            reasoning: 'Equity $eqPct% — thin value. Bet small (\$${bet.toStringAsFixed(0)}, 33% pot) to extract value while controlling pot.',
+            reasoning: 'Equity $eqPct% — valor fino. Bet pequeño (\$${bet.toStringAsFixed(0)}, 33% del bote) para extraer valor controlando el bote.',
           );
         }
         return GTORecommendation(
@@ -129,7 +129,7 @@ class EquityCalculator {
           equity: equity,
           potOdds: 0,
           ev: 0,
-          reasoning: 'Equity $eqPct% — medium strength. Check to control pot size and proceed with caution.',
+          reasoning: 'Equity $eqPct% — fuerza media. Check para controlar el tamaño del bote y seguir con cautela.',
         );
       }
       if (equity > 0.25 && potSize > 20) {
@@ -140,7 +140,7 @@ class EquityCalculator {
           equity: equity,
           potOdds: 0,
           ev: 0.1,
-          reasoning: 'Equity $eqPct% — bluff spot. Semi-bluff with \$${bluff.toStringAsFixed(0)} (50% pot) using fold equity + draw outs.',
+          reasoning: 'Equity $eqPct% — spot de farol. Semi-bluff de \$${bluff.toStringAsFixed(0)} (50% del bote) usando fold equity + outs del proyecto.',
         );
       }
       return GTORecommendation(
@@ -149,7 +149,7 @@ class EquityCalculator {
         equity: equity,
         potOdds: 0,
         ev: 0,
-        reasoning: 'Equity $eqPct% — weak hand. Check and re-evaluate on next street.',
+        reasoning: 'Equity $eqPct% — mano débil. Check y reevalúa en la siguiente calle.',
       );
     }
 
@@ -161,7 +161,7 @@ class EquityCalculator {
         equity: equity,
         potOdds: odds,
         ev: ev,
-        reasoning: 'Equity $eqPct% far exceeds pot odds $oddsPct%. Raise to \$${raise.toStringAsFixed(0)} — powerful value hand deserves maximum extraction.',
+        reasoning: 'Tu equity $eqPct% supera de largo las pot odds $oddsPct%. Raise a \$${raise.toStringAsFixed(0)} — una mano así merece extracción máxima.',
       );
     }
 
@@ -172,7 +172,7 @@ class EquityCalculator {
         equity: equity,
         potOdds: odds,
         ev: ev,
-        reasoning: 'Equity $eqPct% vs pot odds $oddsPct% — calling is profitable (EV = ${(ev * 100).toStringAsFixed(1)}%). Direct call.',
+        reasoning: 'Equity $eqPct% vs pot odds $oddsPct% — el call es rentable (EV = ${(ev * 100).toStringAsFixed(1)}%). Call directo.',
       );
     }
 
@@ -182,7 +182,7 @@ class EquityCalculator {
       equity: equity,
       potOdds: odds,
       ev: ev,
-      reasoning: 'Equity $eqPct% below pot odds $oddsPct%. Fold — expected value is negative (${(ev * 100).toStringAsFixed(1)}%).',
+      reasoning: 'Equity $eqPct% por debajo de las pot odds $oddsPct%. Fold — el valor esperado es negativo (${(ev * 100).toStringAsFixed(1)}%).',
     );
   }
 

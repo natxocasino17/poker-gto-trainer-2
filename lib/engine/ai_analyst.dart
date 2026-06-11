@@ -7,8 +7,12 @@ import '../core/utils/hand_evaluator.dart';
 import '../core/utils/equity_calculator.dart';
 import 'poker_engine.dart';
 
+/// Background hand logger + street-by-street reviewer.
+/// All player-facing texts speak with the voice of ZerosPoker:
+/// a brutally honest coach who roasts you while teaching you.
 class HandReviewerEngine {
   final GameRepository _repo;
+  static final Random _rng = Random();
 
   HandReviewerEngine(this._repo);
 
@@ -31,7 +35,7 @@ class HandReviewerEngine {
       }
     }
 
-    String handDesc = 'Folded';
+    String handDesc = 'Fold';
     if (!humanPlayer.isFolded && completedState.communityCards.isNotEmpty) {
       try {
         final score = HandEvaluator.evaluateBest([
@@ -121,7 +125,7 @@ class HandReviewerEngine {
         street: street,
       );
 
-      final explanation = _buildExplanation(
+      final explanation = _zerosExplanation(
         action: humanAction,
         equity: equity,
         potOdds: potOdds,
@@ -153,6 +157,7 @@ class HandReviewerEngine {
     }
   }
 
+  /// A disciplined fold with low equity is OPTIMAL — never a mistake.
   DecisionQuality _evaluateDecision({
     required HandAction action,
     required double equity,
@@ -161,15 +166,14 @@ class HandReviewerEngine {
   }) {
     switch (action.type) {
       case ActionType.fold:
-        if (equity > 0.45) return DecisionQuality.blunder;
-        if (equity > 0.35) return DecisionQuality.marginal;
-        if (equity > 0.25) return DecisionQuality.correct;
-        return DecisionQuality.optimal;
+        if (equity > 0.50) return DecisionQuality.blunder;
+        if (equity > 0.38) return DecisionQuality.marginal;
+        if (equity > 0.28) return DecisionQuality.correct;
+        return DecisionQuality.optimal; // good fold = good play, period
 
       case ActionType.call:
         final ev = equity - potOdds;
-        if (ev > 0.15) return DecisionQuality.marginal; // under-raised
-        if (ev > 0.05) return DecisionQuality.correct;
+        if (ev > 0.15) return DecisionQuality.marginal; // should have raised
         if (ev >= -0.05) return DecisionQuality.correct;
         if (ev >= -0.12) return DecisionQuality.marginal;
         return DecisionQuality.blunder;
@@ -194,184 +198,200 @@ class HandReviewerEngine {
     }
   }
 
-  String _buildExplanation({
+  // ── ZerosPoker speaks ──────────────────────────────────────────────
+
+  static String _pick(List<String> options) =>
+      options[_rng.nextInt(options.length)];
+
+  String _zerosExplanation({
     required HandAction action,
     required double equity,
     required double potOdds,
     required DecisionQuality quality,
     required String street,
   }) {
-    final eqPct = (equity * 100).toStringAsFixed(1);
-    final oddsPct = (potOdds * 100).toStringAsFixed(1);
+    final eq = (equity * 100).toStringAsFixed(1);
+    final odds = (potOdds * 100).toStringAsFixed(1);
 
     switch (quality) {
       case DecisionQuality.optimal:
-        return _optimalExplanation(action, eqPct, oddsPct, street);
+        switch (action.type) {
+          case ActionType.fold:
+            return _pick([
+              'Fold correcto en el $street. Con $eq% de equity ahí no se te ha perdido nada. Mira, hasta tú sabes soltar cartas. Me sorprendes.',
+              'Buen fold en el $street, máquina. Tu equity era $eq% — pagar eso sería de pescado. Esto NO cuenta como mano perdida, cuenta como dinero ahorrado.',
+              'Fold en el $street con $eq% de equity. Decisión de libro. No te emociones, que una golondrina no hace verano.',
+            ]);
+          case ActionType.check:
+            return _pick([
+              'Check decente en el $street con $eq% de equity. Control del bote, trampa tendida... ¿quién eres y qué has hecho con el manco de siempre?',
+              'Check en el $street. Con $eq% está bien pasar y dejar que el rival se cuelgue solo. Bien visto.',
+            ]);
+          case ActionType.bet:
+          case ActionType.raise:
+            return _pick([
+              'Apuesta de valor en el $street con $eq% de equity. Extracción máxima, como manda la teoría. Si jugaras así siempre no tendría trabajo.',
+              'Bet en el $street con $eq%. Eso es presionar con ventaja, no como otras veces que apuestas por aburrimiento.',
+            ]);
+          case ActionType.call:
+            return _pick([
+              'Call rentable en el $street: $eq% de equity contra $odds% de pot odds. Las mates te dan la razón. Disfrútalo, no pasa a menudo.',
+            ]);
+          case ActionType.allIn:
+            return _pick([
+              'All-in en el $street con $eq% de equity. Spot premium, EV maximizado. Hasta un reloj parado da bien la hora dos veces al día.',
+            ]);
+        }
+
       case DecisionQuality.correct:
-        return _correctExplanation(action, eqPct, oddsPct, street);
+        switch (action.type) {
+          case ActionType.fold:
+            return 'Fold razonable en el $street. Equity de $eq%, justita. Un call tenía un pelín de EV pero no te voy a crucificar por ser prudente. Esta vez.';
+          case ActionType.call:
+            return 'Call correcto en el $street: $eq% de equity cubre las pot odds de $odds%. Aprobado raspado, no te flipes.';
+          case ActionType.check:
+            return 'Check aceptable en el $street con $eq%. Había opciones de apostar pero bueno, no todo el mundo nace valiente.';
+          default:
+            return 'Decisión sólida en el $street con $eq% de equity. En línea con GTO. Sigue así y a lo mejor llegas a regular de NL2.';
+        }
+
       case DecisionQuality.marginal:
-        return _marginalExplanation(action, eqPct, oddsPct, street);
+        switch (action.type) {
+          case ActionType.fold:
+            return 'Fold dudoso en el $street, campeón. Con $eq% de equity contra $odds% de pot odds, el call tenía EV positivo. Te están robando la merienda y tú dándoles las gracias.';
+          case ActionType.call:
+            return 'Call marginal en el $street. $eq% de equity contra $odds% de pot odds... eso es jugártela a la moneda. O subes o foldeas, pero deja de pagar por ver como si esto fuera Netflix.';
+          case ActionType.check:
+            return 'Check con $eq% de equity en el $street... ¿en serio? Tenías una apuesta de valor clarísima y la has dejado en el cajón. Dinero que no extraes es dinero que regalas, genio.';
+          default:
+            return 'Decisión marginal en el $street. Con $eq% de equity ese sizing chirría. Revisa los tamaños, que apostar a ojo es de cuñao en partida casera.';
+        }
+
       case DecisionQuality.blunder:
-        return _blunderExplanation(action, eqPct, oddsPct, street);
-    }
-  }
-
-  String _optimalExplanation(HandAction a, String eq, String odds, String street) {
-    switch (a.type) {
-      case ActionType.fold:
-        return 'Correct fold on $street. Your equity of $eq% was insufficient to continue.';
-      case ActionType.check:
-        return 'Well-timed check on $street with $eq% equity. Controls pot and traps aggression.';
-      case ActionType.bet:
-      case ActionType.raise:
-        return 'Excellent value bet on $street. Your $eq% equity justifies aggressive extraction.';
-      case ActionType.call:
-        return 'Profitable call on $street. Equity $eq% clearly exceeds pot odds $odds%.';
-      case ActionType.allIn:
-        return 'Premium all-in spot on $street with $eq% equity. Maximized EV perfectly.';
-    }
-  }
-
-  String _correctExplanation(HandAction a, String eq, String odds, String street) {
-    switch (a.type) {
-      case ActionType.fold:
-        return 'Reasonable fold on $street. Equity $eq% was low, though a call had marginal positive EV.';
-      case ActionType.call:
-        return 'Correct call on $street. Your $eq% equity covers the $odds% pot odds required.';
-      case ActionType.check:
-        return 'Acceptable check on $street with $eq% equity. Bet-sizing alternatives existed.';
-      default:
-        return 'Sound decision on $street with $eq% equity. In line with GTO principles.';
-    }
-  }
-
-  String _marginalExplanation(HandAction a, String eq, String odds, String street) {
-    switch (a.type) {
-      case ActionType.fold:
-        return 'Marginal fold on $street. Equity of $eq% vs pot odds $odds% — a call had slight positive EV. Consider wider continuing range.';
-      case ActionType.call:
-        return 'Marginal call on $street. Equity $eq% barely justifies the $odds% pot odds. Borderline spot — fold or raise are often better.';
-      case ActionType.check:
-        return 'Thin check on $street with $eq% equity. A value bet would have been marginally superior here.';
-      default:
-        return 'Marginal decision on $street. Equity $eq% is borderline for this action. Review sizing.';
-    }
-  }
-
-  String _blunderExplanation(HandAction a, String eq, String odds, String street) {
-    switch (a.type) {
-      case ActionType.fold:
-        return 'Blunder: Folding with $eq% equity on $street was a serious mistake. Your hand had strong equity vs the opponent range and pot odds were ${odds}% — this fold cost significant expected value.';
-      case ActionType.call:
-        return 'Blunder: Calling on $street with only $eq% equity vs $odds% pot odds required was unprofitable. Expected value was significantly negative. Fold was the correct play.';
-      case ActionType.bet:
-      case ActionType.raise:
-        return 'Blunder: Aggressive action on $street with only $eq% equity. Your range lacks the strength to profitably bet/raise here. Check-fold was the GTO play.';
-      case ActionType.allIn:
-        return 'Blunder: All-in on $street with $eq% equity. You were far behind the opponent range. This commit was a major EV loss.';
-      default:
-        return 'Blunder: Your action on $street with $eq% equity was a significant mistake. Review the hand closely.';
+        switch (action.type) {
+          case ActionType.fold:
+            return '🚨 ERROR GRAVE: ¿Foldeaste con $eq% de equity en el $street? ¡Tenías la mano ganadora media vida y la tiraste a la basura! Con pot odds de $odds% ese fold es prenderle fuego al EV. De verdad, a veces pienso que juegas con los pies.';
+          case ActionType.call:
+            return '🚨 ERROR GRAVE: Pagar en el $street con solo $eq% de equity necesitando $odds% es de manual... de manual de lo que NO se hace. Ese call fue quemar dinero. El fold era gratis, campeón, GRATIS.';
+          case ActionType.bet:
+          case ActionType.raise:
+            return '🚨 ERROR GRAVE: ¿Agresión en el $street con $eq% de equity? ¿Farol con qué bloqueadores, con qué fold equity, con qué CABEZA? Check-fold era la jugada. Apuntado queda para tu informe.';
+          case ActionType.allIn:
+            return '🚨 ERROR GRAVE: All-in en el $street con $eq% de equity. Ibas detrás del rango rival como un cohete. Eso no es poker, eso es donar con estilo. Blunder de los gordos.';
+          default:
+            return '🚨 ERROR GRAVE en el $street con $eq% de equity. No sé ni cómo describirlo. Revisa la mano y reza.';
+        }
     }
   }
 }
 
+/// ZerosPoker: the global session coach. Roasts your leaks, then hands
+/// you the homework to fix them.
 class AICoach {
   static String generateReport(SessionStats stats, List<HandLog> hands) {
     if (stats.handsPlayed < 3) {
-      return 'Play at least 5 hands to unlock your personalized AI Coach report.';
+      return 'Juega al menos 5 manos y vuelve. No puedo destrozar tu juego sin pruebas, aunque me muera de ganas. — ZerosPoker';
     }
 
-    final buffer = StringBuffer();
-    buffer.writeln('═══ AI COACH REPORT ═══\n');
-    buffer.writeln('Session: ${stats.handsPlayed} hands | Net: ${stats.netProfit >= 0 ? "+" : ""}\$${stats.netProfit.toStringAsFixed(2)} | BB/100: ${stats.bbPer100.toStringAsFixed(1)}\n');
+    final b = StringBuffer();
+    b.writeln('═══ INFORME DE ZEROSPOKER ═══');
+    b.writeln('(tu coach favorito, aunque no me aguantes)\n');
+    b.writeln('Sesión: ${stats.handsPlayed} manos | Neto: ${stats.netProfit >= 0 ? "+" : ""}\$${stats.netProfit.toStringAsFixed(2)} | BB/100: ${stats.bbPer100.toStringAsFixed(1)}');
+    if (stats.netProfit < 0) {
+      b.writeln('Vas perdiendo. Sorpresa nivel: cero.\n');
+    } else {
+      b.writeln('Vas ganando. Disfrútalo mientras dure.\n');
+    }
 
-    // VPIP Analysis
-    buffer.writeln('📊 PREFLOP PROFILE');
+    b.writeln('📊 PERFIL PREFLOP');
     if (stats.vpip > 35) {
-      buffer.writeln('⚠️ VPIP ${stats.vpip.toStringAsFixed(1)}% is too high for 6-Max. You\'re playing too many speculative hands, bleeding chips in unfavorable spots. Target: 22–28%.');
-    } else if (stats.vpip < 16) {
-      buffer.writeln('⚠️ VPIP ${stats.vpip.toStringAsFixed(1)}% is excessively tight. You\'re leaving money on the table and becoming predictable. Widen your range from CO and BTN. Target: 22–28%.');
+      b.writeln('⚠️ VPIP ${stats.vpip.toStringAsFixed(1)}%: juegas más manos que un pulpo. En 6-Max eso es sangrar fichas con basura especulativa. Objetivo: 22–28%. Aprende a foldear, que es gratis.');
+    } else if (stats.vpip < 16 && stats.handsPlayed >= 10) {
+      b.writeln('⚠️ VPIP ${stats.vpip.toStringAsFixed(1)}%: juegas tan cerrado que las rocas te llaman aburrido. Te leen como un libro infantil. Abre más desde CO y BTN. Objetivo: 22–28%.');
     } else {
-      buffer.writeln('✅ VPIP ${stats.vpip.toStringAsFixed(1)}% is within the optimal 6-Max range (22–28%). Solid preflop discipline.');
+      b.writeln('✅ VPIP ${stats.vpip.toStringAsFixed(1)}%: rango razonable para 6-Max. Vale, esto lo haces bien. No te acostumbres a los cumplidos.');
     }
 
-    if (stats.pfr < stats.vpip * 0.65) {
-      buffer.writeln('⚠️ PFR ${stats.pfr.toStringAsFixed(1)}% is too low relative to VPIP (${stats.vpip.toStringAsFixed(1)}%). You\'re calling too much preflop instead of 3-betting or isolating. Aggression gap: ${(stats.vpip - stats.pfr).toStringAsFixed(1)}%.');
+    if (stats.pfr < stats.vpip * 0.65 && stats.vpip > 5) {
+      b.writeln('⚠️ PFR ${stats.pfr.toStringAsFixed(1)}% vs VPIP ${stats.vpip.toStringAsFixed(1)}%: pagas demasiado preflop en vez de subir. Eso tiene un nombre técnico: jugar de pescado. Sube o foldea.');
     } else {
-      buffer.writeln('✅ PFR/VPIP ratio is healthy. Good aggression balance preflop.');
+      b.writeln('✅ Ratio PFR/VPIP sano. Agresión preflop decente, quién lo diría.');
     }
 
-    buffer.writeln('');
-    buffer.writeln('🃏 3-BET FREQUENCY');
+    b.writeln('');
+    b.writeln('🃏 FRECUENCIA DE 3-BET');
     if (stats.threeBetPct < 5) {
-      buffer.writeln('⚠️ 3-Bet% of ${stats.threeBetPct.toStringAsFixed(1)}% is too passive. You\'re allowing opponents to steal blinds profitably. Add bluff 3-bets with hands like A5s, KQs from BB/SB. Target: 8–12%.');
+      b.writeln('⚠️ 3-Bet ${stats.threeBetPct.toStringAsFixed(1)}%: más pasivo que un domingo por la tarde. Los bots te roban las ciegas y tú sonriendo. Mete 3-bets de farol con A5s, KQs desde las ciegas. Objetivo: 8–12%.');
     } else if (stats.threeBetPct > 15) {
-      buffer.writeln('⚠️ 3-Bet% of ${stats.threeBetPct.toStringAsFixed(1)}% is over-aggressive. You\'re ballooning pots with marginal hands. Tighten 3-bet bluff range. Target: 8–12%.');
+      b.writeln('⚠️ 3-Bet ${stats.threeBetPct.toStringAsFixed(1)}%: te has venido arriba. Inflas botes con manos marginales como si el dinero fuera de mentira. Recorta el rango de farol. Objetivo: 8–12%.');
     } else {
-      buffer.writeln('✅ 3-Bet% ${stats.threeBetPct.toStringAsFixed(1)}% is in the healthy range. Good balance of value and bluff 3-bets.');
+      b.writeln('✅ 3-Bet ${stats.threeBetPct.toStringAsFixed(1)}%: equilibrado entre valor y farol. Correcto. Me cuesta decirlo, pero correcto.');
     }
 
-    buffer.writeln('');
-    buffer.writeln('💰 POSTFLOP TENDENCIES');
+    b.writeln('');
+    b.writeln('💰 TENDENCIAS POSTFLOP');
     if (stats.cBetPct > 80) {
-      buffer.writeln('⚠️ C-Bet% ${stats.cBetPct.toStringAsFixed(1)}% is dangerously high. You\'re over-barrelling on unfavorable textures. Exploit this by check-folding more on wet boards. Target: 55–70%.');
-    } else if (stats.cBetPct < 40) {
-      buffer.writeln('⚠️ C-Bet% ${stats.cBetPct.toStringAsFixed(1)}% is too low. You\'re giving free cards and losing pot initiative. Increase c-bets on dry boards and when you have blockers. Target: 55–70%.');
+      b.writeln('⚠️ C-Bet ${stats.cBetPct.toStringAsFixed(1)}%: disparas la continuación en cualquier textura como si fuera obligatorio. En boards húmedos te van a hacer check-raise hasta en la sopa. Objetivo: 55–70%.');
+    } else if (stats.cBetPct < 40 && stats.handsPlayed >= 8) {
+      b.writeln('⚠️ C-Bet ${stats.cBetPct.toStringAsFixed(1)}%: regalas cartas gratis y pierdes la iniciativa. Subiste preflop, ¿no? Pues actúa como tal. Objetivo: 55–70%.');
     } else {
-      buffer.writeln('✅ C-Bet frequency of ${stats.cBetPct.toStringAsFixed(1)}% is well-calibrated.');
+      b.writeln('✅ Frecuencia de C-Bet bien calibrada (${stats.cBetPct.toStringAsFixed(1)}%).');
     }
 
     if (stats.riverFoldPct > 55) {
-      buffer.writeln('⚠️ River Fold% of ${stats.riverFoldPct.toStringAsFixed(1)}% is too high. You\'re over-folding on the river and being exploited by aggressive bots like Tom Dwan and Phil Ivey who will increase bluff frequency against you. Defend river with at least 40% of your bluff-catching range.');
+      b.writeln('⚠️ Fold en river del ${stats.riverFoldPct.toStringAsFixed(1)}%: foldeas el river más que respiras. Ivey y Dwan ya se han dado cuenta y te están faroleando EN TU CARA. Defiende al menos el 40% de tus bluff-catchers, por dignidad.');
     }
 
-    buffer.writeln('');
-    buffer.writeln('🎯 DECISION QUALITY');
+    b.writeln('');
+    b.writeln('🎯 CALIDAD DE DECISIONES');
     if (stats.blunders > 0) {
       final blunderRate = stats.handsPlayed > 0 ? stats.blunders / stats.handsPlayed * 100 : 0;
-      buffer.writeln('⚠️ ${stats.blunders} blunder${stats.blunders > 1 ? "s" : ""} recorded (${blunderRate.toStringAsFixed(1)}% blunder rate). Each blunder represents a significant EV loss. Review these hands in the Analyze section.');
+      b.writeln('⚠️ ${stats.blunders} error${stats.blunders > 1 ? "es" : ""} grave${stats.blunders > 1 ? "s" : ""} (${blunderRate.toStringAsFixed(1)}% de las manos). Cada blunder es EV tirado al váter. Revísalos en ANALIZAR, están todos apuntados con nombre y apellidos.');
     } else {
-      buffer.writeln('✅ Zero blunders this session. Strong decision-making fundamentals.');
+      b.writeln('✅ Cero errores graves esta sesión. Estoy... ¿orgulloso? Qué sensación tan rara.');
     }
-    buffer.writeln('Decision Score: ${stats.decisionScore.toStringAsFixed(0)}/100');
+    b.writeln('Nota de decisiones: ${stats.decisionScore.toStringAsFixed(0)}/100');
 
-    buffer.writeln('');
-    buffer.writeln('📋 ACTION PLAN FOR NEXT SESSION');
+    b.writeln('');
+    b.writeln('📋 DEBERES PARA LA PRÓXIMA SESIÓN');
+    b.writeln('(sí, deberes; el talento no te va a salvar)');
     final tasks = _generateTasks(stats);
     for (int i = 0; i < tasks.length; i++) {
-      buffer.writeln('${i + 1}. ${tasks[i]}');
+      b.writeln('${i + 1}. ${tasks[i]}');
     }
+    b.writeln('');
+    b.writeln('— ZerosPoker, que te aprecia más de lo que parece 🃏');
 
-    return buffer.toString();
+    return b.toString();
   }
 
   static List<String> _generateTasks(SessionStats stats) {
     final tasks = <String>[];
 
     if (stats.vpip > 32) {
-      tasks.add('Tighten preflop: Cut top 10% weakest hands from UTG/MP opening ranges.');
+      tasks.add('Cierra el preflop: elimina el 10% más débil de tus aperturas en UTG/MP. Esas manos "bonitas" te están costando dinero.');
     }
-    if (stats.vpip < 18) {
-      tasks.add('Widen preflop: Add BTN/CO opens with suited connectors (T9s, 87s) and Axs hands.');
+    if (stats.vpip < 18 && stats.handsPlayed >= 10) {
+      tasks.add('Abre más desde BTN/CO: añade conectores suited (T9s, 87s) y Axs. Deja de jugar como una roca con miedo.');
     }
     if (stats.threeBetPct < 6) {
-      tasks.add('Add light 3-bets: Defend BB vs BTN opens with A5s, KQs as polar 3-bets.');
+      tasks.add('Añade 3-bets ligeros: defiende la BB vs aperturas de BTN con A5s y KQs como faroles polarizados.');
     }
     if (stats.riverFoldPct > 55) {
-      tasks.add('Improve river defense: Call at least one bluff-catcher per session vs over-aggressive bots.');
+      tasks.add('Defiende el river: paga al menos un bluff-catcher por sesión contra los bots agresivos. Que no te vean el plumero.');
     }
     if (stats.cBetPct > 78) {
-      tasks.add('Reduce c-bet frequency on wet, connected boards (e.g., 9♠8♥7♠). Check-call instead.');
+      tasks.add('Baja la frecuencia de c-bet en boards húmedos y conectados (tipo 9♠8♥7♠). Check-call y a vivir.');
     }
     if (stats.blunders > 2) {
-      tasks.add('Review all blunder hands in Analyze — identify the street where you deviated from GTO.');
+      tasks.add('Repasa TODOS tus errores graves en ANALIZAR. Identifica la calle exacta donde te desviaste del GTO. Sin excusas.');
     }
     if (stats.wtsd > 38) {
-      tasks.add('Be more selective going to showdown — fold marginal made hands facing river aggression.');
+      tasks.add('Sé más selectivo llegando al showdown: foldea manos marginales ante agresión en el river.');
     }
     if (tasks.isEmpty) {
-      tasks.add('Maintain current discipline and focus on bet sizing optimization.');
-      tasks.add('Work on mixed strategies — add randomization to your betting patterns to avoid exploitation.');
+      tasks.add('Mantén la disciplina actual y pule los tamaños de apuesta.');
+      tasks.add('Trabaja las estrategias mixtas: aleatoriza tus patrones para que ni yo pueda leerte. Reto difícil, lo sé.');
     }
 
     return tasks.take(5).toList();

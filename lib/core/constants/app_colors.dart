@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const background = Color(0xFF0A0A0A);
-  static const surface = Color(0xFF141414);
-  static const surfaceElevated = Color(0xFF1E1E1E);
-  static const card = Color(0xFF242424);
+  // Warm dark-wood base (cartoon-real mix)
+  static const background = Color(0xFF1A110A);
+  static const surface = Color(0xFF241810);
+  static const surfaceElevated = Color(0xFF2F2015);
+  static const card = Color(0xFF322316);
 
-  static const felt = Color(0xFF0D3B1A);
-  static const feltLight = Color(0xFF155227);
-  static const tableRail = Color(0xFF3D2800);
-  static const tableRailLight = Color(0xFF5C3D00);
+  static const wood = Color(0xFF3B2515);
+  static const woodLight = Color(0xFF55351E);
+  static const woodDark = Color(0xFF120B06);
+
+  static const felt = Color(0xFF1B5E20);
+  static const feltLight = Color(0xFF2E7D32);
+  static const feltDark = Color(0xFF0D3B12);
+  static const tableRail = Color(0xFF4E2E14);
+  static const tableRailLight = Color(0xFF6D4520);
 
   static const accent = Color(0xFF00C853);
   static const accentDark = Color(0xFF009624);
@@ -18,13 +24,18 @@ class AppColors {
   static const gold = Color(0xFFFFD700);
   static const goldDark = Color(0xFFB8860B);
 
-  static const textPrimary = Color(0xFFFFFFFF);
-  static const textSecondary = Color(0xFFAAAAAA);
-  static const textMuted = Color(0xFF666666);
+  static const textPrimary = Color(0xFFFFF8F0);
+  static const textSecondary = Color(0xFFC9B8A8);
+  static const textMuted = Color(0xFF8A7560);
 
+  // Four-color cartoon deck (solid card backgrounds, white symbols)
   static const cardFace = Color(0xFFF5F5F5);
-  static const cardBack = Color(0xFF1A237E);
-  static const cardBackPattern = Color(0xFF283593);
+  static const cardBack = Color(0xFF18636B);
+  static const cardBackPattern = Color(0xFF2A8891);
+  static const suitHearts = Color(0xFFD7263D);
+  static const suitDiamonds = Color(0xFF2979FF);
+  static const suitClubs = Color(0xFF1F9D55);
+  static const suitSpades = Color(0xFF2B2D42);
 
   static const redSuit = Color(0xFFE53935);
   static const blackSuit = Color(0xFF212121);
@@ -49,6 +60,6 @@ class AppColors {
   static const gtoMarginal = Color(0xFFFFAB00);
   static const gtoBlunder = Color(0xFFFF1744);
 
-  static const divider = Color(0xFF2A2A2A);
-  static const border = Color(0xFF333333);
+  static const divider = Color(0xFF3A2A1C);
+  static const border = Color(0xFF44301F);
 }

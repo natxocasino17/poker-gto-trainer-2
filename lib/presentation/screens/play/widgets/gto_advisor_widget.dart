@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/utils/equity_calculator.dart';
 import '../../../../presentation/providers/game_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -66,7 +65,7 @@ class GTOAdvisorOverlay extends StatelessWidget {
                       const Icon(Icons.psychology, color: AppColors.accent, size: 20),
                       const SizedBox(width: 8),
                       const Text(
-                        'GTO ADVISOR',
+                        'CONSEJERO GTO',
                         style: TextStyle(color: AppColors.accent, fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 1.5),
                       ),
                       const Spacer(),
@@ -77,7 +76,7 @@ class GTOAdvisorOverlay extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _buildMetricRow('Your Equity', '${(advice.equity * 100).toStringAsFixed(1)}%', _equityColor(advice.equity)),
+                  _buildMetricRow('Tu Equity', '${(advice.equity * 100).toStringAsFixed(1)}%', _equityColor(advice.equity)),
                   if (advice.potOdds > 0)
                     _buildMetricRow('Pot Odds', '${(advice.potOdds * 100).toStringAsFixed(1)}%', AppColors.textSecondary),
                   _buildMetricRow('EV', '${advice.ev >= 0 ? "+" : ""}${(advice.ev * 100).toStringAsFixed(1)}%', advice.ev >= 0 ? AppColors.winning : AppColors.losing),
@@ -117,7 +116,7 @@ class GTOAdvisorOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Tap anywhere to dismiss',
+                    'Toca en cualquier sitio para cerrar',
                     style: TextStyle(color: AppColors.textMuted, fontSize: 10),
                     textAlign: TextAlign.center,
                   ),

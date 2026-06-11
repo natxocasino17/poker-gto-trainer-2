@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../data/models/hand_log_model.dart';
-import '../../../../engine/poker_engine.dart';
 import '../../../../presentation/providers/game_provider.dart';
-import 'package:provider/provider.dart';
 
 class ActionButtonsWidget extends StatefulWidget {
   const ActionButtonsWidget({super.key});
@@ -15,6 +14,8 @@ class ActionButtonsWidget extends StatefulWidget {
 class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
   double _raiseAmount = 4.0;
   bool _showRaiseSlider = false;
+
+  static const double bigBlindAmount = 2.0;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +39,7 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
                   ),
                   SizedBox(width: 8),
-                  Text('Thinking...', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                  Text('Pensando...', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                 ],
               ),
             if (gs.lastAction != null)
@@ -66,7 +67,7 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_showRaiseSlider) _buildRaiseSlider(callAmount, potSize, human.stack),
+        if (_showRaiseSlider) _buildRaiseSlider(gp, callAmount, potSize, human.stack),
         const SizedBox(height: 6),
         Row(
           children: [
@@ -82,7 +83,7 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
             Expanded(
               child: _ActionBtn(
                 label: canCheck ? 'Check' : 'Call',
-                sublabel: canCheck ? null : '\$${callAmount.toStringAsFixed(0)}',
+                sublabel: canCheck ? null : gp.money(callAmount),
                 color: AppColors.actionCall,
                 onTap: () => _doAction(gp, canCheck ? ActionType.check : ActionType.call, callAmount),
               ),
@@ -91,7 +92,7 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
             Expanded(
               child: _ActionBtn(
                 label: callAmount > 0 ? 'Raise' : 'Bet',
-                sublabel: '\$${_raiseAmount.toStringAsFixed(0)}',
+                sublabel: gp.money(_raiseAmount),
                 color: AppColors.actionRaise,
                 onTap: () {
                   if (_showRaiseSlider) {
@@ -108,7 +109,7 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
     );
   }
 
-  Widget _buildRaiseSlider(double minBet, double pot, double stack) {
+  Widget _buildRaiseSlider(GameProvider gp, double minBet, double pot, double stack) {
     final min = (minBet + 2.0).clamp(2.0, stack);
     final max = stack;
 
@@ -124,9 +125,9 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Raise Amount', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+              const Text('Cantidad', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
               Text(
-                '\$${_raiseAmount.toStringAsFixed(0)}',
+                gp.money(_raiseAmount),
                 style: const TextStyle(color: AppColors.accent, fontSize: 14, fontWeight: FontWeight.w700),
               ),
               GestureDetector(
@@ -144,8 +145,8 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
             ),
             child: Slider(
-              value: _raiseAmount.clamp(min, max),
-              min: min,
+              value: _raiseAmount.clamp(min, max).toDouble(),
+              min: min.toDouble(),
               max: max,
               divisions: max > min ? ((max - min) / 2).round().clamp(1, 100) : 1,
               onChanged: (v) => setState(() => _raiseAmount = v),
@@ -154,9 +155,9 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _QuickSizeBtn(label: '½ Pot', amount: pot * 0.5, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max))),
-              _QuickSizeBtn(label: '¾ Pot', amount: pot * 0.75, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max))),
-              _QuickSizeBtn(label: 'Pot', amount: pot, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max))),
+              _QuickSizeBtn(label: '½ Bote', amount: pot * 0.5, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
+              _QuickSizeBtn(label: '¾ Bote', amount: pot * 0.75, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
+              _QuickSizeBtn(label: 'Bote', amount: pot, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
               _QuickSizeBtn(label: 'All-In', amount: stack, onTap: (a) => setState(() => _raiseAmount = a)),
             ],
           ),
@@ -169,8 +170,6 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
     setState(() => _showRaiseSlider = false);
     gp.humanAction(type, amount);
   }
-
-  static const double bigBlindAmount = 2.0;
 }
 
 class _ActionBtn extends StatelessWidget {

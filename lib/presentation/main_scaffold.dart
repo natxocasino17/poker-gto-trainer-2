@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../core/constants/app_colors.dart';
-import 'providers/game_provider.dart';
 import 'screens/play/play_screen.dart';
 import 'screens/analyze/analyze_screen.dart';
 import 'screens/stats/stats_screen.dart';
@@ -48,17 +46,17 @@ class _MainScaffoldState extends State<MainScaffold> {
             BottomNavigationBarItem(
               icon: _NavIcon(icon: Icons.table_restaurant_outlined, selected: _selectedIndex == 0),
               activeIcon: _NavIcon(icon: Icons.table_restaurant, selected: true),
-              label: 'PLAY',
+              label: 'JUGAR',
             ),
             BottomNavigationBarItem(
               icon: _NavIcon(icon: Icons.analytics_outlined, selected: _selectedIndex == 1),
               activeIcon: _NavIcon(icon: Icons.analytics, selected: true),
-              label: 'ANALYZE',
+              label: 'ANALIZAR',
             ),
             BottomNavigationBarItem(
               icon: _NavIcon(icon: Icons.leaderboard_outlined, selected: _selectedIndex == 2),
               activeIcon: _NavIcon(icon: Icons.leaderboard, selected: true),
-              label: 'STATS',
+              label: 'VALORACIÓN',
             ),
           ],
         ),

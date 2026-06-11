@@ -93,10 +93,10 @@ class StreetAnalysis {
 
   String get qualityLabel {
     switch (quality) {
-      case DecisionQuality.optimal: return 'Optimal';
-      case DecisionQuality.correct: return 'Correct';
+      case DecisionQuality.optimal: return 'Óptima';
+      case DecisionQuality.correct: return 'Correcta';
       case DecisionQuality.marginal: return 'Marginal';
-      case DecisionQuality.blunder: return 'Blunder';
+      case DecisionQuality.blunder: return 'Error Grave';
     }
   }
 }
@@ -137,6 +137,16 @@ class HandLog {
   });
 
   bool get humanWon => humanProfit > 0;
+
+  bool get humanFolded =>
+      actions.any((a) => a.playerId == 'human' && a.type == ActionType.fold);
+
+  /// A disciplined fold without blunders is NOT a lost hand — it is
+  /// money saved. These hands are displayed as neutral, not as losses.
+  bool get isCleanFold =>
+      humanFolded &&
+      !streetAnalyses.any((sa) => sa.quality == DecisionQuality.blunder);
+
   String get resultLabel => humanProfit >= 0
       ? '+\$${humanProfit.toStringAsFixed(2)}'
       : '-\$${(-humanProfit).toStringAsFixed(2)}';

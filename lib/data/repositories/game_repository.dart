@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/hand_log_model.dart';
 import '../models/session_stats_model.dart';
@@ -10,6 +9,7 @@ class GameRepository {
   static const _handCountKey = 'hand_count';
   static const _sessionIdKey = 'session_id';
   static const _sessionStartKey = 'session_start';
+  static const _displayInBBKey = 'display_in_bb';
 
   static const double initialBankroll = 1000.0;
   static const double defaultBuyIn = 200.0;
@@ -27,6 +27,11 @@ class GameRepository {
 
   Future<void> saveBankroll(double amount) =>
       _prefs.setDouble(_bankrollKey, amount);
+
+  bool getDisplayInBB() => _prefs.getBool(_displayInBBKey) ?? false;
+
+  Future<void> saveDisplayInBB(bool value) =>
+      _prefs.setBool(_displayInBBKey, value);
 
   double getTableStack() => _prefs.getDouble(_tableStackKey) ?? defaultBuyIn;
 
