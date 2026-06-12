@@ -1,211 +1,158 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../data/models/player_model.dart';
+import '../../../../data/models/hand_log_model.dart';
 import 'card_widget.dart';
+import '../../../../core/i18n/i18n.dart';
 
+/// Seat with cartoon avatar circle, name plate with stack, position tag,
+/// and a small action bubble announcing the player's last move this street.
 class PlayerSeatWidget extends StatelessWidget {
   final PlayerModel player;
   final bool isActive;
   final bool isHuman;
+  final String emoji;
+  final String stackLabel;
+  final HandAction? lastStreetAction;
+  final String? actionAmountLabel;
 
   const PlayerSeatWidget({
     super.key,
     required this.player,
     required this.isActive,
     required this.isHuman,
+    required this.emoji,
+    required this.stackLabel,
+    this.lastStreetAction,
+    this.actionAmountLabel,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (isHuman) return _buildHumanSeat();
-    return _buildBotSeat();
-  }
-
-  Widget _buildBotSeat() {
     final isFolded = player.isFolded;
-    final opacity = isFolded ? 0.4 : 1.0;
+    final avatarSize = isHuman ? 50.0 : 44.0;
 
     return Opacity(
-      opacity: opacity,
+      opacity: isFolded ? 0.45 : 1.0,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Cards
-          HoleCardsWidget(
-            cards: player.holeCards,
-            faceDown: !player.cardsVisible,
-            cardWidth: 22,
-            cardHeight: 32,
-            highlighted: player.isWinner,
+          // Action bubble (small alert per player)
+          SizedBox(
+            height: 20,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: lastStreetAction != null
+                  ? _ActionBubble(
+                      key: ValueKey('${lastStreetAction!.sequence}'),
+                      action: lastStreetAction!,
+                      amountLabel: actionAmountLabel,
+                    )
+                  : const SizedBox.shrink(),
+            ),
           ),
-          const SizedBox(height: 3),
-          // Seat info
+          // Bot cards peek behind avatar
+          if (!isHuman)
+            SizedBox(
+              height: 30,
+              child: HoleCardsWidget(
+                cards: player.holeCards,
+                faceDown: !player.cardsVisible,
+                cardWidth: 20,
+                cardHeight: 29,
+                highlighted: player.isWinner,
+              ),
+            ),
+          const SizedBox(height: 2),
+          // Avatar circle
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            width: avatarSize,
+            height: avatarSize,
             decoration: BoxDecoration(
-              color: isActive
-                  ? AppColors.accent.withOpacity(0.2)
-                  : AppColors.surfaceElevated,
-              borderRadius: BorderRadius.circular(8),
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: player.isWinner
+                    ? [AppColors.gold, AppColors.goldDark]
+                    : [AppColors.surfaceElevated, AppColors.surface],
+              ),
               border: Border.all(
-                color: isActive ? AppColors.accent : AppColors.border,
-                width: isActive ? 1.5 : 0.5,
+                color: isActive
+                    ? AppColors.accent
+                    : (player.isWinner ? AppColors.gold : AppColors.woodLight),
+                width: isActive ? 2.5 : 1.5,
               ),
               boxShadow: isActive
-                  ? [const BoxShadow(color: AppColors.accentGlow, blurRadius: 8)]
-                  : null,
+                  ? [const BoxShadow(color: AppColors.accentGlow, blurRadius: 12, spreadRadius: 2)]
+                  : [const BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(1, 2))],
+            ),
+            child: Center(
+              child: Text(emoji, style: TextStyle(fontSize: avatarSize * 0.52)),
+            ),
+          ),
+          const SizedBox(height: 2),
+          // Name plate
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.75),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isActive ? AppColors.accent : Colors.white12,
+                width: isActive ? 1.2 : 0.5,
+              ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (player.isDealer)
-                      Container(
-                        width: 14,
-                        height: 14,
-                        margin: const EdgeInsets.only(right: 3),
-                        decoration: const BoxDecoration(
-                          color: AppColors.gold,
-                          shape: BoxShape.circle,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 80),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          isHuman ? I18n.t('you') : _shortName(player.name),
+                          style: TextStyle(
+                            color: isHuman ? AppColors.accent : AppColors.textPrimary,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                        child: const Center(
-                          child: Text('D', style: TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.w900)),
+                        const SizedBox(width: 4),
+                        Text(
+                          player.positionLabel,
+                          style: TextStyle(
+                            color: _positionColor(player.position),
+                            fontSize: 7.5,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                    Text(
-                      _shortName(player.name),
-                      style: TextStyle(
-                        color: isActive ? AppColors.accent : AppColors.textPrimary,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
                 Text(
-                  '\$${player.stack.toStringAsFixed(0)}',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 8),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: _positionColor(player.position).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Text(
-                    player.positionLabel,
-                    style: TextStyle(
-                      color: _positionColor(player.position),
-                      fontSize: 7,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  player.isAllIn ? 'ALL-IN' : stackLabel,
+                  style: TextStyle(
+                    color: player.isAllIn ? AppColors.gtoMarginal : AppColors.gold,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
             ),
           ),
-          if (player.streetBet > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.chipBlue.withOpacity(0.8),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '\$${player.streetBet.toStringAsFixed(0)}',
-                  style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
         ],
       ),
     );
   }
 
-  Widget _buildHumanSeat() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        HoleCardsWidget(
-          cards: player.holeCards,
-          faceDown: false,
-          cardWidth: 38,
-          cardHeight: 54,
-          highlighted: player.isWinner,
-        ),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceElevated,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.accent.withOpacity(0.5), width: 1),
-          ),
-          child: Column(
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (player.isDealer)
-                    Container(
-                      width: 16,
-                      height: 16,
-                      margin: const EdgeInsets.only(right: 4),
-                      decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle),
-                      child: const Center(
-                        child: Text('D', style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900)),
-                      ),
-                    ),
-                  const Text(
-                    'YOU',
-                    style: TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1),
-                  ),
-                ],
-              ),
-              Text(
-                '\$${player.stack.toStringAsFixed(0)}',
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: _positionColor(player.position).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Text(
-                  player.positionLabel,
-                  style: TextStyle(color: _positionColor(player.position), fontSize: 9, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (player.streetBet > 0)
-          Padding(
-            padding: const EdgeInsets.only(top: 3),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.chipBlue,
-                borderRadius: BorderRadius.circular(5),
-              ),
-              child: Text(
-                '\$${player.streetBet.toStringAsFixed(0)}',
-                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
   String _shortName(String name) {
     final parts = name.split(' ');
-    if (parts.length == 1) return name.length > 8 ? name.substring(0, 8) : name;
+    if (parts.length == 1) return name.length > 9 ? name.substring(0, 9) : name;
     return '${parts.first[0]}. ${parts.last}';
   }
 
@@ -217,6 +164,49 @@ class PlayerSeatWidget extends StatelessWidget {
       case TablePosition.utg: return const Color(0xFFCE93D8);
       case TablePosition.mp: return const Color(0xFF80CBC4);
       case TablePosition.co: return const Color(0xFFA5D6A7);
+    }
+  }
+}
+
+class _ActionBubble extends StatelessWidget {
+  final HandAction action;
+  final String? amountLabel;
+
+  const _ActionBubble({super.key, required this.action, this.amountLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = _style(action.type);
+    final text = amountLabel != null && amountLabel!.isNotEmpty
+        ? '$label $amountLabel'
+        : label;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(9),
+        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 3, offset: Offset(0, 1))],
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 8.5,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  (String, Color) _style(ActionType t) {
+    switch (t) {
+      case ActionType.fold: return ('FOLD', AppColors.actionFold);
+      case ActionType.check: return ('CHECK', AppColors.actionCheck);
+      case ActionType.call: return ('CALL', AppColors.actionCall);
+      case ActionType.bet: return ('BET', AppColors.actionRaise);
+      case ActionType.raise: return ('RAISE', const Color(0xFFE65100));
+      case ActionType.allIn: return ('ALL-IN', const Color(0xFF8E24AA));
     }
   }
 }

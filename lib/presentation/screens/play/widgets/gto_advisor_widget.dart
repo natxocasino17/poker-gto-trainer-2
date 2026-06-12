@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/utils/equity_calculator.dart';
 import '../../../../presentation/providers/game_provider.dart';
 import 'package:provider/provider.dart';
+import '../../../widgets/zeros_avatar.dart';
 
 class GTOAdvisorFAB extends StatelessWidget {
   const GTOAdvisorFAB({super.key});
@@ -15,16 +15,36 @@ class GTOAdvisorFAB extends StatelessWidget {
     return AnimatedOpacity(
       opacity: isMyTurn ? 1.0 : 0.4,
       duration: const Duration(milliseconds: 300),
-      child: FloatingActionButton.small(
-        onPressed: isMyTurn ? () => gp.requestGTOAdvice() : null,
-        backgroundColor: AppColors.surfaceElevated,
-        elevation: 4,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.psychology, color: AppColors.accent, size: 18),
-            Text('GTO', style: TextStyle(color: AppColors.accent, fontSize: 7, fontWeight: FontWeight.w700)),
-          ],
+      child: GestureDetector(
+        onTap: isMyTurn ? () => gp.requestGTOAdvice() : null,
+        child: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.surfaceElevated,
+            border: Border.all(color: AppColors.accent, width: 2),
+            boxShadow: const [BoxShadow(color: AppColors.accentGlow, blurRadius: 10, spreadRadius: 1)],
+          ),
+          child: Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              const Center(child: ZerosAvatar(size: 44)),
+              // Small "GTO" badge so its purpose stays clear (Puxi = the AI face)
+              Positioned(
+                bottom: -2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text('GTO',
+                      style: TextStyle(color: Color(0xFF06231E), fontSize: 7, fontWeight: FontWeight.w900)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -63,10 +83,10 @@ class GTOAdvisorOverlay extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.psychology, color: AppColors.accent, size: 20),
+                      const ZerosAvatar(size: 24),
                       const SizedBox(width: 8),
                       const Text(
-                        'GTO ADVISOR',
+                        'EL PUXI · GTO',
                         style: TextStyle(color: AppColors.accent, fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 1.5),
                       ),
                       const Spacer(),
@@ -77,7 +97,7 @@ class GTOAdvisorOverlay extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _buildMetricRow('Your Equity', '${(advice.equity * 100).toStringAsFixed(1)}%', _equityColor(advice.equity)),
+                  _buildMetricRow('Tu Equity', '${(advice.equity * 100).toStringAsFixed(1)}%', _equityColor(advice.equity)),
                   if (advice.potOdds > 0)
                     _buildMetricRow('Pot Odds', '${(advice.potOdds * 100).toStringAsFixed(1)}%', AppColors.textSecondary),
                   _buildMetricRow('EV', '${advice.ev >= 0 ? "+" : ""}${(advice.ev * 100).toStringAsFixed(1)}%', advice.ev >= 0 ? AppColors.winning : AppColors.losing),
@@ -115,9 +135,33 @@ class GTOAdvisorOverlay extends StatelessWidget {
                     advice.reasoning,
                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
                   ),
+                  // Personalized note: the app has learned how YOU play.
+                  if (gp.personalizedTip().isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.gold.withOpacity(0.35)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('🧠 ', style: TextStyle(fontSize: 13)),
+                          Expanded(
+                            child: Text(
+                              gp.personalizedTip(),
+                              style: const TextStyle(color: AppColors.gold, fontSize: 11.5, height: 1.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   const Text(
-                    'Tap anywhere to dismiss',
+                    'Toca en cualquier sitio para cerrar',
                     style: TextStyle(color: AppColors.textMuted, fontSize: 10),
                     textAlign: TextAlign.center,
                   ),

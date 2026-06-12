@@ -1,5 +1,5 @@
 name: poker_gto_trainer
-description: Professional GTO Texas Hold'em 6-Max Poker Training App
+description: iPT - iPoker Training. Entrenador profesional de Texas Hold'em 6-Max
 version: 1.0.0+1
 publish_to: 'none'
 
@@ -19,3 +19,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/zeros_avatar.png
+    - assets/ipt_logo.png
