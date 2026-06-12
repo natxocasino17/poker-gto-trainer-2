@@ -4,6 +4,7 @@ import '../data/models/player_model.dart';
 import '../data/models/hand_log_model.dart';
 import '../core/utils/equity_calculator.dart';
 import '../core/utils/poker_concepts.dart';
+import '../core/utils/preflop_charts.dart';
 
 class BotDecision {
   final ActionType type;
@@ -57,6 +58,9 @@ class LegendProfile {
   final bool highVarianceDraws;
   final bool potControl;
   final bool stackPressure;
+  final bool stationCalling; // calling station: barely ever folds a piece
+  final bool fitOrFold;      // gives up postflop without a made hand
+  final bool isArchetype;    // style profile (Nit, LAG...) vs real legend
 
   const LegendProfile({
     required this.name,
@@ -90,6 +94,9 @@ class LegendProfile {
     this.highVarianceDraws = false,
     this.potControl = false,
     this.stackPressure = false,
+    this.stationCalling = false,
+    this.fitOrFold = false,
+    this.isArchetype = false,
   });
 }
 
@@ -100,7 +107,7 @@ class LegendaryBotEngine {
     // 1. Phil Ivey — Loose-Aggressive Exploiter: reads weakness instantly,
     // barrels turn/river up to 80% vs over-folders.
     LegendProfile(
-      name: 'Phil Ivey',
+      name: 'Phil',
       style: 'Loose-Aggressive Exploiter',
       emoji: '🦅',
       utgOpen: 0.64, mpOpen: 0.57, coOpen: 0.49, btnOpen: 0.40, sbOpen: 0.52, bbDefend: 0.38,
@@ -115,7 +122,7 @@ class LegendaryBotEngine {
     // 2. Adrián Mateos — GTO Hyper-Aggressive: high 3-bet frequency,
     // polarized 150%+ river overbets with optimal blockers.
     LegendProfile(
-      name: 'Adrián Mateos',
+      name: 'Adrián',
       style: 'GTO Hyper-Aggressive',
       emoji: '⚡',
       utgOpen: 0.68, mpOpen: 0.60, coOpen: 0.52, btnOpen: 0.42, sbOpen: 0.54, bbDefend: 0.40,
@@ -130,7 +137,7 @@ class LegendaryBotEngine {
     // 3. Daniel Negreanu — Small Ball Trapper: 2x opens, high check-call
     // to induce bluffs, slowplays monsters.
     LegendProfile(
-      name: 'Daniel Negreanu',
+      name: 'Daniel',
       style: 'Small Ball Trapper',
       emoji: '🎯',
       utgOpen: 0.60, mpOpen: 0.53, coOpen: 0.44, btnOpen: 0.34, sbOpen: 0.46, bbDefend: 0.32,
@@ -144,7 +151,7 @@ class LegendaryBotEngine {
     // 4. Phil Hellmuth — Tight-Passive White Magic: ultra-tight ranges,
     // his raises on later streets are PURE value (zero bluff raises).
     LegendProfile(
-      name: 'Phil Hellmuth',
+      name: 'Philip',
       style: 'Tight-Passive Premium',
       emoji: '👑',
       utgOpen: 0.74, mpOpen: 0.69, coOpen: 0.62, btnOpen: 0.53, sbOpen: 0.65, bbDefend: 0.50,
@@ -158,7 +165,7 @@ class LegendaryBotEngine {
     // 5. Tom Dwan — Ultra-Loose Aggressive: triple barrels with total air,
     // unpredictable sizings designed to crack tight ranges.
     LegendProfile(
-      name: 'Tom Dwan',
+      name: 'Tom',
       style: 'Ultra-Loose Aggressive',
       emoji: '🌪️',
       utgOpen: 0.52, mpOpen: 0.44, coOpen: 0.34, btnOpen: 0.24, sbOpen: 0.36, bbDefend: 0.22,
@@ -173,7 +180,7 @@ class LegendaryBotEngine {
     // 6. Doyle Brunson — Old School Aggressive: heavy implied-odds weighting
     // on draws, ramps pressure when villain hesitates.
     LegendProfile(
-      name: 'Doyle Brunson',
+      name: 'Doyle',
       style: 'Old School Aggressive',
       emoji: '🤠',
       utgOpen: 0.58, mpOpen: 0.50, coOpen: 0.41, btnOpen: 0.31, sbOpen: 0.43, bbDefend: 0.28,
@@ -187,7 +194,7 @@ class LegendaryBotEngine {
     // 7. Fedor Holz — GTO Strict: perfectly balanced solver trees,
     // standardized sizings.
     LegendProfile(
-      name: 'Fedor Holz',
+      name: 'Fedor',
       style: 'GTO Strict',
       emoji: '🤖',
       utgOpen: 0.66, mpOpen: 0.60, coOpen: 0.52, btnOpen: 0.43, sbOpen: 0.55, bbDefend: 0.40,
@@ -200,7 +207,7 @@ class LegendaryBotEngine {
     // 8. Chris Moneymaker — Explosive Variance: wide preflop, jams
     // combo draws on the flop to force variance.
     LegendProfile(
-      name: 'Chris Moneymaker',
+      name: 'Chris',
       style: 'Explosive High Variance',
       emoji: '💣',
       utgOpen: 0.56, mpOpen: 0.48, coOpen: 0.38, btnOpen: 0.28, sbOpen: 0.40, bbDefend: 0.25,
@@ -215,7 +222,7 @@ class LegendaryBotEngine {
     // 9. Justin Bonomo — Computational Frequencies: strict equity-vs-range
     // balancing.
     LegendProfile(
-      name: 'Justin Bonomo',
+      name: 'Justin',
       style: 'Computational GTO',
       emoji: '📊',
       utgOpen: 0.67, mpOpen: 0.61, coOpen: 0.53, btnOpen: 0.44, sbOpen: 0.56, bbDefend: 0.41,
@@ -228,7 +235,7 @@ class LegendaryBotEngine {
     // 10. Stephen Chidwick — Blind Defense Elite: wide blind defense and
     // relentless technical check-raises.
     LegendProfile(
-      name: 'Stephen Chidwick',
+      name: 'Stephen',
       style: 'Blind Defense Elite',
       emoji: '🛡️',
       utgOpen: 0.65, mpOpen: 0.58, coOpen: 0.50, btnOpen: 0.40, sbOpen: 0.50, bbDefend: 0.30,
@@ -242,7 +249,7 @@ class LegendaryBotEngine {
     // 11. Gus Hansen — Classic LAG: opens marginal hands from any seat,
     // grinds solid ranges down with extreme postflop aggression.
     LegendProfile(
-      name: 'Gus Hansen',
+      name: 'Gus',
       style: 'Classic Loose-Aggressive',
       emoji: '🔥',
       utgOpen: 0.49, mpOpen: 0.40, coOpen: 0.30, btnOpen: 0.20, sbOpen: 0.32, bbDefend: 0.18,
@@ -257,7 +264,7 @@ class LegendaryBotEngine {
     // 12. Antonio Esfandiari — Pot Control Specialist: keeps pots small with
     // medium hands, extracts surgical thin value on rivers.
     LegendProfile(
-      name: 'Antonio Esfandiari',
+      name: 'Antonio',
       style: 'Pot Control Specialist',
       emoji: '🎪',
       utgOpen: 0.62, mpOpen: 0.55, coOpen: 0.46, btnOpen: 0.36, sbOpen: 0.48, bbDefend: 0.33,
@@ -272,7 +279,7 @@ class LegendaryBotEngine {
     // 13. Michael Addamo — Overbet Terror: 2-3x pot bombs from the flop
     // forcing stack-commitment decisions.
     LegendProfile(
-      name: 'Michael Addamo',
+      name: 'Michael',
       style: 'Overbet Terror',
       emoji: '💥',
       utgOpen: 0.63, mpOpen: 0.56, coOpen: 0.47, btnOpen: 0.37, sbOpen: 0.49, bbDefend: 0.35,
@@ -287,7 +294,7 @@ class LegendaryBotEngine {
     // 14. Linus Loeliger — High Roller Cash GTO: mathematically perfect
     // preflop, immune to tilt, zero psychological exploitation.
     LegendProfile(
-      name: 'Linus Loeliger',
+      name: 'Linus',
       style: 'High Roller Cash GTO',
       emoji: '💎',
       utgOpen: 0.68, mpOpen: 0.62, coOpen: 0.54, btnOpen: 0.45, sbOpen: 0.57, bbDefend: 0.42,
@@ -301,7 +308,7 @@ class LegendaryBotEngine {
     // 15. Bryn Kenney — Stack Pressure: sizes bets to punish survival
     // ranges, maximizing chip leverage.
     LegendProfile(
-      name: 'Bryn Kenney',
+      name: 'Bryn',
       style: 'Stack Pressure Expert',
       emoji: '⚖️',
       utgOpen: 0.61, mpOpen: 0.54, coOpen: 0.45, btnOpen: 0.35, sbOpen: 0.47, bbDefend: 0.32,
@@ -316,7 +323,7 @@ class LegendaryBotEngine {
     // 16. Raúl Mestre — Spanish GTO pioneer: theory-perfect balanced
     // frequencies, disciplined 3-bets, surgical postflop play.
     LegendProfile(
-      name: 'Raúl Mestre',
+      name: 'Raúl',
       style: 'Teórico GTO Español',
       emoji: '🧠',
       utgOpen: 0.66, mpOpen: 0.59, coOpen: 0.51, btnOpen: 0.42, sbOpen: 0.53, bbDefend: 0.38,
@@ -330,7 +337,7 @@ class LegendaryBotEngine {
     // 17. Papo "Lococo" — Argentine freestyle: fearless creative aggression,
     // unpredictable lines and sizings, loves the big bluff.
     LegendProfile(
-      name: 'Papo Lococo',
+      name: 'Papo',
       style: 'Freestyle Agresivo',
       emoji: '🎤',
       utgOpen: 0.54, mpOpen: 0.46, coOpen: 0.36, btnOpen: 0.26, sbOpen: 0.38, bbDefend: 0.24,
@@ -344,21 +351,149 @@ class LegendaryBotEngine {
     ),
   ];
 
+  /// Style archetypes from the "Tipos de Rivales" index: recreational
+  /// passives/aggressives, regs and special profiles.
+  static const List<LegendProfile> _archetypes = [
+    LegendProfile(
+      name: 'Nit', style: 'Roca Ultra-Tight', emoji: '🧊', isArchetype: true,
+      utgOpen: 0.78, mpOpen: 0.74, coOpen: 0.68, btnOpen: 0.60, sbOpen: 0.70, bbDefend: 0.55,
+      threeBetThreshold: 0.86, fourBetThreshold: 0.94,
+      cBetFreq: 0.55, doubleBarrelFreq: 0.35, tripleBarrelFreq: 0.18, checkRaiseFreq: 0.10,
+      bluffFreq: 0.04, slowplayFreq: 0.10,
+      preferredSizings: [0.5, 0.75], riverOverbetThreshold: 0.97,
+      bluffRaiseFreq: 0.0, threeBetBluffFreq: 0.0, floatFreq: 0.04,
+    ),
+    LegendProfile(
+      name: 'TAG Clásico', style: 'Tight-Aggressive Sólido', emoji: '🎓', isArchetype: true,
+      utgOpen: 0.68, mpOpen: 0.62, coOpen: 0.54, btnOpen: 0.45, sbOpen: 0.56, bbDefend: 0.42,
+      threeBetThreshold: 0.72, fourBetThreshold: 0.88,
+      cBetFreq: 0.68, doubleBarrelFreq: 0.52, tripleBarrelFreq: 0.36, checkRaiseFreq: 0.26,
+      bluffFreq: 0.24, slowplayFreq: 0.16,
+      preferredSizings: [0.5, 0.66, 0.75], riverOverbetThreshold: 0.85,
+    ),
+    LegendProfile(
+      name: 'LAG Salvaje', style: 'Loose-Aggressive Total', emoji: '🐺', isArchetype: true,
+      utgOpen: 0.50, mpOpen: 0.42, coOpen: 0.32, btnOpen: 0.22, sbOpen: 0.34, bbDefend: 0.20,
+      threeBetThreshold: 0.60, fourBetThreshold: 0.78,
+      cBetFreq: 0.84, doubleBarrelFreq: 0.70, tripleBarrelFreq: 0.54, checkRaiseFreq: 0.38,
+      bluffFreq: 0.52, slowplayFreq: 0.10,
+      preferredSizings: [0.66, 1.0, 1.5], riverOverbetThreshold: 0.64,
+      openSizeBB: 2.6, threeBetBluffFreq: 0.22, bluffRaiseFreq: 0.24,
+      exploitsHighFolders: true, polarizedBetting: true,
+    ),
+    LegendProfile(
+      name: 'Calling Station', style: 'Recreacional Pasivo', emoji: '🐟', isArchetype: true,
+      utgOpen: 0.45, mpOpen: 0.40, coOpen: 0.35, btnOpen: 0.28, sbOpen: 0.35, bbDefend: 0.15,
+      threeBetThreshold: 0.88, fourBetThreshold: 0.95,
+      cBetFreq: 0.35, doubleBarrelFreq: 0.22, tripleBarrelFreq: 0.12, checkRaiseFreq: 0.06,
+      bluffFreq: 0.05, slowplayFreq: 0.30,
+      preferredSizings: [0.33, 0.5], riverOverbetThreshold: 0.98,
+      bluffRaiseFreq: 0.0, threeBetBluffFreq: 0.0, floatFreq: 0.30, impliedOddsWeight: 1.6,
+      stationCalling: true,
+    ),
+    LegendProfile(
+      name: 'Maniac', style: 'Recreacional Agresivo', emoji: '🤡', isArchetype: true,
+      utgOpen: 0.40, mpOpen: 0.34, coOpen: 0.26, btnOpen: 0.16, sbOpen: 0.26, bbDefend: 0.12,
+      threeBetThreshold: 0.52, fourBetThreshold: 0.68,
+      cBetFreq: 0.92, doubleBarrelFreq: 0.80, tripleBarrelFreq: 0.66, checkRaiseFreq: 0.45,
+      bluffFreq: 0.68, slowplayFreq: 0.05,
+      preferredSizings: [1.0, 1.5, 2.0, 3.0], riverOverbetThreshold: 0.50,
+      openSizeBB: 3.5, threeBetBluffFreq: 0.30, bluffRaiseFreq: 0.36,
+      polarizedBetting: true, highVarianceDraws: true, stackPressure: true,
+    ),
+    LegendProfile(
+      name: 'Fit or Fold', style: 'Recreacional Predecible', emoji: '🚪', isArchetype: true,
+      utgOpen: 0.62, mpOpen: 0.56, coOpen: 0.50, btnOpen: 0.42, sbOpen: 0.52, bbDefend: 0.35,
+      threeBetThreshold: 0.80, fourBetThreshold: 0.92,
+      cBetFreq: 0.45, doubleBarrelFreq: 0.25, tripleBarrelFreq: 0.12, checkRaiseFreq: 0.08,
+      bluffFreq: 0.05, slowplayFreq: 0.08,
+      preferredSizings: [0.5, 0.75], riverOverbetThreshold: 0.95,
+      bluffRaiseFreq: 0.0, threeBetBluffFreq: 0.02, floatFreq: 0.03,
+      fitOrFold: true,
+    ),
+    LegendProfile(
+      name: 'ABC Reg', style: 'Regular de Manual', emoji: '📘', isArchetype: true,
+      utgOpen: 0.67, mpOpen: 0.61, coOpen: 0.53, btnOpen: 0.44, sbOpen: 0.55, bbDefend: 0.41,
+      threeBetThreshold: 0.74, fourBetThreshold: 0.89,
+      cBetFreq: 0.65, doubleBarrelFreq: 0.45, tripleBarrelFreq: 0.28, checkRaiseFreq: 0.18,
+      bluffFreq: 0.18, slowplayFreq: 0.14,
+      preferredSizings: [0.5, 0.66], riverOverbetThreshold: 0.90,
+      threeBetBluffFreq: 0.06,
+    ),
+    LegendProfile(
+      name: 'Solver Reg', style: 'GTO de Laboratorio', emoji: '🧮', isArchetype: true,
+      utgOpen: 0.67, mpOpen: 0.61, coOpen: 0.53, btnOpen: 0.43, sbOpen: 0.55, bbDefend: 0.40,
+      threeBetThreshold: 0.69, fourBetThreshold: 0.85,
+      cBetFreq: 0.70, doubleBarrelFreq: 0.57, tripleBarrelFreq: 0.43, checkRaiseFreq: 0.33,
+      bluffFreq: 0.30, slowplayFreq: 0.17,
+      preferredSizings: [0.33, 0.5, 0.75, 1.25], riverOverbetThreshold: 0.76,
+      threeBetBluffFreq: 0.16, squeezeFreq: 0.16, blockerBetFreq: 0.18,
+    ),
+    LegendProfile(
+      name: 'Nit Agresivo', style: 'Rango Cerrado, Postflop Letal', emoji: '🦂', isArchetype: true,
+      utgOpen: 0.75, mpOpen: 0.70, coOpen: 0.64, btnOpen: 0.56, sbOpen: 0.66, bbDefend: 0.50,
+      threeBetThreshold: 0.80, fourBetThreshold: 0.90,
+      cBetFreq: 0.80, doubleBarrelFreq: 0.66, tripleBarrelFreq: 0.50, checkRaiseFreq: 0.36,
+      bluffFreq: 0.30, slowplayFreq: 0.12,
+      preferredSizings: [0.75, 1.0, 1.5], riverOverbetThreshold: 0.72,
+      bluffRaiseFreq: 0.14, threeBetBluffFreq: 0.05,
+      polarizedBetting: true,
+    ),
+    LegendProfile(
+      name: 'Gambler', style: 'Apostador Compulsivo', emoji: '🎰', isArchetype: true,
+      utgOpen: 0.48, mpOpen: 0.42, coOpen: 0.34, btnOpen: 0.24, sbOpen: 0.36, bbDefend: 0.18,
+      threeBetThreshold: 0.62, fourBetThreshold: 0.78,
+      cBetFreq: 0.75, doubleBarrelFreq: 0.60, tripleBarrelFreq: 0.45, checkRaiseFreq: 0.25,
+      bluffFreq: 0.40, slowplayFreq: 0.10,
+      preferredSizings: [0.75, 1.0, 1.5], riverOverbetThreshold: 0.60,
+      impliedOddsWeight: 1.8, threeBetBluffFreq: 0.15, bluffRaiseFreq: 0.18,
+      highVarianceDraws: true,
+    ),
+  ];
+
+  /// Every profile that can be seated via the table editor.
+  static List<LegendProfile> get legends => List.unmodifiable(_allLegends);
+  static List<LegendProfile> get archetypes => List.unmodifiable(_archetypes);
+  static List<LegendProfile> get allSelectable =>
+      [..._allLegends, ..._archetypes];
+
   static List<LegendProfile> selectTable() {
     final pool = List<LegendProfile>.from(_allLegends)..shuffle(_rng);
     return pool.take(5).toList();
   }
 
   static LegendProfile profileByName(String name) =>
-      _allLegends.firstWhere((p) => p.name == name, orElse: () => _allLegends[0]);
+      allSelectable.firstWhere((p) => p.name == name, orElse: () => _allLegends[0]);
 
   /// When a bot busts it leaves the table; a fresh legend (not currently
   /// seated) takes the empty seat with a new stack.
   static LegendProfile replacementFor(List<String> seatedNames) {
     final available =
-        _allLegends.where((p) => !seatedNames.contains(p.name)).toList();
+        allSelectable.where((p) => !seatedNames.contains(p.name)).toList();
     if (available.isEmpty) return _allLegends[_rng.nextInt(_allLegends.length)];
     return available[_rng.nextInt(available.length)];
+  }
+
+  /// Builds the lineup chosen in the table editor; null slots are filled
+  /// with random profiles not already seated.
+  static List<LegendProfile> buildLineup(List<String?> slots) {
+    final lineup = <LegendProfile>[];
+    final used = <String>[];
+    for (final name in slots.take(5)) {
+      if (name != null && allSelectable.any((p) => p.name == name) &&
+          !used.contains(name)) {
+        final prof = profileByName(name);
+        lineup.add(prof);
+        used.add(prof.name);
+      }
+    }
+    final pool = allSelectable.where((p) => !used.contains(p.name)).toList()
+      ..shuffle(_rng);
+    int i = 0;
+    while (lineup.length < 5 && i < pool.length) {
+      lineup.add(pool[i++]);
+    }
+    return lineup;
   }
 
   // ──────────────────────────────────────────────────────────────────────
@@ -448,113 +583,152 @@ class LegendaryBotEngine {
     required int callers,
     required double bb,
   }) {
+    final code = PreflopCharts.handCode(hole);
+    final rfiPlan = PreflopCharts.rfi(position, code);
+    final defensePlan = PreflopCharts.defense(position, code);
     final strength = CardModel.preflopStrength(hole);
-    final suited = hole[0].suit == hole[1].suit;
-    final hasAce = hole.any((c) => c.rank == 14);
-    final isPocketPair = hole[0].rank == hole[1].rank;
-    final gap = (hole[0].rank - hole[1].rank).abs();
-    final posThreshold = _openThreshold(profile, position);
     final rand = _rng.nextDouble();
 
-    double clampTo(double v) => v.clamp(bb, stack).toDouble();
+    // Personality drift around the chart: loose profiles (Dwan, Maniac)
+    // add hands the chart folds; tight ones (Hellmuth, Nit) trim the bottom.
+    final looseness = (0.40 - profile.btnOpen).clamp(-0.25, 0.25).toDouble();
+    final posThreshold = _openThreshold(profile, position);
 
-    // ---- Unopened pot (or limps only) ----
+    double clampTo(double v) => v.clamp(bb, stack).toDouble();
+    final potOdds = GtoMath.potOdds(callAmount, pot);
+    final inPosition = position == TablePosition.btn || position == TablePosition.co;
+
+    // ───── Unopened pot: RFI straight from the chart ─────
     if (raiseCount == 0) {
       if (callAmount <= 0) {
-        // BB option: iso-raise strong hands at mixed frequency
+        // BB option: iso-raise the top of range at mixed frequency
         if (strength >= posThreshold + 0.18 && rand < 0.55) {
-          final isoTo = clampTo(profile.openSizeBB * bb + callers * bb);
-          return BotDecision(type: ActionType.raise, amount: isoTo, thinkMs: 0);
+          return BotDecision(
+            type: ActionType.raise,
+            amount: clampTo(profile.openSizeBB * bb + callers * bb),
+            thinkMs: 0,
+          );
         }
         return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
       }
 
-      // RFI: open if inside the positional range (mixed at the boundary)
-      final openBoundary = strength - posThreshold;
-      if (openBoundary >= 0.04 || (openBoundary >= -0.02 && rand < 0.5)) {
-        final openTo = clampTo(profile.openSizeBB * bb + callers * bb);
-        return BotDecision(type: ActionType.raise, amount: openTo, thinkMs: 0);
+      bool opens = rfiPlan != ChartAction.fold;
+      // Loose drift: open some chart-folds with playable hands
+      if (!opens && looseness > 0 &&
+          strength >= posThreshold - 0.06 && rand < looseness * 2.2) {
+        opens = true;
       }
-      // SB completes with playable hands sometimes
+      // Tight drift: drop the weakest chart opens sometimes
+      if (opens && rfiPlan == ChartAction.orFold && looseness < 0 &&
+          strength < posThreshold + 0.04 && rand < -looseness * 1.8) {
+        opens = false;
+      }
+
+      if (opens) {
+        return BotDecision(
+          type: ActionType.raise,
+          amount: clampTo(profile.openSizeBB * bb + callers * bb),
+          thinkMs: 0,
+        );
+      }
+      // SB completes with some playable hands behind the discount
       if (position == TablePosition.sb &&
-          strength >= posThreshold - 0.14 && rand < 0.45) {
+          strength >= posThreshold - 0.14 && rand < 0.40) {
         return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
       }
       return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
     }
 
-    final potOdds = GtoMath.potOdds(callAmount, pot);
-    final inPosition = position == TablePosition.btn || position == TablePosition.co;
+    final iOpenedThisHand = myStreetBet > bb || (myStreetBet == bb && position != TablePosition.bb);
 
-    // ---- Facing a single open ----
+    // ───── Facing a 3-bet of our own open: follow the RFI plan ─────
+    if (raiseCount >= 2 && iOpenedThisHand) {
+      switch (rfiPlan) {
+        case ChartAction.fourBetCall:
+          final to = clampTo(currentBet * 2.3);
+          if (to >= stack * 0.40 || raiseCount >= 3) {
+            return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
+          }
+          return BotDecision(type: ActionType.raise, amount: to, thinkMs: 0);
+        case ChartAction.fourBetFold:
+          if (raiseCount >= 3) {
+            return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+          }
+          return BotDecision(
+            type: ActionType.raise, amount: clampTo(currentBet * 2.3), thinkMs: 0);
+        case ChartAction.orCall3B:
+          if (callAmount <= stack * 0.30) {
+            return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
+          }
+          return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+        default:
+          // Sticky stations peel anyway when priced in
+          if (profile.stationCalling && strength >= potOdds + 0.10) {
+            return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
+          }
+          return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+      }
+    }
+
+    // ───── Facing an open raise: defense chart ─────
     if (raiseCount == 1) {
-      // Value 3-bet / squeeze
       final isSqueezeSpot = callers > 0;
-      if (strength >= profile.threeBetThreshold) {
-        final mult = (inPosition ? 3.0 : 3.8) + callers * 1.0;
-        final to = clampTo(currentBet * mult);
-        if (isSqueezeSpot && strength < profile.fourBetThreshold &&
-            _rng.nextDouble() > profile.squeezeFreq + 0.55) {
-          // Occasionally flat the squeeze spot to disguise
+      switch (defensePlan) {
+        case DefenseAction.threeBetFiveBet:
+          final mult = (inPosition ? 3.0 : 3.8) + callers * 1.0;
+          return BotDecision(
+            type: ActionType.raise, amount: clampTo(currentBet * mult), thinkMs: 0);
+        case DefenseAction.threeBetCall4B:
+          final mult = (inPosition ? 3.0 : 3.8) + callers * 1.0;
+          if (isSqueezeSpot && rand > profile.squeezeFreq + 0.55) {
+            return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
+          }
+          return BotDecision(
+            type: ActionType.raise, amount: clampTo(currentBet * mult), thinkMs: 0);
+        case DefenseAction.threeBetFold:
+          // Polar bluff 3-bet at the profile's light 3-bet frequency
+          if (rand < profile.threeBetBluffFreq * 2.2 && !profile.stationCalling) {
+            final mult = (inPosition ? 3.0 : 4.0) + callers * 1.0;
+            return BotDecision(
+              type: ActionType.raise, amount: clampTo(currentBet * mult), thinkMs: 0);
+          }
+          // Otherwise these hands play fine as calls when cheap
+          if (callAmount <= 3 * bb && strength >= potOdds + 0.12) {
+            return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
+          }
+          return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+        case DefenseAction.call:
+          // Set mining check: tiny pairs need implied odds behind
+          final isPocketPair = hole[0].rank == hole[1].rank;
+          if (isPocketPair && hole[0].rank <= 6 &&
+              stack / max(callAmount, bb) < 12 / profile.impliedOddsWeight) {
+            return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+          }
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
-        }
-        return BotDecision(type: ActionType.raise, amount: to, thinkMs: 0);
+        case DefenseAction.fold:
+          // Loose drift: stations and LAGs peel a bit wider
+          if ((profile.stationCalling || looseness > 0.10) &&
+              callAmount <= 3 * bb && strength >= potOdds + 0.15 &&
+              rand < 0.5) {
+            return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
+          }
+          return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
       }
-
-      // Light 3-bet with blockers (A5s-type: ace blocker + suited playability)
-      if (hasAce && suited && strength >= posThreshold - 0.05 &&
-          rand < profile.threeBetBluffFreq) {
-        final to = clampTo(currentBet * (inPosition ? 3.0 : 4.0));
-        return BotDecision(type: ActionType.raise, amount: to, thinkMs: 0);
-      }
-
-      // Set mining: small pocket pairs need ~12x implied odds
-      if (isPocketPair && hole[0].rank <= 9) {
-        final impliedRatio = stack / max(callAmount, bb);
-        if (impliedRatio >= 12 / profile.impliedOddsWeight) {
-          return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
-        }
-      }
-
-      // Suited connectors flat in position (implied odds hands)
-      if (suited && gap <= 1 && min(hole[0].rank, hole[1].rank) >= 5 &&
-          inPosition && callAmount <= stack * 0.06) {
-        return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
-      }
-
-      // Standard flat: playable strength + price
-      if (strength >= profile.threeBetThreshold - 0.14 && strength >= potOdds + 0.15) {
-        return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
-      }
-      // BB closes cheap: defend wide per MDF
-      if (position == TablePosition.bb && callAmount <= 2.5 * bb &&
-          strength >= profile.bbDefend - 0.06) {
-        return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
-      }
-      return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
     }
 
-    // ---- Facing a 3-bet or bigger ----
-    if (strength >= profile.fourBetThreshold) {
+    // ───── Cold facing a 3-bet+ (we have not raised yet) ─────
+    if (defensePlan == DefenseAction.threeBetFiveBet) {
       final to = clampTo(currentBet * 2.3);
-      // If the 4-bet commits us, just jam
       if (to >= stack * 0.40 || raiseCount >= 3) {
         return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
       }
       return BotDecision(type: ActionType.raise, amount: to, thinkMs: 0);
     }
-    // 4-bet bluff with ace blocker (only vs first 3-bet)
-    if (raiseCount == 2 && hasAce && suited &&
-        rand < profile.threeBetBluffFreq * 0.4) {
-      final to = clampTo(currentBet * 2.3);
-      return BotDecision(type: ActionType.raise, amount: to, thinkMs: 0);
-    }
-    // Call the 3-bet with strong-but-not-premium
-    if (strength >= profile.threeBetThreshold && callAmount <= stack * 0.25) {
+    if (defensePlan == DefenseAction.threeBetCall4B && callAmount <= stack * 0.25) {
       return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
     }
-    // Priced in vs tiny raises
-    if (strength >= potOdds + 0.25 && callAmount <= 3 * bb) {
+    if (profile.stationCalling && strength >= potOdds + 0.08 &&
+        callAmount <= stack * 0.20) {
       return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
     }
     return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
@@ -705,6 +879,10 @@ class LegendaryBotEngine {
           return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
 
         case HandBucket.air:
+          // Fit-or-fold never fires without a piece
+          if (profile.fitOrFold) {
+            return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
+          }
           return _airBetOrCheck(
             profile: profile,
             texture: texture,
@@ -722,6 +900,20 @@ class LegendaryBotEngine {
 
     // ════════════ FACING A BET ════════════
     final potOdds = GtoMath.potOdds(callAmount, pot);
+
+    // Calling station: pays anything with a piece or a draw, hates folding
+    if (profile.stationCalling &&
+        analysis.bucket != HandBucket.air &&
+        equity >= potOdds - 0.08 &&
+        callAmount < stack) {
+      return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
+    }
+    // Fit-or-fold: without at least medium value, the hand goes to the muck
+    if (profile.fitOrFold &&
+        !analysis.isMadeValue &&
+        !(analysis.hasStrongDraw && GtoMath.potOdds(callAmount, pot) <= analysis.drawEquity)) {
+      return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+    }
     final betFraction = callAmount / max(pot - callAmount, 1.0);
     final isOverbet = betFraction > 1.0;
     final isSmallBet = betFraction <= 0.45;

@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/session_stats_model.dart';
 import '../../../presentation/providers/game_provider.dart';
 import '../../widgets/zeros_avatar.dart';
+import '../../../core/i18n/i18n.dart';
 
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
@@ -16,7 +17,7 @@ class StatsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('VALORACIÓN GLOBAL'),
+        title: Text(I18n.t('stats_title')),
         centerTitle: true,
       ),
       body: stats.handsPlayed == 0
@@ -42,15 +43,15 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.bar_chart, color: AppColors.textMuted, size: 48),
-          SizedBox(height: 12),
-          Text('Sin datos de sesión todavía', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
-          SizedBox(height: 6),
-          Text('Juega manos para generar tu informe de rendimiento', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          const Icon(Icons.bar_chart, color: AppColors.textMuted, size: 48),
+          const SizedBox(height: 12),
+          Text(I18n.t('no_data1'), style: const TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+          const SizedBox(height: 6),
+          Text(I18n.t('no_data2'), style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
         ],
       ),
     );
@@ -82,7 +83,7 @@ class _OverviewCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _OverviewStat(
-                label: 'Manos jugadas',
+                label: I18n.t('hands_played'),
                 value: '${stats.handsPlayed}',
                 color: AppColors.textPrimary,
               ),
@@ -96,7 +97,7 @@ class _OverviewCard extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const Text('Resultado neto', style: TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 0.5)),
+                  Text(I18n.t('net_result'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 0.5)),
                 ],
               ),
               _OverviewStat(
@@ -120,7 +121,7 @@ class _OverviewCard extends StatelessWidget {
                 Icon(Icons.psychology, color: _ratingColor(stats.decisionScore), size: 16),
                 const SizedBox(width: 6),
                 Text(
-                  'Nota de decisiones: ${stats.decisionScore.toStringAsFixed(0)}/100 — ${_ratingLabel(stats.decisionScore)}',
+                  I18n.t('decision_note', {'s': stats.decisionScore.toStringAsFixed(0), 'r': _ratingLabel(stats.decisionScore)}),
                   style: TextStyle(color: _ratingColor(stats.decisionScore), fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ],
@@ -139,11 +140,11 @@ class _OverviewCard extends StatelessWidget {
   }
 
   String _ratingLabel(double score) {
-    if (score >= 85) return 'Élite';
-    if (score >= 70) return 'Sólido';
-    if (score >= 55) return 'Del montón';
-    if (score >= 40) return 'Con fugas';
-    return 'Desastre';
+    if (score >= 85) return I18n.t('rating_elite');
+    if (score >= 70) return I18n.t('rating_solid');
+    if (score >= 55) return I18n.t('rating_avg');
+    if (score >= 40) return I18n.t('rating_leaky');
+    return I18n.t('rating_bad');
   }
 }
 
@@ -166,7 +167,7 @@ class _OverviewStat extends StatelessWidget {
 }
 
 /// Per-KPI knowledge base: what it means, what's wrong, how to fix it.
-/// Tapping a cell opens ZerosPoker's explanation.
+/// Tapping a cell opens el Puxi's explanation.
 class _KpiInfo {
   final String label;
   final String meaning;
@@ -232,7 +233,7 @@ const Map<String, _KpiInfo> _kpiKnowledge = {
   ),
   'Errores graves': _KpiInfo(
     label: 'Errores graves (Blunders)',
-    meaning: 'Decisiones con pérdida masiva de EV detectadas por ZerosPoker: calls sin odds, faroles imposibles, folds con la mano ganadora. Cada uno es dinero quemado.',
+    meaning: 'Decisiones con pérdida masiva de EV detectadas por el Puxi: calls sin odds, faroles imposibles, folds con la mano ganadora. Cada uno es dinero quemado.',
     target: '0',
     howToImprove: 'Entra en ANALIZAR y revisa cada blunder marcado en rojo. Identifica el patrón: ¿pagas de más en turn? ¿faroleas sin bloqueadores? El primer paso para no repetirlo es saber por qué pasó.',
   ),
@@ -247,10 +248,10 @@ class _KPIGrid extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('KPIs DE RENDIMIENTO', style: TextStyle(color: AppColors.textMuted, fontSize: 11, letterSpacing: 1.5)),
+        Text(I18n.t('kpi_title'), style: const TextStyle(color: AppColors.textMuted, fontSize: 11, letterSpacing: 1.5)),
         const SizedBox(height: 4),
-        const Text('Toca cada métrica y te explico qué significa y cómo mejorarla',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontStyle: FontStyle.italic)),
+        Text(I18n.t('kpi_hint'),
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 10, fontStyle: FontStyle.italic)),
         const SizedBox(height: 10),
         GridView.count(
           shrinkWrap: true,
@@ -303,7 +304,7 @@ class _KPICell extends StatelessWidget {
             const SizedBox(height: 3),
             Text(value, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w800)),
             const SizedBox(height: 1),
-            Text('Meta: $target', style: const TextStyle(color: AppColors.textMuted, fontSize: 8)),
+            Text(I18n.t('target_lbl', {'t': target}), style: const TextStyle(color: AppColors.textMuted, fontSize: 8)),
           ],
         ),
       ),
@@ -357,21 +358,21 @@ class _KPICell extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            const Text('QUÉ SIGNIFICA', style: TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
+            Text(I18n.t('what_means'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
             const SizedBox(height: 4),
             Text(info.meaning, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.5)),
             const SizedBox(height: 12),
             Row(
               children: [
-                const Text('OBJETIVO: ', style: TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
+                Text(I18n.t('objective_lbl'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
                 Text(info.target, style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w700)),
                 const SizedBox(width: 8),
                 if (!isGood)
-                  const Text('(y tú fuera de rango, cómo no)', style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontStyle: FontStyle.italic)),
+                  Text(I18n.t('out_of_range'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10, fontStyle: FontStyle.italic)),
               ],
             ),
             const SizedBox(height: 12),
-            const Text('CÓMO MEJORARLO', style: TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
+            Text(I18n.t('how_improve'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
             const SizedBox(height: 4),
             Text(info.howToImprove, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.5)),
           ],
@@ -397,13 +398,13 @@ class _DecisionScoreCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('DESGLOSE DE DECISIONES', style: TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
+          Text(I18n.t('decisions_hdr'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
           const SizedBox(height: 14),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _DecisionStat(label: 'Óptimas', value: '${stats.optimalDecisions}', color: AppColors.gtoOptimal),
-              _DecisionStat(label: 'Errores graves', value: '${stats.blunders}', color: AppColors.gtoBlunder),
+              _DecisionStat(label: I18n.t('optimal_pl'), value: '${stats.optimalDecisions}', color: AppColors.gtoOptimal),
+              _DecisionStat(label: I18n.t('blunders_pl'), value: '${stats.blunders}', color: AppColors.gtoBlunder),
             ],
           ),
         ],
@@ -475,12 +476,12 @@ class _CoachReportCardState extends State<_CoachReportCard> {
                 children: [
                   const ZerosAvatar(size: 40),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('INFORME DE ZEROSPOKER', style: TextStyle(color: AppColors.accent, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 1)),
-                        Text('Análisis táctico sin anestesia', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                        Text(I18n.t('coach_hdr'), style: const TextStyle(color: AppColors.accent, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 1)),
+                        Text(I18n.t('coach_sub'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
                       ],
                     ),
                   ),

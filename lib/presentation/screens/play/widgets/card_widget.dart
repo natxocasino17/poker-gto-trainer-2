@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../data/models/card_model.dart';
 
-/// Cartoon-style four-color card: solid colored background per suit
-/// with big white rank and suit symbols (Knockout Poker look).
+/// Comic-style card rendered as pure vectors: razor sharp at any
+/// resolution (4K included). Optional four-color deck so suits can
+/// never be confused (pro standard: ♥ red, ♦ blue, ♣ green, ♠ black).
 class CardWidget extends StatelessWidget {
   final CardModel? card;
   final bool faceDown;
   final double width;
   final double height;
   final bool highlighted;
+
+  /// Global deck mode, persisted via settings. true = four-color deck.
+  static bool fourColorDeck = true;
 
   const CardWidget({
     super.key,
@@ -21,11 +25,21 @@ class CardWidget extends StatelessWidget {
   });
 
   static Color suitColor(Suit s) {
+    if (fourColorDeck) {
+      switch (s) {
+        case Suit.hearts: return const Color(0xFFD7263D);
+        case Suit.diamonds: return const Color(0xFF1565C0);
+        case Suit.clubs: return const Color(0xFF2E7D32);
+        case Suit.spades: return const Color(0xFF1A1A1A);
+      }
+    }
     switch (s) {
-      case Suit.hearts: return AppColors.suitHearts;
-      case Suit.diamonds: return AppColors.suitDiamonds;
-      case Suit.clubs: return AppColors.suitClubs;
-      case Suit.spades: return AppColors.suitSpades;
+      case Suit.hearts:
+      case Suit.diamonds:
+        return const Color(0xFFD7263D);
+      case Suit.clubs:
+      case Suit.spades:
+        return const Color(0xFF1A1A1A);
     }
   }
 
@@ -43,10 +57,10 @@ class CardWidget extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.cardBack, AppColors.cardBackPattern],
+          colors: [Color(0xFF263238), Color(0xFF37474F)],
         ),
-        borderRadius: BorderRadius.circular(width * 0.16),
-        border: Border.all(color: Colors.white38, width: 1),
+        borderRadius: BorderRadius.circular(width * 0.14),
+        border: Border.all(color: const Color(0xFF1A1A1A), width: width * 0.05),
         boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 3, offset: Offset(1, 2))],
       ),
       child: Center(
@@ -69,69 +83,79 @@ class CardWidget extends StatelessWidget {
   }
 
   Widget _buildFace(CardModel c) {
-    final bg = suitColor(c.suit);
+    // Comic-style deck: white card, black ink outline, oversized pips.
+    // Vector rendering = perfectly sharp on any screen density.
+    final ink = suitColor(c.suit);
 
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [bg, Color.lerp(bg, Colors.black, 0.18)!],
+        color: const Color(0xFFFFFEFA),
+        borderRadius: BorderRadius.circular(width * 0.14),
+        border: Border.all(
+          color: highlighted ? AppColors.gold : const Color(0xFF1A1A1A),
+          width: highlighted ? 2.2 : width * 0.05,
         ),
-        borderRadius: BorderRadius.circular(width * 0.16),
-        border: highlighted
-            ? Border.all(color: AppColors.gold, width: 2)
-            : Border.all(color: Colors.white.withOpacity(0.55), width: 1),
         boxShadow: [
           BoxShadow(
-            color: highlighted ? AppColors.gold.withOpacity(0.45) : Colors.black45,
+            color: highlighted ? AppColors.gold.withOpacity(0.45) : Colors.black54,
             blurRadius: highlighted ? 8 : 3,
-            offset: const Offset(1, 2),
+            offset: const Offset(2, 3),
           ),
         ],
       ),
       child: Stack(
         children: [
-          // Big watermark suit bottom-right
-          Positioned(
-            right: width * 0.04,
-            bottom: -height * 0.06,
+          // Oversized center suit (cartoon pip)
+          Align(
+            alignment: const Alignment(0.45, 0.55),
             child: Text(
               c.suitSymbol,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.85),
-                fontSize: width * 0.62,
+                color: ink,
+                fontSize: width * 0.58,
                 height: 1.0,
               ),
             ),
           ),
-          // Rank top-left
+          // Rank top-left with small suit under it
           Positioned(
-            left: width * 0.10,
-            top: height * 0.04,
-            child: Text(
-              c.rankSymbol,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: width * 0.46,
-                fontWeight: FontWeight.w900,
-                height: 1.0,
-                shadows: const [Shadow(color: Colors.black26, offset: Offset(0.5, 1))],
-              ),
+            left: width * 0.08,
+            top: height * 0.03,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  c.rankSymbol,
+                  style: TextStyle(
+                    color: ink,
+                    fontSize: width * 0.40,
+                    fontWeight: FontWeight.w900,
+                    height: 0.95,
+                  ),
+                ),
+                Text(
+                  c.suitSymbol,
+                  style: TextStyle(color: ink, fontSize: width * 0.26, height: 1.0),
+                ),
+              ],
             ),
           ),
-          // Small suit under rank
+          // Inverted rank bottom-right, like the reference art
           Positioned(
-            left: width * 0.12,
-            top: height * 0.40,
-            child: Text(
-              c.suitSymbol,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.9),
-                fontSize: width * 0.26,
-                height: 1.0,
+            right: width * 0.07,
+            bottom: height * 0.02,
+            child: Transform.rotate(
+              angle: 3.14159,
+              child: Text(
+                c.rankSymbol,
+                style: TextStyle(
+                  color: ink,
+                  fontSize: width * 0.26,
+                  fontWeight: FontWeight.w800,
+                  height: 1.0,
+                ),
               ),
             ),
           ),

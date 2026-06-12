@@ -5,10 +5,13 @@ import '../data/models/session_stats_model.dart';
 import '../data/repositories/game_repository.dart';
 import '../core/utils/hand_evaluator.dart';
 import '../core/utils/equity_calculator.dart';
+import '../core/utils/poker_concepts.dart';
+import '../data/models/player_model.dart';
 import 'poker_engine.dart';
+import '../core/i18n/i18n.dart';
 
 /// Background hand logger + street-by-street reviewer.
-/// All player-facing texts speak with the voice of ZerosPoker:
+/// All player-facing texts speak with the voice of el Puxi:
 /// a brutally honest coach who roasts you while teaching you.
 class HandReviewerEngine {
   final GameRepository _repo;
@@ -52,6 +55,8 @@ class HandReviewerEngine {
       community: completedState.communityCards,
       allActions: completedState.currentHandActions,
       activePlayers: completedState.players.where((p) => !p.isFolded).length,
+      position: humanPlayer.position,
+      startStack: humanPlayer.stack - humanProfit,
     );
 
     final winner = completedState.players.firstWhere(
@@ -86,6 +91,8 @@ class HandReviewerEngine {
     required List<CardModel> community,
     required List<HandAction> allActions,
     required int activePlayers,
+    required TablePosition position,
+    required double startStack,
   }) {
     final analyses = <StreetAnalysis>[];
     final streets = ['preflop', 'flop', 'turn', 'river'];
@@ -118,11 +125,24 @@ class HandReviewerEngine {
       final callAmt = humanAction.type == ActionType.call ? humanAction.amount : 0.0;
       final potOdds = EquityCalculator.potOddsRequired(callAmt, potAtStreet);
 
+      // Deep context: texture, made hand/draws, blockers, SPR, MDF
+      final texture = boardCount >= 3 ? BoardTexture.analyze(communityAtStreet) : null;
+      final analysis = boardCount >= 3
+          ? HandStrengthAnalysis.analyze(humanHole, communityAtStreet)
+          : null;
+      final blockers = boardCount >= 3
+          ? Blockers.analyze(humanHole, communityAtStreet)
+          : null;
+      final spr = GtoMath.spr(max(startStack, 1), max(potAtStreet, 1));
+
       final quality = _evaluateDecision(
         action: humanAction,
         equity: equity,
         potOdds: potOdds,
         street: street,
+        analysis: analysis,
+        blockers: blockers,
+        texture: texture,
       );
 
       final explanation = _zerosExplanation(
@@ -131,6 +151,13 @@ class HandReviewerEngine {
         potOdds: potOdds,
         quality: quality,
         street: street,
+        position: position,
+        texture: texture,
+        analysis: analysis,
+        blockers: blockers,
+        spr: spr,
+        potAtStreet: potAtStreet,
+        callAmt: callAmt,
       );
 
       analyses.add(StreetAnalysis(
@@ -157,13 +184,21 @@ class HandReviewerEngine {
     }
   }
 
-  /// A disciplined fold with low equity is OPTIMAL — never a mistake.
+  /// Quality evaluation with full context: a good fold is always a good
+  /// play; bluffs are judged by blockers and texture, not raw equity;
+  /// passive lines with monsters are flagged (raising was optimal).
   DecisionQuality _evaluateDecision({
     required HandAction action,
     required double equity,
     required double potOdds,
     required String street,
+    HandStrengthAnalysis? analysis,
+    Blockers? blockers,
+    BoardTexture? texture,
   }) {
+    final bucket = analysis?.bucket;
+    final isAirOrWeak = bucket == HandBucket.air || bucket == HandBucket.weakDraw;
+
     switch (action.type) {
       case ActionType.fold:
         if (equity > 0.50) return DecisionQuality.blunder;
@@ -172,25 +207,51 @@ class HandReviewerEngine {
         return DecisionQuality.optimal; // good fold = good play, period
 
       case ActionType.call:
+        // Calling with a monster misses value: raising was optimal
+        if (bucket == HandBucket.nuts || bucket == HandBucket.strongValue) {
+          return DecisionQuality.marginal;
+        }
         final ev = equity - potOdds;
-        if (ev > 0.15) return DecisionQuality.marginal; // should have raised
+        if (ev > 0.15) return DecisionQuality.marginal; // under-raised
         if (ev >= -0.05) return DecisionQuality.correct;
         if (ev >= -0.12) return DecisionQuality.marginal;
         return DecisionQuality.blunder;
 
       case ActionType.check:
+        if ((bucket == HandBucket.nuts || bucket == HandBucket.strongValue) &&
+            street != 'preflop') {
+          // Trapping is fine on dry boards, costly on wet ones
+          return (texture != null && texture.wetness < 0.35)
+              ? DecisionQuality.correct
+              : DecisionQuality.marginal;
+        }
         if (equity > 0.70 && street != 'preflop') return DecisionQuality.marginal;
         if (equity > 0.50) return DecisionQuality.correct;
         return DecisionQuality.optimal;
 
       case ActionType.bet:
       case ActionType.raise:
+        // Bluff line: judge by blockers + texture, not raw equity
+        if (isAirOrWeak && street != 'preflop') {
+          if (blockers != null && blockers.goodBluffBlockers &&
+              texture != null && texture.wetness < 0.55) {
+            return DecisionQuality.correct; // well-constructed bluff
+          }
+          if (texture != null && texture.wetness < 0.40) {
+            return DecisionQuality.marginal; // stab on dry board, no blockers
+          }
+          return DecisionQuality.blunder; // spew into a wet board
+        }
+        if (bucket == HandBucket.comboDraw || bucket == HandBucket.strongDraw) {
+          return DecisionQuality.optimal; // semi-bluff: equity + fold equity
+        }
         if (equity >= 0.60) return DecisionQuality.optimal;
         if (equity >= 0.45) return DecisionQuality.correct;
         if (equity >= 0.30) return DecisionQuality.marginal;
         return DecisionQuality.blunder;
 
       case ActionType.allIn:
+        if (bucket == HandBucket.comboDraw) return DecisionQuality.correct;
         if (equity >= 0.55) return DecisionQuality.optimal;
         if (equity >= 0.45) return DecisionQuality.correct;
         if (equity >= 0.35) return DecisionQuality.marginal;
@@ -198,103 +259,164 @@ class HandReviewerEngine {
     }
   }
 
-  // ── ZerosPoker speaks ──────────────────────────────────────────────
+  // ── el Puxi speaks: localized in 6 languages, poker jargon stays English ──
 
-  static String _pick(List<String> options) =>
-      options[_rng.nextInt(options.length)];
+  static String _pick(List<String> keys) =>
+      I18n.t(keys[_rng.nextInt(keys.length)]);
 
+  String _posLabel(TablePosition p) {
+    switch (p) {
+      case TablePosition.utg: return 'UTG';
+      case TablePosition.mp: return 'MP';
+      case TablePosition.co: return 'CO';
+      case TablePosition.btn: return 'BTN';
+      case TablePosition.sb: return 'SB';
+      case TablePosition.bb: return 'BB';
+    }
+  }
+
+  String _streetLabel(String s) {
+    // Streets in lowercase English: stays as jargon across all locales.
+    return s;
+  }
+
+  String _textureLabel(BoardTexture? t) {
+    if (t == null) return '';
+    if (t.monotone) return I18n.t('tx_monotone');
+    if (t.paired) return I18n.t('tx_paired');
+    if (t.wetness > 0.55) return I18n.t('tx_wet');
+    if (t.wetness < 0.35) return I18n.t('tx_dry');
+    return I18n.t('tx_medium');
+  }
+
+  /// Builds the localized explanation, weaving in MDF / SPR / outs /
+  /// blockers context only when relevant.
   String _zerosExplanation({
     required HandAction action,
     required double equity,
     required double potOdds,
     required DecisionQuality quality,
     required String street,
+    required TablePosition position,
+    BoardTexture? texture,
+    HandStrengthAnalysis? analysis,
+    Blockers? blockers,
+    required double spr,
+    required double potAtStreet,
+    required double callAmt,
   }) {
     final eq = (equity * 100).toStringAsFixed(1);
     final odds = (potOdds * 100).toStringAsFixed(1);
+    final pos = _posLabel(position);
+    final tex = _textureLabel(texture);
+    final st = _streetLabel(street);
+    final bucket = analysis?.bucket;
+    final preflop = street == 'preflop';
+
+    final mdfStr = callAmt > 0
+        ? I18n.t('ctx_mdf', {'p': (GtoMath.mdf(potAtStreet - callAmt, callAmt) * 100).toStringAsFixed(0)})
+        : '';
+    final sprStr = !preflop && spr < 2.5
+        ? I18n.t('ctx_spr', {'v': spr.toStringAsFixed(1)})
+        : '';
+    final drawStr = analysis != null && analysis.outs > 0
+        ? I18n.t('ctx_draw', {'outs': '${analysis.outs}', 'p': (analysis.drawEquity * 100).toStringAsFixed(0)})
+        : '';
+    final blockerStr = blockers != null && blockers.goodBluffBlockers
+        ? I18n.t('ctx_blockers')
+        : '';
+
+    Map<String, String> args(Map<String, String> extra) => {
+          'street': st, 'pos': pos, 'tex': tex,
+          'eq': eq, 'odds': odds,
+          'mdf': mdfStr, 'spr': sprStr, 'draw': drawStr, 'block': blockerStr,
+          ...extra,
+        };
+
+    String fmt(String key, [Map<String, String>? extra]) =>
+        I18n.t(key, args(extra ?? {}));
 
     switch (quality) {
       case DecisionQuality.optimal:
         switch (action.type) {
           case ActionType.fold:
-            return _pick([
-              'Fold correcto en el $street. Con $eq% de equity ahí no se te ha perdido nada. Mira, hasta tú sabes soltar cartas. Me sorprendes.',
-              'Buen fold en el $street, máquina. Tu equity era $eq% — pagar eso sería de pescado. Esto NO cuenta como mano perdida, cuenta como dinero ahorrado.',
-              'Fold en el $street con $eq% de equity. Decisión de libro. No te emociones, que una golondrina no hace verano.',
-            ]);
+            return fmt(['opt_fold_a', 'opt_fold_b', 'opt_fold_c'][_rng.nextInt(3)]);
           case ActionType.check:
-            return _pick([
-              'Check decente en el $street con $eq% de equity. Control del bote, trampa tendida... ¿quién eres y qué has hecho con el manco de siempre?',
-              'Check en el $street. Con $eq% está bien pasar y dejar que el rival se cuelgue solo. Bien visto.',
-            ]);
+            return fmt(['opt_check_a', 'opt_check_b'][_rng.nextInt(2)]);
           case ActionType.bet:
           case ActionType.raise:
-            return _pick([
-              'Apuesta de valor en el $street con $eq% de equity. Extracción máxima, como manda la teoría. Si jugaras así siempre no tendría trabajo.',
-              'Bet en el $street con $eq%. Eso es presionar con ventaja, no como otras veces que apuestas por aburrimiento.',
-            ]);
+            if (bucket == HandBucket.comboDraw || bucket == HandBucket.strongDraw) {
+              return fmt('opt_semibluff');
+            }
+            return fmt(['opt_value_a', 'opt_value_b'][_rng.nextInt(2)]);
           case ActionType.call:
-            return _pick([
-              'Call rentable en el $street: $eq% de equity contra $odds% de pot odds. Las mates te dan la razón. Disfrútalo, no pasa a menudo.',
-            ]);
+            return fmt(['opt_call_a', 'opt_call_b'][_rng.nextInt(2)]);
           case ActionType.allIn:
-            return _pick([
-              'All-in en el $street con $eq% de equity. Spot premium, EV maximizado. Hasta un reloj parado da bien la hora dos veces al día.',
-            ]);
+            return fmt('opt_allin');
         }
 
       case DecisionQuality.correct:
         switch (action.type) {
           case ActionType.fold:
-            return 'Fold razonable en el $street. Equity de $eq%, justita. Un call tenía un pelín de EV pero no te voy a crucificar por ser prudente. Esta vez.';
+            return fmt('cor_fold');
           case ActionType.call:
-            return 'Call correcto en el $street: $eq% de equity cubre las pot odds de $odds%. Aprobado raspado, no te flipes.';
+            return fmt(['cor_call_a', 'cor_call_b'][_rng.nextInt(2)]);
           case ActionType.check:
-            return 'Check aceptable en el $street con $eq%. Había opciones de apostar pero bueno, no todo el mundo nace valiente.';
+            if (bucket == HandBucket.nuts || bucket == HandBucket.strongValue) {
+              return fmt('cor_check_trap');
+            }
+            return fmt('cor_check');
           default:
-            return 'Decisión sólida en el $street con $eq% de equity. En línea con GTO. Sigue así y a lo mejor llegas a regular de NL2.';
+            return fmt('cor_general');
         }
 
       case DecisionQuality.marginal:
         switch (action.type) {
           case ActionType.fold:
-            return 'Fold dudoso en el $street, campeón. Con $eq% de equity contra $odds% de pot odds, el call tenía EV positivo. Te están robando la merienda y tú dándoles las gracias.';
+            return fmt(['mar_fold_a', 'mar_fold_b'][_rng.nextInt(2)]);
           case ActionType.call:
-            return 'Call marginal en el $street. $eq% de equity contra $odds% de pot odds... eso es jugártela a la moneda. O subes o foldeas, pero deja de pagar por ver como si esto fuera Netflix.';
+            if (bucket == HandBucket.nuts || bucket == HandBucket.strongValue) {
+              return fmt('mar_call_monster');
+            }
+            return fmt(['mar_call_a', 'mar_call_b'][_rng.nextInt(2)]);
           case ActionType.check:
-            return 'Check con $eq% de equity en el $street... ¿en serio? Tenías una apuesta de valor clarísima y la has dejado en el cajón. Dinero que no extraes es dinero que regalas, genio.';
+            return fmt('mar_check_value');
+          case ActionType.bet:
+          case ActionType.raise:
+            if (bucket == HandBucket.air || bucket == HandBucket.weakDraw) {
+              return fmt('mar_bluff_a');
+            }
+            return fmt('mar_aggro');
           default:
-            return 'Decisión marginal en el $street. Con $eq% de equity ese sizing chirría. Revisa los tamaños, que apostar a ojo es de cuñao en partida casera.';
+            return fmt('mar_general');
         }
 
       case DecisionQuality.blunder:
         switch (action.type) {
           case ActionType.fold:
-            return '🚨 ERROR GRAVE: ¿Foldeaste con $eq% de equity en el $street? ¡Tenías la mano ganadora media vida y la tiraste a la basura! Con pot odds de $odds% ese fold es prenderle fuego al EV. De verdad, a veces pienso que juegas con los pies.';
+            return fmt('bl_fold');
           case ActionType.call:
-            return '🚨 ERROR GRAVE: Pagar en el $street con solo $eq% de equity necesitando $odds% es de manual... de manual de lo que NO se hace. Ese call fue quemar dinero. El fold era gratis, campeón, GRATIS.';
+            return fmt('bl_call');
           case ActionType.bet:
           case ActionType.raise:
-            return '🚨 ERROR GRAVE: ¿Agresión en el $street con $eq% de equity? ¿Farol con qué bloqueadores, con qué fold equity, con qué CABEZA? Check-fold era la jugada. Apuntado queda para tu informe.';
+            return fmt('bl_aggro');
           case ActionType.allIn:
-            return '🚨 ERROR GRAVE: All-in en el $street con $eq% de equity. Ibas detrás del rango rival como un cohete. Eso no es poker, eso es donar con estilo. Blunder de los gordos.';
+            return fmt('bl_allin');
           default:
-            return '🚨 ERROR GRAVE en el $street con $eq% de equity. No sé ni cómo describirlo. Revisa la mano y reza.';
+            return fmt('bl_general');
         }
     }
   }
 }
 
-/// ZerosPoker: the global session coach. Roasts your leaks, then hands
-/// you the homework to fix them.
 class AICoach {
   static String generateReport(SessionStats stats, List<HandLog> hands) {
     if (stats.handsPlayed < 3) {
-      return 'Juega al menos 5 manos y vuelve. No puedo destrozar tu juego sin pruebas, aunque me muera de ganas. — ZerosPoker';
+      return 'Juega al menos 5 manos y vuelve. No puedo destrozar tu juego sin pruebas, aunque me muera de ganas. — el Puxi';
     }
 
     final b = StringBuffer();
-    b.writeln('═══ INFORME DE ZEROSPOKER ═══');
+    b.writeln('═══ INFORME DE EL PUXI ═══');
     b.writeln('(tu coach favorito, aunque no me aguantes)\n');
     b.writeln('Sesión: ${stats.handsPlayed} manos | Neto: ${stats.netProfit >= 0 ? "+" : ""}\$${stats.netProfit.toStringAsFixed(2)} | BB/100: ${stats.bbPer100.toStringAsFixed(1)}');
     if (stats.netProfit < 0) {
@@ -360,7 +482,7 @@ class AICoach {
       b.writeln('${i + 1}. ${tasks[i]}');
     }
     b.writeln('');
-    b.writeln('— ZerosPoker, que te aprecia más de lo que parece 🃏');
+    b.writeln('— el Puxi, que te aprecia más de lo que parece 🃏');
 
     return b.toString();
   }

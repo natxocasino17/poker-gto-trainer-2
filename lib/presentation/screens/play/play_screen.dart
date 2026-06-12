@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../../../core/utils/hand_evaluator.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/hand_log_model.dart';
@@ -10,6 +11,9 @@ import 'widgets/card_widget.dart';
 import 'widgets/player_seat_widget.dart';
 import 'widgets/action_buttons_widget.dart';
 import 'widgets/gto_advisor_widget.dart';
+import '../simulator/simulator_screen.dart';
+import '../puxi/puxi_chat_screen.dart';
+import '../../../core/i18n/i18n.dart';
 
 class PlayScreen extends StatelessWidget {
   const PlayScreen({super.key});
@@ -19,15 +23,15 @@ class PlayScreen extends StatelessWidget {
     final gp = context.watch<GameProvider>();
 
     if (!gp.initialized) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: AppColors.background,
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(color: AppColors.accent),
-              SizedBox(height: 12),
-              Text('Barajando...', style: TextStyle(color: AppColors.textSecondary)),
+              const CircularProgressIndicator(color: AppColors.accent),
+              const SizedBox(height: 12),
+              Text(I18n.t('shuffling'), style: const TextStyle(color: AppColors.textSecondary)),
             ],
           ),
         ),
@@ -116,11 +120,11 @@ class _Header extends StatelessWidget {
           Column(
             children: [
               Text(
-                'Mano #${gp.gameState.handNumber}',
+                I18n.t('hand_no', {'n': gp.gameState.handNumber.toString()}),
                 style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
               ),
               Text(
-                '${stats.handsPlayed} jugadas',
+                I18n.t('played_count', {'n': stats.handsPlayed.toString()}),
                 style: const TextStyle(color: AppColors.textMuted, fontSize: 9),
               ),
             ],
@@ -160,7 +164,7 @@ class _Header extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text('SESIÓN', style: TextStyle(color: AppColors.textMuted, fontSize: 9, letterSpacing: 1)),
+              Text(I18n.t('session_lbl'), style: const TextStyle(color: AppColors.textMuted, fontSize: 9, letterSpacing: 1)),
               Text(
                 '${stats.netProfit >= 0 ? "+" : "-"}${gp.money(stats.netProfit.abs())}',
                 style: TextStyle(
@@ -183,22 +187,22 @@ class _Header extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceElevated,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Cerrar sesión', style: TextStyle(color: AppColors.textPrimary, fontSize: 17)),
+        title: Text(I18n.t('leave_title'), style: const TextStyle(color: AppColors.textPrimary, fontSize: 17)),
         content: Text(
-          '¿Levantarte de la mesa? Te llevas ${gp.money(stack)} de vuelta al bankroll. Podrás revisar toda la sesión en ANALIZAR y VALORACIÓN.',
+          I18n.t('leave_body', {'v': gp.money(stack)}),
           style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Seguir jugando', style: TextStyle(color: AppColors.textMuted)),
+            child: Text(I18n.t('keep_playing'), style: const TextStyle(color: AppColors.textMuted)),
           ),
           TextButton(
             onPressed: () {
               gp.endSession();
               Navigator.pop(ctx);
             },
-            child: const Text('Levantarme', style: TextStyle(color: AppColors.losing, fontWeight: FontWeight.w700)),
+            child: Text(I18n.t('leave_btn'), style: const TextStyle(color: AppColors.losing, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -211,22 +215,22 @@ class _Header extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceElevated,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Recargar bankroll', style: TextStyle(color: AppColors.textPrimary, fontSize: 17)),
-        content: const Text(
-          '¿Añadir \$1.000 a tu bankroll? Si estás sin fichas en la mesa, también se te sentará con un stack nuevo.',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        title: Text(I18n.t('reload_title'), style: const TextStyle(color: AppColors.textPrimary, fontSize: 17)),
+        content: Text(
+          I18n.t('reload_body'),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar', style: TextStyle(color: AppColors.textMuted)),
+            child: Text(I18n.t('cancel'), style: const TextStyle(color: AppColors.textMuted)),
           ),
           TextButton(
             onPressed: () {
               gp.reloadBankroll();
               Navigator.pop(ctx);
             },
-            child: const Text('Recargar', style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700)),
+            child: Text(I18n.t('reload_btn'), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -288,8 +292,8 @@ class _PokerTable extends StatelessWidget {
         for (int i = 0; i < 6; i++)
           if (players[i].streetBet > 0)
             Positioned(
-              left: cx + rx * 0.58 * cos(_seatAngles[i]) - 32,
-              top: cy + ry * 0.52 * sin(_seatAngles[i]) - 10,
+              left: cx + rx * 0.90 * cos(_seatAngles[i]) - 32,
+              top: cy + ry * 0.88 * sin(_seatAngles[i]) - 11,
               width: 64,
               child: Center(
                 child: _BetChip(
@@ -332,14 +336,77 @@ class _PokerTable extends StatelessWidget {
         Positioned(
           left: cx - 110,
           top: cy + ry + 8,
-          child: HoleCardsWidget(
-            cards: gs.humanPlayer.holeCards,
-            faceDown: false,
-            cardWidth: 42,
-            cardHeight: 60,
-            highlighted: gs.humanPlayer.isWinner,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Folded cards dim down but stay slightly visible while
+              // there is still action on the table.
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: gs.humanPlayer.isFolded ? 0.32 : 1.0,
+                child: HoleCardsWidget(
+                  cards: gs.humanPlayer.holeCards,
+                  faceDown: false,
+                  cardWidth: 42,
+                  cardHeight: 60,
+                  highlighted: gs.humanPlayer.isWinner,
+                ),
+              ),
+              // Live made-hand indicator (pro feature)
+              if (gs.humanPlayer.holeCards.length == 2 &&
+                  gs.communityCards.length >= 3 &&
+                  !gs.humanPlayer.isFolded)
+                Container(
+                  margin: const EdgeInsets.only(top: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.72),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.accent.withOpacity(0.5), width: 0.8),
+                  ),
+                  child: Text(
+                    HandEvaluator.evaluateBest(
+                      [...gs.humanPlayer.holeCards, ...gs.communityCards],
+                    ).description,
+                    style: const TextStyle(
+                      color: AppColors.accent,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
+        // Winner announcement banner (a few seconds to read the result)
+        if (gs.phase == GamePhase.handComplete)
+          Positioned(
+            top: cy - ry - 18,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOutBack,
+                builder: (_, t, child) => Transform.scale(scale: t, child: child),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [AppColors.gold, AppColors.goldDark]),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [BoxShadow(color: AppColors.gold.withOpacity(0.5), blurRadius: 18, spreadRadius: 2)],
+                  ),
+                  child: Text(
+                    I18n.t('winner_banner', {
+                      'who': gs.players.where((p) => p.isWinner).map((p) => p.isHuman ? I18n.t('you') : p.name).join(' & '),
+                    }),
+                    style: const TextStyle(color: Colors.black, fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                  ),
+                ),
+              ),
+            ),
+          ),
         // GTO FAB
         const Positioned(right: 12, bottom: 12, child: GTOAdvisorFAB()),
         // Street label
@@ -525,7 +592,7 @@ class _CenterDisplay extends StatelessWidget {
               transitionBuilder: (child, anim) =>
                   FadeTransition(opacity: anim, child: child),
               child: Text(
-                'Bote: ${gp.money(gs.pot)}',
+                I18n.t('pot_lbl', {'v': gp.money(gs.pot)}),
                 key: ValueKey(gs.pot),
                 style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w800),
               ),
@@ -630,20 +697,53 @@ class _LobbyView extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('🃏', style: TextStyle(fontSize: 56)),
-              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.asset(
+                  'assets/ipt_logo.png',
+                  width: 110,
+                  height: 110,
+                  errorBuilder: (_, __, ___) =>
+                      const Text('🃏', style: TextStyle(fontSize: 56)),
+                ),
+              ),
+              const SizedBox(height: 10),
               const Text(
-                'GTO POKER TRAINER',
+                'iPT',
                 style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 22,
+                  color: AppColors.accent,
+                  fontSize: 34,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
+                  letterSpacing: 4,
                 ),
               ),
               const Text(
-                '6-Max Cash · Ciegas \$1/\$2 · 5 leyendas te esperan',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                'iPoker Training',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                I18n.t('tagline'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.gold.withOpacity(0.4)),
+                ),
+                child: Text(
+                  I18n.t('coins_chip', {'n': gp.coins.toString()}),
+                  style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w700),
+                ),
               ),
               const SizedBox(height: 28),
               Container(
@@ -655,7 +755,7 @@ class _LobbyView extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    const Text('TU BANKROLL', style: TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
+                    Text(I18n.t('your_bankroll'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
                     Text(
                       gp.money(gp.bankroll),
                       style: const TextStyle(color: AppColors.gold, fontSize: 26, fontWeight: FontWeight.w900),
@@ -682,38 +782,88 @@ class _LobbyView extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      const Text(
-                        'SENTARSE EN LA MESA',
-                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1),
+                      Text(
+                        I18n.t('sit_btn'),
+                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1),
                       ),
                       Text(
-                        'Buy-in: \$200 exactos — igual que todos',
+                        I18n.t('sit_sub'),
                         style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 11),
                       ),
                     ],
                   ),
                 ),
               ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _LobbyChipButton(
+                    icon: Icons.group,
+                    label: I18n.t('edit_table'),
+                    onTap: () => _openTableEditor(context, gp),
+                  ),
+                  const SizedBox(width: 12),
+                  _LobbyChipButton(
+                    icon: Icons.calculate,
+                    label: I18n.t('simulator'),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SimulatorScreen()),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _LobbyChipButton(
+                    icon: Icons.settings,
+                    label: I18n.t('settings'),
+                    onTap: () => _openSettings(context, gp),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PuxiChatScreen()),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentGlow,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.accent.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.chat_bubble_outline, color: AppColors.accent, size: 18),
+                      const SizedBox(width: 8),
+                      Text('💬 ${I18n.t('puxi_chat')}',
+                          style: const TextStyle(color: AppColors.accent, fontSize: 14, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ),
+              ),
               if (!canSit) ...[
                 const SizedBox(height: 16),
-                const Text(
-                  'Sin fondos para el buy-in de \$200',
-                  style: TextStyle(color: AppColors.losing, fontSize: 12),
+                Text(
+                  I18n.t('no_funds'),
+                  style: const TextStyle(color: AppColors.losing, fontSize: 12),
                 ),
                 const SizedBox(height: 8),
                 TextButton.icon(
                   onPressed: () => gp.reloadBankroll(),
                   icon: const Icon(Icons.add_card, color: AppColors.gold, size: 18),
-                  label: const Text(
-                    'Recargar +\$1.000',
-                    style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700),
+                  label: Text(
+                    I18n.t('reload_plus'),
+                    style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
               if (gp.handHistory.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 Text(
-                  'Tu última sesión (${gp.handHistory.length} manos) sigue disponible en ANALIZAR y VALORACIÓN',
+                  I18n.t('last_session_note', {'n': gp.handHistory.length.toString()}),
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
                 ),
@@ -724,4 +874,264 @@ class _LobbyView extends StatelessWidget {
       ),
     );
   }
+}
+
+
+class _LobbyChipButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _LobbyChipButton({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.accent.withOpacity(0.4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: AppColors.accent, size: 17),
+            const SizedBox(width: 6),
+            Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Table editor: pick each of the 5 opponents — a legend, a style
+/// archetype, or random.
+void _openTableEditor(BuildContext context, GameProvider gp) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: AppColors.surfaceElevated,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    isScrollControlled: true,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setSheetState) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(I18n.t('config_title'),
+                  style: const TextStyle(color: AppColors.accent, fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: 1)),
+              const SizedBox(height: 4),
+              Text(I18n.t('config_sub'),
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+              const SizedBox(height: 14),
+              for (int i = 0; i < 5; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: GestureDetector(
+                    onTap: () async {
+                      final picked = await _pickOpponent(ctx, gp);
+                      if (picked != null) {
+                        gp.setTableSlot(i, picked == '__random__' ? null : picked);
+                        setSheetState(() {});
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(I18n.t('seat_n', {'n': '${i + 1}'}),
+                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                          const Spacer(),
+                          Builder(builder: (_) {
+                            final name = gp.tableSlots[i];
+                            if (name == null) {
+                              return Text(I18n.t('random'),
+                                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600));
+                            }
+                            final prof = LegendaryBotEngine.profileByName(name);
+                            return Text('${prof.emoji} ${prof.name}',
+                                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700));
+                          }),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.chevron_right, color: AppColors.accent, size: 18),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 6),
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    for (int i = 0; i < 5; i++) {
+                      gp.setTableSlot(i, null);
+                    }
+                    setSheetState(() {});
+                  },
+                  child: Text(I18n.t('reset_random'),
+                      style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Future<String?> _pickOpponent(BuildContext context, GameProvider gp) {
+  return showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: AppColors.surfaceElevated,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    isScrollControlled: true,
+    builder: (ctx) => SafeArea(
+      child: SizedBox(
+        height: MediaQuery.of(ctx).size.height * 0.7,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            ListTile(
+              dense: true,
+              leading: const Text('🎲', style: TextStyle(fontSize: 22)),
+              title: Text(I18n.t('random'), style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+              subtitle: Text(I18n.t('random_sub'), style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+              onTap: () => Navigator.pop(ctx, '__random__'),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(I18n.t('legends_hdr'), style: TextStyle(color: AppColors.gold, fontSize: 11, letterSpacing: 1.5)),
+            ),
+            for (final p in LegendaryBotEngine.legends)
+              ListTile(
+                dense: true,
+                leading: Text(p.emoji, style: const TextStyle(fontSize: 22)),
+                title: Text(p.name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+                subtitle: Text(p.style, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                onTap: () => Navigator.pop(ctx, p.name),
+              ),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(I18n.t('styles_hdr'), style: TextStyle(color: AppColors.accent, fontSize: 11, letterSpacing: 1.5)),
+            ),
+            for (final p in LegendaryBotEngine.archetypes)
+              ListTile(
+                dense: true,
+                leading: Text(p.emoji, style: const TextStyle(fontSize: 22)),
+                title: Text(p.name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+                subtitle: Text(p.style, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                onTap: () => Navigator.pop(ctx, p.name),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+
+void _openSettings(BuildContext context, GameProvider gp) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: AppColors.surfaceElevated,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    isScrollControlled: true,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setSheetState) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(I18n.t('settings').toUpperCase(),
+                  style: const TextStyle(color: AppColors.accent, fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: 1)),
+              const SizedBox(height: 16),
+              Text(I18n.t('language'),
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11, letterSpacing: 1.5)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: I18n.supported.entries.map((e) {
+                  final selected = gp.localeCode == e.key;
+                  return GestureDetector(
+                    onTap: () {
+                      gp.setLocale(e.key);
+                      setSheetState(() {});
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: selected ? AppColors.accent : AppColors.card,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: selected ? AppColors.accent : AppColors.border),
+                      ),
+                      child: Text(
+                        e.value,
+                        style: TextStyle(
+                          color: selected ? Colors.black : AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 18),
+              Text(I18n.t('deck_label'),
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11, letterSpacing: 1.5)),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () {
+                  gp.toggleFourColorDeck();
+                  setSheetState(() {});
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.card,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(gp.fourColorDeck ? Icons.check_box : Icons.check_box_outline_blank,
+                          color: AppColors.accent, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          gp.fourColorDeck ? I18n.t('deck_4c') : I18n.t('deck_classic'),
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }

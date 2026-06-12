@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../../../core/i18n/i18n.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../data/models/hand_log_model.dart';
 import '../../../../presentation/providers/game_provider.dart';
@@ -30,16 +32,16 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (gs.isProcessingBot)
-              const Row(
+              Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
                   ),
-                  SizedBox(width: 8),
-                  Text('Pensando...', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                  const SizedBox(width: 8),
+                  Text(I18n.t('thinking'), style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
                 ],
               ),
             if (gs.lastAction != null)
@@ -125,7 +127,7 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Cantidad', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+              Text(I18n.t('amount'), style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
               Text(
                 gp.money(_raiseAmount),
                 style: const TextStyle(color: AppColors.accent, fontSize: 14, fontWeight: FontWeight.w700),
@@ -155,9 +157,10 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _QuickSizeBtn(label: '½ Bote', amount: pot * 0.5, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
-              _QuickSizeBtn(label: '¾ Bote', amount: pot * 0.75, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
-              _QuickSizeBtn(label: 'Bote', amount: pot, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
+              _QuickSizeBtn(label: I18n.t('third_pot'), amount: pot * 0.3333, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
+              _QuickSizeBtn(label: I18n.t('half_pot'), amount: pot * 0.5, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
+              _QuickSizeBtn(label: I18n.t('three_q_pot'), amount: pot * 0.75, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
+              _QuickSizeBtn(label: I18n.t('pot_btn'), amount: pot, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
               _QuickSizeBtn(label: 'All-In', amount: stack, onTap: (a) => setState(() => _raiseAmount = a)),
             ],
           ),
@@ -167,6 +170,7 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
   }
 
   void _doAction(GameProvider gp, ActionType type, double amount) {
+    HapticFeedback.mediumImpact();
     setState(() => _showRaiseSlider = false);
     gp.humanAction(type, amount);
   }

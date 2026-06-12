@@ -1,6 +1,7 @@
 import 'dart:math';
 import '../../data/models/card_model.dart';
 import 'hand_evaluator.dart';
+import 'poker_concepts.dart';
 
 class GTORecommendation {
   final String action;
@@ -153,7 +154,18 @@ class EquityCalculator {
       );
     }
 
-    if (equity > 0.72 && ev > 0.20) {
+    final analysis = communityCards.length >= 3
+        ? HandStrengthAnalysis.analyze(heroCards, communityCards)
+        : null;
+    final blockers = communityCards.length >= 3
+        ? Blockers.analyze(heroCards, communityCards)
+        : null;
+    final texture = communityCards.length >= 3
+        ? BoardTexture.analyze(communityCards)
+        : null;
+
+    // Value raise: strong equity edge — raising beats flat calling
+    if (equity > 0.62 && ev > 0.12) {
       final raise = _snapToBetSize(callAmount * 2.8);
       return GTORecommendation(
         action: 'Raise',
@@ -161,7 +173,40 @@ class EquityCalculator {
         equity: equity,
         potOdds: odds,
         ev: ev,
-        reasoning: 'Tu equity $eqPct% supera de largo las pot odds $oddsPct%. Raise a \$${raise.toStringAsFixed(0)} — una mano así merece extracción máxima.',
+        reasoning: 'Tu equity $eqPct% supera de largo las pot odds $oddsPct%. Lo óptimo NO es pagar: sube a \$${raise.toStringAsFixed(0)} para extraer valor máximo y negarle equity al rival.',
+      );
+    }
+
+    // Semi-bluff raise: strong draw + fold equity = two ways to win
+    if (analysis != null &&
+        (analysis.bucket == HandBucket.comboDraw || analysis.bucket == HandBucket.strongDraw) &&
+        communityCards.length < 5) {
+      final raise = _snapToBetSize(callAmount * 2.8);
+      return GTORecommendation(
+        action: 'Raise',
+        amount: raise,
+        equity: equity,
+        potOdds: odds,
+        ev: ev + 0.10,
+        reasoning: 'Proyecto fuerte con ${analysis.outs} outs (~${(analysis.drawEquity * 100).toStringAsFixed(0)}%). El semi-bluff raise a \$${raise.toStringAsFixed(0)} suma fold equity a tu equity real: ganas cuando foldea Y cuando ligas. Mejor que el call pasivo.',
+      );
+    }
+
+    // Pure bluff-raise: weak equity, but good blockers on a dry board where
+    // villain can't continue often. Sometimes the optimal play is to raise
+    // as a bluff, not fold or call.
+    if (analysis != null && blockers != null && texture != null &&
+        communityCards.length < 5 && ev < -0.03 &&
+        (analysis.bucket == HandBucket.air || analysis.bucket == HandBucket.weakShowdown) &&
+        blockers.goodBluffBlockers && texture.wetness < 0.45) {
+      final raise = _snapToBetSize(callAmount * 2.8);
+      return GTORecommendation(
+        action: 'Raise',
+        amount: raise,
+        equity: equity,
+        potOdds: odds,
+        ev: 0.05,
+        reasoning: 'Spot de farol óptimo: en este board seco tus bloqueadores le quitan al rival las manos fuertes para continuar. Un raise-farol a \$${raise.toStringAsFixed(0)} (alpha favorable) hace más \$ que pagar o foldear. Aquí lo correcto es ATACAR.',
       );
     }
 

@@ -37,7 +37,7 @@ class PokerGTOApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'GTO Poker Trainer',
+      title: 'iPT - iPoker Training',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       home: const MainScaffold(),

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'card_model.dart';
+import '../../core/i18n/i18n.dart';
 
 enum ActionType { fold, check, call, bet, raise, allIn }
 
@@ -93,10 +94,10 @@ class StreetAnalysis {
 
   String get qualityLabel {
     switch (quality) {
-      case DecisionQuality.optimal: return 'Óptima';
-      case DecisionQuality.correct: return 'Correcta';
-      case DecisionQuality.marginal: return 'Marginal';
-      case DecisionQuality.blunder: return 'Error Grave';
+      case DecisionQuality.optimal: return I18n.t('q_optimal');
+      case DecisionQuality.correct: return I18n.t('q_correct');
+      case DecisionQuality.marginal: return I18n.t('q_marginal');
+      case DecisionQuality.blunder: return I18n.t('q_blunder');
     }
   }
 }

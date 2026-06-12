@@ -1,11 +1,14 @@
 import 'package:flutter/foundation.dart';
 import '../../data/models/hand_log_model.dart';
 import '../../data/models/session_stats_model.dart';
+import '../../data/models/session_summary_model.dart';
 import '../../data/repositories/game_repository.dart';
 import '../../engine/legendary_ai.dart';
 import '../../engine/poker_engine.dart';
 import '../../engine/ai_analyst.dart';
 import '../../core/utils/equity_calculator.dart';
+import '../screens/play/widgets/card_widget.dart';
+import '../../core/i18n/i18n.dart';
 
 /// Session economy model:
 /// - Bankroll = money OFF the table.
@@ -25,6 +28,10 @@ class GameProvider extends ChangeNotifier {
   GTORecommendation? _lastGTOAdvice;
   double _bankroll = 1000.0;
   bool _displayInBB = false;
+  List<String?> _tableSlots = List<String?>.filled(5, null);
+  int _coins = 0;
+  bool _fourColorDeck = true;
+  String _localeCode = 'es';
 
   GameProvider(this._repo);
 
@@ -38,6 +45,34 @@ class GameProvider extends ChangeNotifier {
   double get bankroll => _bankroll;
   bool get displayInBB => _displayInBB;
   bool get canAffordBuyIn => _bankroll >= GameRepository.defaultBuyIn;
+  List<String?> get tableSlots => List.unmodifiable(_tableSlots);
+  int get coins => _coins;
+  List<SessionSummary> get sessionArchive => _repo.getSessionArchive();
+  bool get fourColorDeck => _fourColorDeck;
+  String get localeCode => _localeCode;
+
+  void setLocale(String code) {
+    if (!I18n.supported.containsKey(code)) return;
+    _localeCode = code;
+    I18n.locale = code;
+    _repo.saveLocale(code);
+    notifyListeners();
+  }
+
+  void toggleFourColorDeck() {
+    _fourColorDeck = !_fourColorDeck;
+    CardWidget.fourColorDeck = _fourColorDeck;
+    _repo.saveFourColorDeck(_fourColorDeck);
+    notifyListeners();
+  }
+
+  /// Table editor: assign a profile name (or null = random) to a seat slot.
+  void setTableSlot(int index, String? name) {
+    if (index < 0 || index >= 5) return;
+    _tableSlots[index] = name;
+    _repo.saveTableConfig(_tableSlots);
+    notifyListeners();
+  }
 
   void toggleDisplayUnits() {
     _displayInBB = !_displayInBB;
@@ -73,6 +108,12 @@ class GameProvider extends ChangeNotifier {
     _bankroll = _repo.getBankroll();
     _displayInBB = _repo.getDisplayInBB();
     _handHistory = _repo.getHandLogs();
+    _tableSlots = _repo.getTableConfig();
+    _coins = _repo.getCoins();
+    _fourColorDeck = _repo.getFourColorDeck();
+    CardWidget.fourColorDeck = _fourColorDeck;
+    _localeCode = _repo.getLocale();
+    I18n.locale = _localeCode;
     _analyst = HandReviewerEngine(_repo);
     _initialized = true;
     notifyListeners();
@@ -91,7 +132,7 @@ class GameProvider extends ChangeNotifier {
     await _repo.saveBankroll(_bankroll);
     await _repo.saveTableStack(GameRepository.defaultBuyIn);
 
-    _activeLegends = LegendaryBotEngine.selectTable();
+    _activeLegends = LegendaryBotEngine.buildLineup(_tableSlots);
     final engine = PokerEngine(
       tableStack: GameRepository.defaultBuyIn,
       bankroll: _bankroll,
@@ -117,6 +158,17 @@ class GameProvider extends ChangeNotifier {
     _bankroll += stack;
     await _repo.saveBankroll(_bankroll);
     await _repo.saveTableStack(0);
+
+    // Archive the session for the yearly review and pay out coins:
+    // 1 coin per hand played + 5 per hand won.
+    final stats = sessionStats;
+    if (stats.handsPlayed > 0) {
+      await _repo.archiveSession(SessionSummary.fromStats(stats));
+      final wins = _handHistory.where((h) => h.humanProfit > 0).length;
+      final earned = stats.handsPlayed + wins * 5;
+      await _repo.addCoins(earned);
+      _coins = _repo.getCoins();
+    }
 
     engine.removeListener(_onEngineChanged);
     engine.dispose();
@@ -183,6 +235,10 @@ class GameProvider extends ChangeNotifier {
 
   String generateCoachReport() {
     return AICoach.generateReport(sessionStats, _handHistory);
+  }
+
+  String generateYearReport() {
+    return YearCoach.progressReport(_repo.getSessionArchive());
   }
 
   @override

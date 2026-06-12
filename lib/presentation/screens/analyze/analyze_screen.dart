@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/hand_log_model.dart';
 import '../../../presentation/providers/game_provider.dart';
+import '../../../core/i18n/i18n.dart';
 import 'widgets/hand_detail_screen.dart';
 
 class AnalyzeScreen extends StatelessWidget {
@@ -16,14 +17,14 @@ class AnalyzeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('ANALIZAR JUGADAS'),
+        title: Text(I18n.t('analyze_title')),
         centerTitle: true,
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: Center(
               child: Text(
-                '${hands.length} manos',
+                I18n.t('hands_n', {'n': hands.length.toString()}),
                 style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
             ),
@@ -50,15 +51,15 @@ class AnalyzeScreen extends StatelessWidget {
 class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.history_edu, color: AppColors.textMuted, size: 48),
-          SizedBox(height: 12),
-          Text('Aún no hay manos jugadas', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
-          SizedBox(height: 6),
-          Text('Juega manos y ZerosPoker te las destripará aquí', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          const Icon(Icons.history_edu, color: AppColors.textMuted, size: 48),
+          const SizedBox(height: 12),
+          Text(I18n.t('no_hands1'), style: const TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+          const SizedBox(height: 6),
+          Text(I18n.t('no_hands2'), style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
         ],
       ),
     );
@@ -183,7 +184,7 @@ class _HandCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  cleanFold ? 'Fold limpio' : log.resultLabel,
+                  cleanFold ? I18n.t('clean_fold') : log.resultLabel,
                   style: TextStyle(
                     color: won
                         ? AppColors.winning
@@ -209,11 +210,11 @@ class _HandCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 2),
-                const Row(
+                Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Revisar', style: TextStyle(color: AppColors.accent, fontSize: 10)),
-                    Icon(Icons.chevron_right, color: AppColors.accent, size: 14),
+                    Text(I18n.t('review_link'), style: const TextStyle(color: AppColors.accent, fontSize: 10)),
+                    const Icon(Icons.chevron_right, color: AppColors.accent, size: 14),
                   ],
                 ),
               ],

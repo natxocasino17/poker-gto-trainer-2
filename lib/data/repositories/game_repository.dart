@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/hand_log_model.dart';
 import '../models/session_stats_model.dart';
+import '../models/session_summary_model.dart';
 
 class GameRepository {
   static const _bankrollKey = 'bankroll';
@@ -10,6 +11,11 @@ class GameRepository {
   static const _sessionIdKey = 'session_id';
   static const _sessionStartKey = 'session_start';
   static const _displayInBBKey = 'display_in_bb';
+  static const _sessionArchiveKey = 'session_archive';
+  static const _coinsKey = 'coins';
+  static const _tableConfigKey = 'table_config';
+  static const _fourColorDeckKey = 'four_color_deck';
+  static const _localeKey = 'app_locale';
 
   static const double initialBankroll = 1000.0;
   static const double defaultBuyIn = 200.0;
@@ -101,6 +107,46 @@ class GameRepository {
     await _prefs.remove(_sessionIdKey);
     await _prefs.remove(_sessionStartKey);
   }
+
+  // ── Yearly archive ──
+  List<SessionSummary> getSessionArchive() {
+    final raw = _prefs.getString(_sessionArchiveKey);
+    if (raw == null || raw.isEmpty) return [];
+    return SessionSummary.decodeList(raw);
+  }
+
+  Future<void> archiveSession(SessionSummary summary) async {
+    final archive = getSessionArchive()..add(summary);
+    await _prefs.setString(
+        _sessionArchiveKey, SessionSummary.encodeList(archive));
+  }
+
+  // ── Coins: free in-game currency earned by playing ──
+  int getCoins() => _prefs.getInt(_coinsKey) ?? 0;
+
+  Future<void> addCoins(int amount) =>
+      _prefs.setInt(_coinsKey, getCoins() + amount);
+
+  String getLocale() => _prefs.getString(_localeKey) ?? 'es';
+
+  Future<void> saveLocale(String code) =>
+      _prefs.setString(_localeKey, code);
+
+  bool getFourColorDeck() => _prefs.getBool(_fourColorDeckKey) ?? true;
+
+  Future<void> saveFourColorDeck(bool v) =>
+      _prefs.setBool(_fourColorDeckKey, v);
+
+  // ── Table editor config: 5 opponent slots; '' = random ──
+  List<String?> getTableConfig() {
+    final raw = _prefs.getStringList(_tableConfigKey);
+    if (raw == null) return List<String?>.filled(5, null);
+    return raw.map((e) => e.isEmpty ? null : e).toList()
+      ..length = 5;
+  }
+
+  Future<void> saveTableConfig(List<String?> slots) => _prefs.setStringList(
+      _tableConfigKey, slots.take(5).map((e) => e ?? '').toList());
 
   SessionStats computeStats() {
     final logs = getHandLogs();

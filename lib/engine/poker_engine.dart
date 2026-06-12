@@ -7,6 +7,7 @@ import '../core/utils/hand_evaluator.dart';
 import '../core/utils/equity_calculator.dart';
 import '../core/utils/poker_concepts.dart';
 import 'legendary_ai.dart';
+import '../core/i18n/i18n.dart';
 
 enum GamePhase { idle, preflop, flop, turn, river, showdown, handComplete }
 
@@ -172,7 +173,7 @@ class PokerEngine extends ChangeNotifier {
       if (!p.isHuman && p.stack < bigBlind) {
         final fresh = LegendaryBotEngine.replacementFor(seated);
         seated.add(fresh.name);
-        rotationMsg = '💀 ${p.name} se va sin fichas — entra ${fresh.name}';
+        rotationMsg = I18n.t('bot_busts', {'out': p.name, 'inn': fresh.name});
         roster[i] = PlayerModel(
           id: p.id,
           name: fresh.name,
@@ -542,11 +543,9 @@ class PokerEngine extends ChangeNotifier {
 
     switch (phase) {
       case GamePhase.preflop:
-        nextPhase = GamePhase.flop;
-        nextStreet = 'flop';
-        newCommunity.addAll(newDeck.take(3));
-        newDeck = newDeck.sublist(3);
-        break;
+        // The flop is dealt ONE CARD AT A TIME (slower, dramatic reveal).
+        _dealFlopStaggered(resetPlayers, newDeck, canAct);
+        return;
       case GamePhase.flop:
         nextPhase = GamePhase.turn;
         nextStreet = 'turn';
@@ -560,6 +559,8 @@ class PokerEngine extends ChangeNotifier {
         newDeck = newDeck.sublist(1);
         break;
       case GamePhase.river:
+        // The river is the LAST card. After it, the hand goes straight to
+        // showdown — there is no further street, no more pot odds.
         _runShowdown();
         return;
       default:
@@ -583,33 +584,83 @@ class PokerEngine extends ChangeNotifier {
 
     notifyListeners();
 
-    // If all active players are all-in, deal remaining streets automatically
+    // If all active players are all-in, run the remaining board out (one
+    // card at a time) and then showdown.
     if (canAct <= 1 && newCommunity.length < 5) {
-      _dealRemainingBoard(nextPhase, newCommunity, newDeck, resetPlayers, firstActiveIdx, activePlayers);
+      _runOutBoard();
       return;
     }
 
     _advanceTurn();
   }
 
-  void _dealRemainingBoard(GamePhase currentPhase, List<CardModel> community, List<CardModel> deck,
-      List<PlayerModel> players, int firstIdx, int activePlayers) {
-    var board = List<CardModel>.from(community);
-    var remainDeck = List<CardModel>.from(deck);
-
-    while (board.length < 5 && remainDeck.isNotEmpty) {
-      board.add(remainDeck.removeAt(0));
-    }
+  /// Deals the three flop cards individually, with a short pause between
+  /// each, before opening the flop betting round.
+  void _dealFlopStaggered(List<PlayerModel> resetPlayers, List<CardModel> deck, int canAct) {
+    final flop = deck.take(3).toList();
+    final rest = deck.sublist(3);
+    final firstActiveIdx = _firstActiveAfterDealer();
+    final activePlayers = resetPlayers.where((p) => !p.isFolded && !p.isAllIn).length;
 
     _state = _state.copyWith(
-      communityCards: board,
-      deck: remainDeck,
+      players: resetPlayers,
+      communityCards: const [],
+      deck: rest,
+      currentBet: 0,
+      activePlayerIndex: firstActiveIdx,
+      phase: GamePhase.flop,
+      street: 'flop',
+      wasAggressorThisStreet: false,
+      actorsRemaining: activePlayers,
+      awaitingHumanAction: false,
+      isProcessingBot: false,
     );
     notifyListeners();
+    _revealFlopCard(flop, 0, canAct);
+  }
 
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (!_disposed) _runShowdown();
-    });
+  void _revealFlopCard(List<CardModel> flop, int i, int canAct) {
+    if (_disposed) return;
+    if (i >= flop.length) {
+      if (canAct <= 1) {
+        _runOutBoard();
+      } else {
+        _advanceTurn();
+      }
+      return;
+    }
+    final board = List<CardModel>.from(_state.communityCards)..add(flop[i]);
+    _state = _state.copyWith(communityCards: board);
+    notifyListeners();
+    Future.delayed(const Duration(milliseconds: 420), () => _revealFlopCard(flop, i + 1, canAct));
+  }
+
+  /// All-in runout: reveals every live player's hole cards, then deals the
+  /// remaining board cards ONE AT A TIME before the showdown.
+  void _runOutBoard() {
+    if (_disposed) return;
+    final players = _state.players
+        .map((p) => p.copyWith(cardsVisible: !p.isFolded))
+        .toList();
+    _state = _state.copyWith(players: players);
+    notifyListeners();
+    Future.delayed(const Duration(milliseconds: 600), _revealRunoutCard);
+  }
+
+  void _revealRunoutCard() {
+    if (_disposed) return;
+    if (_state.communityCards.length >= 5 || _state.deck.isEmpty) {
+      Future.delayed(const Duration(milliseconds: 700), () {
+        if (!_disposed) _runShowdown();
+      });
+      return;
+    }
+    final remain = List<CardModel>.from(_state.deck);
+    final next = remain.removeAt(0);
+    final board = List<CardModel>.from(_state.communityCards)..add(next);
+    _state = _state.copyWith(communityCards: board, deck: remain);
+    notifyListeners();
+    Future.delayed(const Duration(milliseconds: 750), _revealRunoutCard);
   }
 
   int _firstActiveAfterDealer() {
@@ -669,8 +720,8 @@ class PokerEngine extends ChangeNotifier {
       );
     }
 
-    final winnerNames = winners.map((i) => players[i].name).join(' y ');
-    final resultMsg = '🏆 $winnerNames gana \$${_state.pot.toStringAsFixed(0)}';
+    final winnerNames = winners.map((i) => players[i].name).join(' & ');
+    final resultMsg = I18n.t('wins_msg', {'who': winnerNames, 'amt': _state.pot.toStringAsFixed(0)});
 
     _state = _state.copyWith(
       players: players,
@@ -681,7 +732,7 @@ class PokerEngine extends ChangeNotifier {
 
     onHandComplete?.call(_state);
 
-    Future.delayed(const Duration(milliseconds: 2800), () {
+    Future.delayed(const Duration(milliseconds: 3200), () {
       if (!_disposed) startNewHand();
     });
   }

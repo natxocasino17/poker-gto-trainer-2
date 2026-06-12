@@ -3,6 +3,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../data/models/player_model.dart';
 import '../../../../data/models/hand_log_model.dart';
 import 'card_widget.dart';
+import '../../../../core/i18n/i18n.dart';
 
 /// Seat with cartoon avatar circle, name plate with stack, position tag,
 /// and a small action bubble announcing the player's last move this street.
@@ -113,7 +114,7 @@ class PlayerSeatWidget extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          isHuman ? 'TÚ' : _shortName(player.name),
+                          isHuman ? I18n.t('you') : _shortName(player.name),
                           style: TextStyle(
                             color: isHuman ? AppColors.accent : AppColors.textPrimary,
                             fontSize: 9,

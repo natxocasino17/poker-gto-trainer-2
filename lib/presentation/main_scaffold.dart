@@ -3,6 +3,10 @@ import '../core/constants/app_colors.dart';
 import 'screens/play/play_screen.dart';
 import 'screens/analyze/analyze_screen.dart';
 import 'screens/stats/stats_screen.dart';
+import 'screens/year/year_screen.dart';
+import '../core/i18n/i18n.dart';
+import 'package:provider/provider.dart';
+import 'providers/game_provider.dart';
 
 class MainScaffold extends StatefulWidget {
   const MainScaffold({super.key});
@@ -18,10 +22,13 @@ class _MainScaffoldState extends State<MainScaffold> {
     PlayScreen(),
     AnalyzeScreen(),
     StatsScreen(),
+    YearScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
+    // Watching the provider re-renders the bottom nav when locale changes.
+    context.watch<GameProvider>();
     return Scaffold(
       backgroundColor: AppColors.background,
       body: IndexedStack(
@@ -46,17 +53,22 @@ class _MainScaffoldState extends State<MainScaffold> {
             BottomNavigationBarItem(
               icon: _NavIcon(icon: Icons.table_restaurant_outlined, selected: _selectedIndex == 0),
               activeIcon: _NavIcon(icon: Icons.table_restaurant, selected: true),
-              label: 'JUGAR',
+              label: I18n.t('nav_play'),
             ),
             BottomNavigationBarItem(
               icon: _NavIcon(icon: Icons.analytics_outlined, selected: _selectedIndex == 1),
               activeIcon: _NavIcon(icon: Icons.analytics, selected: true),
-              label: 'ANALIZAR',
+              label: I18n.t('nav_analyze'),
             ),
             BottomNavigationBarItem(
               icon: _NavIcon(icon: Icons.leaderboard_outlined, selected: _selectedIndex == 2),
               activeIcon: _NavIcon(icon: Icons.leaderboard, selected: true),
-              label: 'VALORACIÓN',
+              label: I18n.t('nav_stats'),
+            ),
+            BottomNavigationBarItem(
+              icon: _NavIcon(icon: Icons.timeline_outlined, selected: _selectedIndex == 3),
+              activeIcon: _NavIcon(icon: Icons.timeline, selected: true),
+              label: I18n.t('nav_year'),
             ),
           ],
         ),

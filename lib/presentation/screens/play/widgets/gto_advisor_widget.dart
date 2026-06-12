@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../presentation/providers/game_provider.dart';
 import 'package:provider/provider.dart';
+import '../../../widgets/zeros_avatar.dart';
 
 class GTOAdvisorFAB extends StatelessWidget {
   const GTOAdvisorFAB({super.key});
@@ -62,10 +63,10 @@ class GTOAdvisorOverlay extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.psychology, color: AppColors.accent, size: 20),
+                      const ZerosAvatar(size: 24),
                       const SizedBox(width: 8),
                       const Text(
-                        'CONSEJERO GTO',
+                        'EL PUXI · GTO',
                         style: TextStyle(color: AppColors.accent, fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 1.5),
                       ),
                       const Spacer(),
