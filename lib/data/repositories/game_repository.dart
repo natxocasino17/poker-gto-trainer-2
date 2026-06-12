@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/hand_log_model.dart';
 import '../models/session_stats_model.dart';
@@ -16,6 +17,7 @@ class GameRepository {
   static const _tableConfigKey = 'table_config';
   static const _fourColorDeckKey = 'four_color_deck';
   static const _localeKey = 'app_locale';
+  static const _humanProfileKey = 'human_profile';
 
   static const double initialBankroll = 1000.0;
   static const double defaultBuyIn = 200.0;
@@ -136,6 +138,24 @@ class GameRepository {
 
   Future<void> saveFourColorDeck(bool v) =>
       _prefs.setBool(_fourColorDeckKey, v);
+
+  /// Cross-session model of how the human plays (EMA-blended). The bots
+  /// seed their reads from this so they exploit you from hand 1, and the
+  /// advisor personalizes its tips. Keys: hands, vpip, riverFold, pfr,
+  /// threeBet, foldVsBet, aggression.
+  Map<String, double> getHumanProfile() {
+    final raw = _prefs.getString(_humanProfileKey);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      return m.map((k, v) => MapEntry(k, (v as num).toDouble()));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> saveHumanProfile(Map<String, double> p) =>
+      _prefs.setString(_humanProfileKey, jsonEncode(p));
 
   // ── Table editor config: 5 opponent slots; '' = random ──
   List<String?> getTableConfig() {

@@ -60,7 +60,14 @@ class StreetAnalysis {
   final String heroAction;
   final double heroAmount;
   final DecisionQuality quality;
+  /// Pre-rendered fallback text (used by old logs that predate i18n keys).
   final String explanation;
+  /// i18n key of the coach phrase + the raw params needed to re-localize it
+  /// in whatever language the user has selected RIGHT NOW. This is what fixes
+  /// the "feedback always in Spanish" bug: nothing language-specific is
+  /// frozen at record time.
+  final String explanationKey;
+  final Map<String, String> explanationParams;
 
   const StreetAnalysis({
     required this.street,
@@ -70,7 +77,34 @@ class StreetAnalysis {
     required this.heroAmount,
     required this.quality,
     required this.explanation,
+    this.explanationKey = '',
+    this.explanationParams = const {},
   });
+
+  /// Rebuilds the coach explanation in the CURRENT locale from stored raw
+  /// params. Falls back to the frozen text for legacy logs.
+  String get localizedExplanation {
+    if (explanationKey.isEmpty) return explanation;
+    final p = explanationParams;
+    final tex = (p['texKey'] ?? '').isEmpty ? '' : I18n.t(p['texKey']!);
+    final mdf = (p['mdf'] ?? '').isEmpty ? '' : I18n.t('ctx_mdf', {'p': p['mdf']!});
+    final spr = (p['spr'] ?? '').isEmpty ? '' : I18n.t('ctx_spr', {'v': p['spr']!});
+    final draw = (p['outs'] ?? '').isEmpty
+        ? ''
+        : I18n.t('ctx_draw', {'outs': p['outs']!, 'p': p['drawp'] ?? '0'});
+    final block = (p['block'] == '1') ? I18n.t('ctx_blockers') : '';
+    return I18n.t(explanationKey, {
+      'street': p['street'] ?? '',
+      'pos': p['pos'] ?? '',
+      'eq': p['eq'] ?? '',
+      'odds': p['odds'] ?? '',
+      'tex': tex,
+      'mdf': mdf,
+      'spr': spr,
+      'draw': draw,
+      'block': block,
+    });
+  }
 
   Map<String, dynamic> toJson() => {
     'street': street,
@@ -80,6 +114,8 @@ class StreetAnalysis {
     'amount': heroAmount,
     'quality': quality.index,
     'explanation': explanation,
+    'ekey': explanationKey,
+    'eparams': explanationParams,
   };
 
   factory StreetAnalysis.fromJson(Map<String, dynamic> j) => StreetAnalysis(
@@ -89,7 +125,9 @@ class StreetAnalysis {
     heroAction: j['action'] as String,
     heroAmount: (j['amount'] as num).toDouble(),
     quality: DecisionQuality.values[j['quality'] as int],
-    explanation: j['explanation'] as String,
+    explanation: j['explanation'] as String? ?? '',
+    explanationKey: j['ekey'] as String? ?? '',
+    explanationParams: (j['eparams'] as Map?)?.map((k, v) => MapEntry(k.toString(), v.toString())) ?? const {},
   );
 
   String get qualityLabel {

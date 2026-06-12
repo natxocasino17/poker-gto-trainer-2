@@ -115,6 +115,30 @@ class GTOAdvisorOverlay extends StatelessWidget {
                     advice.reasoning,
                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
                   ),
+                  // Personalized note: the app has learned how YOU play.
+                  if (gp.personalizedTip().isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.gold.withOpacity(0.35)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('🧠 ', style: TextStyle(fontSize: 13)),
+                          Expanded(
+                            child: Text(
+                              gp.personalizedTip(),
+                              style: const TextStyle(color: AppColors.gold, fontSize: 11.5, height: 1.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   const Text(
                     'Toca en cualquier sitio para cerrar',

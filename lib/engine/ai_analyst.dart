@@ -112,7 +112,8 @@ class HandReviewerEngine {
           heroCards: humanHole,
           communityCards: communityAtStreet,
           numOpponents: max(1, activePlayers - 1),
-          simulations: 200,
+          simulations: 400,
+          deterministic: true,
         );
       }
 
@@ -145,7 +146,7 @@ class HandReviewerEngine {
         texture: texture,
       );
 
-      final explanation = _zerosExplanation(
+      final (explanationKey, explanationParams) = _zerosExplanation(
         action: humanAction,
         equity: equity,
         potOdds: potOdds,
@@ -167,7 +168,9 @@ class HandReviewerEngine {
         heroAction: humanAction.label,
         heroAmount: humanAction.amount,
         quality: quality,
-        explanation: explanation,
+        explanation: '', // re-localized live from key+params
+        explanationKey: explanationKey,
+        explanationParams: explanationParams,
       ));
     }
 
@@ -281,17 +284,27 @@ class HandReviewerEngine {
   }
 
   String _textureLabel(BoardTexture? t) {
+    final k = _textureKey(t);
+    return k.isEmpty ? '' : I18n.t(k);
+  }
+
+  /// Language-neutral texture key (resolved to text at display time).
+  String _textureKey(BoardTexture? t) {
     if (t == null) return '';
-    if (t.monotone) return I18n.t('tx_monotone');
-    if (t.paired) return I18n.t('tx_paired');
-    if (t.wetness > 0.55) return I18n.t('tx_wet');
-    if (t.wetness < 0.35) return I18n.t('tx_dry');
-    return I18n.t('tx_medium');
+    if (t.monotone) return 'tx_monotone';
+    if (t.paired) return 'tx_paired';
+    if (t.wetness > 0.55) return 'tx_wet';
+    if (t.wetness < 0.35) return 'tx_dry';
+    return 'tx_medium';
   }
 
   /// Builds the localized explanation, weaving in MDF / SPR / outs /
   /// blockers context only when relevant.
-  String _zerosExplanation({
+  /// Returns the i18n KEY of the coach phrase plus the raw, language-neutral
+  /// params. Nothing is resolved to text here — that happens at display time
+  /// in the user's CURRENT language, so switching language re-localizes the
+  /// whole feedback (fixes the "always in Spanish" bug).
+  (String, Map<String, String>) _zerosExplanation({
     required HandAction action,
     required double equity,
     required double potOdds,
@@ -305,36 +318,27 @@ class HandReviewerEngine {
     required double potAtStreet,
     required double callAmt,
   }) {
-    final eq = (equity * 100).toStringAsFixed(1);
-    final odds = (potOdds * 100).toStringAsFixed(1);
-    final pos = _posLabel(position);
-    final tex = _textureLabel(texture);
-    final st = _streetLabel(street);
     final bucket = analysis?.bucket;
     final preflop = street == 'preflop';
 
-    final mdfStr = callAmt > 0
-        ? I18n.t('ctx_mdf', {'p': (GtoMath.mdf(potAtStreet - callAmt, callAmt) * 100).toStringAsFixed(0)})
-        : '';
-    final sprStr = !preflop && spr < 2.5
-        ? I18n.t('ctx_spr', {'v': spr.toStringAsFixed(1)})
-        : '';
-    final drawStr = analysis != null && analysis.outs > 0
-        ? I18n.t('ctx_draw', {'outs': '${analysis.outs}', 'p': (analysis.drawEquity * 100).toStringAsFixed(0)})
-        : '';
-    final blockerStr = blockers != null && blockers.goodBluffBlockers
-        ? I18n.t('ctx_blockers')
-        : '';
+    final params = <String, String>{
+      'street': _streetLabel(street),
+      'pos': _posLabel(position),
+      'eq': (equity * 100).toStringAsFixed(1),
+      'odds': (potOdds * 100).toStringAsFixed(1),
+      'texKey': _textureKey(texture),
+      'mdf': callAmt > 0
+          ? (GtoMath.mdf(potAtStreet - callAmt, callAmt) * 100).toStringAsFixed(0)
+          : '',
+      'spr': (!preflop && spr < 2.5) ? spr.toStringAsFixed(1) : '',
+      'outs': (analysis != null && analysis.outs > 0) ? '${analysis.outs}' : '',
+      'drawp': (analysis != null && analysis.outs > 0)
+          ? (analysis.drawEquity * 100).toStringAsFixed(0)
+          : '',
+      'block': (blockers != null && blockers.goodBluffBlockers) ? '1' : '',
+    };
 
-    Map<String, String> args(Map<String, String> extra) => {
-          'street': st, 'pos': pos, 'tex': tex,
-          'eq': eq, 'odds': odds,
-          'mdf': mdfStr, 'spr': sprStr, 'draw': drawStr, 'block': blockerStr,
-          ...extra,
-        };
-
-    String fmt(String key, [Map<String, String>? extra]) =>
-        I18n.t(key, args(extra ?? {}));
+    (String, Map<String, String>) fmt(String key) => (key, params);
 
     switch (quality) {
       case DecisionQuality.optimal:

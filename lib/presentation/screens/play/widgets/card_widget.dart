@@ -57,25 +57,23 @@ class CardWidget extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF263238), Color(0xFF37474F)],
+          colors: [Color(0xFF7A1020), Color(0xFFB0182E)],
         ),
-        borderRadius: BorderRadius.circular(width * 0.14),
-        border: Border.all(color: const Color(0xFF1A1A1A), width: width * 0.05),
+        borderRadius: BorderRadius.circular(width * 0.12),
+        border: Border.all(color: Colors.white, width: width * 0.055),
         boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 3, offset: Offset(1, 2))],
       ),
       child: Center(
         child: Container(
-          width: width * 0.55,
-          height: height * 0.6,
+          width: width * 0.5,
+          height: width * 0.5,
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white24, width: 1.2),
-            borderRadius: BorderRadius.circular(width * 0.1),
+            shape: BoxShape.circle,
+            color: Colors.white.withOpacity(0.10),
+            border: Border.all(color: Colors.white.withOpacity(0.55), width: 1.4),
           ),
           child: Center(
-            child: Text(
-              '♠',
-              style: TextStyle(color: Colors.white24, fontSize: width * 0.34),
-            ),
+            child: Text('❖', style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: width * 0.28)),
           ),
         ),
       ),
@@ -83,81 +81,73 @@ class CardWidget extends StatelessWidget {
   }
 
   Widget _buildFace(CardModel c) {
-    // Comic-style deck: white card, black ink outline, oversized pips.
-    // Vector rendering = perfectly sharp on any screen density.
+    // Clean classic deck: crisp white card, thin border, corner indices
+    // (rank over suit) in both corners and a single large central pip.
+    // Pure vectors → razor-sharp at any resolution.
     final ink = suitColor(c.suit);
+    final isCourt = c.rank >= 11; // J, Q, K
+
+    Widget cornerIndex() => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              c.rankSymbol,
+              style: TextStyle(
+                color: ink,
+                fontSize: width * 0.34,
+                fontWeight: FontWeight.w800,
+                height: 0.9,
+              ),
+            ),
+            Text(
+              c.suitSymbol,
+              style: TextStyle(color: ink, fontSize: width * 0.24, height: 0.9),
+            ),
+          ],
+        );
 
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFEFA),
-        borderRadius: BorderRadius.circular(width * 0.14),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(width * 0.12),
         border: Border.all(
-          color: highlighted ? AppColors.gold : const Color(0xFF1A1A1A),
-          width: highlighted ? 2.2 : width * 0.05,
+          color: highlighted ? AppColors.gold : const Color(0xFF2A2A2A),
+          width: highlighted ? 2.2 : width * 0.035,
         ),
         boxShadow: [
           BoxShadow(
-            color: highlighted ? AppColors.gold.withOpacity(0.45) : Colors.black54,
+            color: highlighted ? AppColors.gold.withOpacity(0.45) : Colors.black45,
             blurRadius: highlighted ? 8 : 3,
-            offset: const Offset(2, 3),
+            offset: const Offset(1, 2),
           ),
         ],
       ),
       child: Stack(
         children: [
-          // Oversized center suit (cartoon pip)
-          Align(
-            alignment: const Alignment(0.45, 0.55),
-            child: Text(
-              c.suitSymbol,
-              style: TextStyle(
-                color: ink,
-                fontSize: width * 0.58,
-                height: 1.0,
-              ),
-            ),
-          ),
-          // Rank top-left with small suit under it
-          Positioned(
-            left: width * 0.08,
-            top: height * 0.03,
+          // Central pip (or court crown + pip)
+          Center(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  c.rankSymbol,
-                  style: TextStyle(
-                    color: ink,
-                    fontSize: width * 0.40,
-                    fontWeight: FontWeight.w900,
-                    height: 0.95,
-                  ),
-                ),
+                if (isCourt)
+                  Text('♛', style: TextStyle(color: ink, fontSize: width * 0.22, height: 1.0)),
                 Text(
                   c.suitSymbol,
-                  style: TextStyle(color: ink, fontSize: width * 0.26, height: 1.0),
+                  style: TextStyle(color: ink, fontSize: width * (isCourt ? 0.4 : 0.5), height: 1.0),
                 ),
               ],
             ),
           ),
-          // Inverted rank bottom-right, like the reference art
+          // Top-left corner index
+          Positioned(left: width * 0.07, top: height * 0.04, child: cornerIndex()),
+          // Bottom-right corner index (rotated 180°)
           Positioned(
             right: width * 0.07,
-            bottom: height * 0.02,
-            child: Transform.rotate(
-              angle: 3.14159,
-              child: Text(
-                c.rankSymbol,
-                style: TextStyle(
-                  color: ink,
-                  fontSize: width * 0.26,
-                  fontWeight: FontWeight.w800,
-                  height: 1.0,
-                ),
-              ),
-            ),
+            bottom: height * 0.04,
+            child: Transform.rotate(angle: 3.14159, child: cornerIndex()),
           ),
         ],
       ),

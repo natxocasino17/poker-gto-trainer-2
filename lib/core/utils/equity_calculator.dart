@@ -29,18 +29,27 @@ class EquityCalculator {
     required List<CardModel> communityCards,
     required int numOpponents,
     int simulations = 400,
+    bool deterministic = false,
   }) {
     if (heroCards.length != 2 || numOpponents <= 0) return 0.5;
 
     final known = <CardModel>{...heroCards, ...communityCards};
     final deck = CardModel.freshDeck().where((c) => !_has(known, c)).toList();
 
+    // Deterministic mode (used by the GTO advisor and the hand analyst):
+    // an identical situation must always yield the EXACT same equity/EV.
+    // We seed the RNG from a hash of the situation so the Monte Carlo is
+    // reproducible. Bots' live decisions pass deterministic:false.
+    final rng = deterministic
+        ? Random(_situationSeed(heroCards, communityCards, numOpponents))
+        : _rng;
+
     int wins = 0;
     int ties = 0;
     final boardNeeded = 5 - communityCards.length;
 
     for (int sim = 0; sim < simulations; sim++) {
-      deck.shuffle(_rng);
+      deck.shuffle(rng);
       int idx = 0;
 
       final board = List<CardModel>.from(communityCards);
@@ -76,6 +85,20 @@ class EquityCalculator {
   static bool _has(Set<CardModel> set, CardModel c) =>
       set.any((x) => x.rank == c.rank && x.suit == c.suit);
 
+  /// Stable seed derived purely from the situation (hero + board + #opps),
+  /// order-independent for hole/board cards. Identical spots → identical seed.
+  static int _situationSeed(
+      List<CardModel> hero, List<CardModel> board, int opps) {
+    int code(CardModel c) => c.rank * 4 + c.suit.index; // 0..55
+    final h = (hero.map(code).toList()..sort());
+    final b = (board.map(code).toList()..sort());
+    int seed = 1469598103 ^ opps;
+    for (final v in [...h, -1, ...b]) {
+      seed = (seed * 31 + v + 7) & 0x7FFFFFFF;
+    }
+    return seed;
+  }
+
   static double potOddsRequired(double callAmount, double potSize) {
     if (callAmount <= 0) return 0.0;
     return callAmount / (callAmount + potSize);
@@ -92,7 +115,8 @@ class EquityCalculator {
       heroCards: heroCards,
       communityCards: communityCards,
       numOpponents: max(1, numOpponents),
-      simulations: 300,
+      simulations: 500,
+      deterministic: true,
     );
 
     final odds = potOddsRequired(callAmount, potSize);

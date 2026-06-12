@@ -138,6 +138,7 @@ class GameProvider extends ChangeNotifier {
       bankroll: _bankroll,
       legends: _activeLegends,
     );
+    engine.seedHumanModel(_repo.getHumanProfile());
     engine.onHandComplete = _onHandComplete;
     engine.addListener(_onEngineChanged);
     _engine = engine;
@@ -168,6 +169,7 @@ class GameProvider extends ChangeNotifier {
       final earned = stats.handsPlayed + wins * 5;
       await _repo.addCoins(earned);
       _coins = _repo.getCoins();
+      await _updateHumanProfile(stats);
     }
 
     engine.removeListener(_onEngineChanged);
@@ -231,6 +233,52 @@ class GameProvider extends ChangeNotifier {
   void dismissGTOOverlay() {
     _showGTOOverlay = false;
     notifyListeners();
+  }
+
+  /// Blends this session's tendencies into the persisted cross-session
+  /// profile (exponential moving average). This is how the app "learns"
+  /// your style and gives sharper advice over time.
+  Future<void> _updateHumanProfile(SessionStats stats) async {
+    final old = _repo.getHumanProfile();
+    final oldHands = old['hands'] ?? 0;
+    final newHands = oldHands + stats.handsPlayed;
+    // Weight by hand volume, but cap so recent play keeps mattering.
+    final w = (stats.handsPlayed / (newHands.clamp(1, 99999))).clamp(0.15, 0.6);
+    double blend(String key, double now) =>
+        (old[key] ?? now) * (1 - w) + now * w;
+    // Aggression proxy from PFR/VPIP gap + 3-bet (rough but persistent).
+    final aggression =
+        (stats.pfr / (stats.vpip <= 0 ? 1 : stats.vpip) * 2).clamp(0.2, 4.0);
+    final profile = <String, double>{
+      'hands': newHands.toDouble(),
+      'vpip': blend('vpip', stats.vpip),
+      'pfr': blend('pfr', stats.pfr),
+      'threeBet': blend('threeBet', stats.threeBetPct),
+      'riverFold': blend('riverFold', stats.riverFoldPct),
+      'foldVsBet': blend('foldVsBet', stats.riverFoldPct), // best available proxy
+      'aggression': blend('aggression', aggression),
+    };
+    await _repo.saveHumanProfile(profile);
+  }
+
+  /// A personalized one-liner the advisor appends, based on your learned
+  /// tendencies across sessions. Empty until there's enough history.
+  String personalizedTip() {
+    final p = _repo.getHumanProfile();
+    if ((p['hands'] ?? 0) < 15) return '';
+    final riverFold = p['riverFold'] ?? 0;
+    final vpip = p['vpip'] ?? 0;
+    final threeBet = p['threeBet'] ?? 0;
+    if (riverFold > 55) {
+      return 'He aprendido que sueles foldear de más en river (${riverFold.toStringAsFixed(0)}%). Hoy, paga algún bluff-catcher más.';
+    }
+    if (vpip > 33) {
+      return 'Tu histórico dice que juegas demasiadas manos (VPIP ${vpip.toStringAsFixed(0)}%). Cierra el rango y elige mejor.';
+    }
+    if (threeBet < 5 && threeBet > 0) {
+      return 'Apenas 3-beteas (${threeBet.toStringAsFixed(0)}%). Añade faroles con Axs para no ser tan predecible.';
+    }
+    return '';
   }
 
   String generateCoachReport() {

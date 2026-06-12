@@ -136,6 +136,10 @@ class PokerEngine extends ChangeNotifier {
 
   GameState get state => _state;
 
+  /// Seeds the bots' shared read model from the persisted human profile so
+  /// they exploit known tendencies from the first hand (cross-session learning).
+  void seedHumanModel(Map<String, double> profile) => _humanModel.seedFrom(profile);
+
   static GameState _buildInitialState(double tableStack, List<LegendProfile> legends) {
     const botStack = 200.0;
     final players = [

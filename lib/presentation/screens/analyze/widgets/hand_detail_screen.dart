@@ -259,7 +259,7 @@ class _StreetAnalysisCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        sa.explanation,
+                        sa.localizedExplanation,
                         style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5),
                       ),
                     ),

@@ -378,6 +378,21 @@ class _PokerTable extends StatelessWidget {
             ],
           ),
         ),
+        // Chips fly from the pot to the winner's seat
+        if (gs.phase == GamePhase.handComplete && gs.players.any((p) => p.isWinner))
+          Builder(builder: (_) {
+            final wIdx = gs.players.indexWhere((p) => p.isWinner);
+            final ang = _seatAngles[wIdx];
+            final endX = cx + rx * 0.9 * cos(ang);
+            final endY = cy + ry * 0.88 * sin(ang);
+            return _ChipsToWinner(
+              key: ValueKey('chips${gs.handNumber}'),
+              startX: cx,
+              startY: cy,
+              endX: endX,
+              endY: endY,
+            );
+          }),
         // Winner announcement banner (a few seconds to read the result)
         if (gs.phase == GamePhase.handComplete)
           Positioned(
@@ -1134,4 +1149,70 @@ void _openSettings(BuildContext context, GameProvider gp) {
       ),
     ),
   );
+}
+
+/// Animated stack of chips flying from the pot center to the winner's seat.
+class _ChipsToWinner extends StatelessWidget {
+  final double startX, startY, endX, endY;
+  const _ChipsToWinner({
+    super.key,
+    required this.startX,
+    required this.startY,
+    required this.endX,
+    required this.endY,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeInOutCubic,
+      builder: (_, t, __) {
+        // Ease the chips along the path; fade out as they arrive.
+        final x = startX + (endX - startX) * t;
+        final y = startY + (endY - startY) * t;
+        final opacity = t < 0.85 ? 1.0 : (1.0 - (t - 0.85) / 0.15);
+        return Positioned(
+          left: x - 14,
+          top: y - 14,
+          child: Opacity(
+            opacity: opacity.clamp(0.0, 1.0),
+            child: const _ChipStack(),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ChipStack extends StatelessWidget {
+  const _ChipStack();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 30,
+      child: Stack(
+        children: [
+          for (int i = 0; i < 4; i++)
+            Positioned(
+              bottom: i * 4.0,
+              left: 0,
+              child: Container(
+                width: 26,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: i.isEven ? AppColors.gold : AppColors.chipRed,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.white, width: 1),
+                  boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 2)],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

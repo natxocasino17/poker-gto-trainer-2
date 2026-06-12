@@ -169,6 +169,222 @@ class PuxiKnowledge {
         'en': 'The river is the 5th and FINAL community card. After it there\'s only the last betting round and showdown: no more cards, no more streets, so on the river there are no implied odds or draws — you either have it made or you bluff/fold. Your final hand is the best 5 cards out of your 2 + the 5 on the board. With two pair, the 5th card (kicker) decides; it\'s only a tie if both share the exact same 5.',
       },
     ),
+    PuxiTopic(
+      id: 'betsizing',
+      title: 'Bet Sizing',
+      keywords: ['bet sizing', 'tamaño de apuesta', 'cuanto apostar', 'sizing', 'que tamaño'],
+      answer: {
+        'es': 'El tamaño no es al azar: comunica tu rango. Apuestas PEQUEÑAS (⅓ bote) en boards secos donde tienes ventaja de rango y quieres apostar muchas manos baratas. Apuestas GRANDES o overbets en boards donde tienes ventaja de nueces (solo tú tienes las máximas). Regla: rango amplio → sizing pequeño; rango polarizado (valor + farol) → sizing grande. El mismo sizing para valor y farol es lo que te hace imposible de leer.',
+        'en': 'Size isn\'t random: it communicates your range. Bet SMALL (⅓ pot) on dry boards where you have range advantage and want to bet many hands cheaply. Bet BIG or overbet on boards where you have nut advantage (only you hold the top hands). Rule: wide range → small sizing; polarized range (value + bluff) → big sizing. Using the same size for value and bluffs is what makes you unreadable.',
+      },
+    ),
+    PuxiTopic(
+      id: 'rangetypes',
+      title: 'Rangos: polarizado vs lineal',
+      keywords: ['polarizado', 'lineal', 'condensado', 'merged', 'tipo de rango', 'rango polar'],
+      answer: {
+        'es': 'POLARIZADO = solo nueces y faroles, sin medias (para apuestas grandes/overbets en river). LINEAL/MERGED = las mejores X manos seguidas, incluyendo valor medio (para apuestas pequeñas e iso-raises). CONDENSADO = manos medias y proyectos, sin monstruos ni aire total (típico de quien iguala en vez de subir). Identifica qué rango representa tu línea: una apuesta enorme polarizada con manos medias es un error clásico.',
+        'en': 'POLARIZED = only nuts and bluffs, no medium hands (for big bets/overbets on the river). LINEAR/MERGED = the best X hands in a row, including medium value (for small bets and iso-raises). CONDENSED = medium hands and draws, no monsters or pure air (typical of someone who calls instead of raising). Identify which range your line represents: a huge polarized bet with medium hands is a classic mistake.',
+      },
+    ),
+    PuxiTopic(
+      id: 'barrels',
+      title: 'Double y triple barrel',
+      keywords: ['barrel', 'double barrel', 'triple barrel', 'seguir apostando', 'segundo disparo', 'tercera bala'],
+      answer: {
+        'es': 'Barrelear es seguir apostando en calles siguientes tras la c-bet. Double barrel (turn): dispara cuando la carta del turn MEJORA tu rango o empeora el del rival (scare cards: overcards, cartas de proyecto que completan). Triple barrel (river): solo con valor real o faroles con blockers — sin blockers, el triple barrel es quemar dinero. Pregúntate siempre: ¿esta carta ayuda más a mi rango o al suyo? Si te ayuda a ti, sigue presionando.',
+        'en': 'Barreling is continuing to bet on later streets after the c-bet. Double barrel (turn): fire when the turn card IMPROVES your range or worsens villain\'s (scare cards: overcards, draw-completing cards). Triple barrel (river): only with real value or bluffs that hold blockers — without blockers, the triple barrel just burns money. Always ask: does this card help my range or theirs more? If it helps you, keep applying pressure.',
+      },
+    ),
+    PuxiTopic(
+      id: 'donk',
+      title: 'Donk bet',
+      keywords: ['donk', 'donk bet', 'apostar de cara', 'salir apostando', 'liderar'],
+      answer: {
+        'es': 'Donk bet = apostar de cara (OOP) en una calle nueva contra quien fue el agresor previo, quitándole la iniciativa. Normalmente es un error (rompes tu rango de check-call/check-raise), pero el GTO la justifica en boards muy específicos que favorecen MÁS a tu rango que al del agresor — ej: el que defiende la BB en un board bajo y conectado (754) que pega a su rango de calls pero no al del que abrió de UTG. Úsala con cuidado y plan.',
+        'en': 'Donk bet = leading out (OOP) into the previous aggressor on a new street, taking away their initiative. Usually a mistake (it breaks your check-call/check-raise range), but GTO justifies it on very specific boards that favor YOUR range more than the aggressor\'s — e.g. the BB defender on a low connected board (754) that smashes their calling range but not the UTG opener\'s. Use it carefully and with a plan.',
+      },
+    ),
+    PuxiTopic(
+      id: 'blockerbet',
+      title: 'Blocker bet',
+      keywords: ['blocker bet', 'apuesta de bloqueo', 'apuesta pequeña river', 'bloquear apuesta'],
+      answer: {
+        'es': 'Una blocker bet (o blocking bet) es una apuesta PEQUEÑA (10-25% bote) que haces OOP en el river con una mano media para "ponerte tú el precio": ves la mano barato y evitas que el rival te haga una apuesta gigante que no podrías pagar cómodo. Funciona contra rivales que rara vez suben tu apuesta pequeña como farol. Cuidado: contra agresivos te pueden subir (raise) y ponerte en un aprieto.',
+        'en': 'A blocker bet (or blocking bet) is a SMALL bet (10-25% pot) you make OOP on the river with a medium hand to "set your own price": you get to showdown cheaply and avoid villain making a huge bet you couldn\'t comfortably call. It works against opponents who rarely raise your small bet as a bluff. Careful: aggressive players can raise it and put you in a tough spot.',
+      },
+    ),
+    PuxiTopic(
+      id: 'overbet',
+      title: 'Overbet',
+      keywords: ['overbet', 'sobreapuesta', 'apostar mas del bote', 'apuesta gigante'],
+      answer: {
+        'es': 'Un overbet es apostar MÁS que el bote (125-200%+). Solo es correcto cuando tienes VENTAJA DE NUECES: tu rango contiene las manos máximas y el del rival no. Sirve para extraer valor máximo con monstruos Y como farol polarizado con blockers (pones al rival en una decisión imposible por todo su stack). Necesita un rango bien construido: si solo overbeteas valor, foldean; si solo faroleas, te pagan. Michael y Adrián son maestros del overbet.',
+        'en': 'An overbet is betting MORE than the pot (125-200%+). It\'s only correct when you have NUT ADVANTAGE: your range holds the top hands and villain\'s doesn\'t. It extracts maximum value with monsters AND works as a polarized bluff with blockers (putting villain to an impossible decision for their stack). It needs a well-built range: overbet only for value and they fold; only bluff and they call. Michael and Adrián are overbet masters.',
+      },
+    ),
+    PuxiTopic(
+      id: 'float',
+      title: 'Float',
+      keywords: ['float', 'flotar', 'flotar el flop', 'pagar para robar'],
+      answer: {
+        'es': 'Flotar es pagar una apuesta (normalmente en posición) con una mano débil o proyecto flojo, SIN intención de mejorar necesariamente, sino para robar el bote en una calle posterior cuando el rival muestre debilidad (check). Funciona contra jugadores que c-betean mucho el flop pero se rinden en el turn. Es jugar la debilidad del rival, no tus cartas. En posición es mucho más fuerte porque ves su check antes de actuar.',
+        'en': 'Floating is calling a bet (usually in position) with a weak hand or weak draw, NOT necessarily intending to improve, but to steal the pot on a later street when villain shows weakness (checks). It works against players who c-bet the flop a lot but give up on the turn. You\'re playing villain\'s weakness, not your cards. In position it\'s much stronger because you see their check before acting.',
+      },
+    ),
+    PuxiTopic(
+      id: 'setmining',
+      title: 'Set mining',
+      keywords: ['set mining', 'set', 'parejas pequeñas', 'minar sets', 'pocket pair'],
+      answer: {
+        'es': 'Set mining es pagar preflop con una pareja pequeña (22-66) buscando ligar trío (set) en el flop. Como solo ligas ~1 de cada 8.5 veces (~11.8%), necesitas IMPLIED ODDS: que el stack efectivo sea grande respecto a lo que pagas. Regla práctica: paga solo si puedes ganar al menos 10-15x lo que inviertes preflop. Si los stacks son cortos (SPR bajo) o el rival no paga cuando ligas, el set mining pierde dinero. Cuando ligas, los sets son una máquina de hacer billetes.',
+        'en': 'Set mining is calling preflop with a small pocket pair (22-66) hoping to flop a set. Since you only hit ~1 in 8.5 times (~11.8%), you need IMPLIED ODDS: the effective stack must be large relative to what you call. Rule of thumb: only call if you can win at least 10-15x what you invest preflop. If stacks are short (low SPR) or villain won\'t pay you off when you hit, set mining loses money. When you do hit, sets are a money-printing machine.',
+      },
+    ),
+    PuxiTopic(
+      id: 'combinatorics',
+      title: 'Combinatoria y card removal',
+      keywords: ['combinatoria', 'combos', 'card removal', 'remocion de cartas', 'cuantas combinaciones'],
+      answer: {
+        'es': 'Pensar en COMBOS, no en manos. Hay 6 combos de cada par concreto (AA), 4 combos de cada mano no emparejada suited (AKs), y 12 de cada offsuit (AKo) → 16 de AK en total. La CARD REMOVAL: tus cartas y el board reducen los combos posibles del rival. Ej: en un board K-K-x, solo quedan 1 combo de KK (cuádruple) y pocos de trips → es difícil que tenga el K. Contar combos te dice si el rival tiene más manos de valor o de farol, y decide tu call/fold.',
+        'en': 'Think in COMBOS, not hands. There are 6 combos of each specific pair (AA), 4 combos of each unpaired suited hand (AKs), and 12 of each offsuit (AKo) → 16 of AK total. CARD REMOVAL: your cards and the board reduce villain\'s possible combos. E.g. on a K-K-x board, only 1 combo of KK remains and few trips → it\'s unlikely they hold the K. Counting combos tells you whether villain has more value or bluff hands, and decides your call/fold.',
+      },
+    ),
+    PuxiTopic(
+      id: 'balance',
+      title: 'Balance vs explotación',
+      keywords: ['balance', 'equilibrio', 'explotar', 'explotativo', 'gto vs explotativo', 'desbalanceado'],
+      answer: {
+        'es': 'GTO/balance = jugar un rango equilibrado (valor + faroles en la proporción correcta) que NADIE puede explotar, aunque sepa lo que haces. EXPLOTATIVO = desviarte del equilibrio para castigar un error concreto del rival, a riesgo de quedar desprotegido. Contra buenos jugadores, juega más balanceado. Contra pescados (calling stations, fit-or-fold), EXPLOTA: deja de farolear al que paga todo y farolea sin parar al que foldea de más. El dinero grande está en explotar errores.',
+        'en': 'GTO/balance = playing a balanced range (value + bluffs in the right proportion) that NOBODY can exploit, even knowing what you do. EXPLOITATIVE = deviating from equilibrium to punish a specific opponent mistake, at the risk of leaving yourself unprotected. Against good players, play more balanced. Against fish (calling stations, fit-or-fold), EXPLOIT: stop bluffing the guy who calls everything and bluff relentlessly the one who over-folds. The big money is in exploiting mistakes.',
+      },
+    ),
+    PuxiTopic(
+      id: 'rivercatch',
+      title: 'River: bluff catching',
+      keywords: ['bluff catch', 'bluff catcher', 'pagar river', 'atrapar farol', 'pagar en river', 'cazar farol'],
+      answer: {
+        'es': 'En el river ya no hay proyectos: tu mano media solo gana si pagas un farol. Para decidir, compara las pot odds con cuántos faroles tiene el rival en su rango: si te da 2:1 (necesitas 33%), pagar es correcto si crees que farolea más de 1 de cada 3 veces. Usa tus BLOCKERS: si tu carta bloquea sus combos de valor, hay más faroles en su rango → paga. La MDF te dice el mínimo que debes defender para no ser explotado. No pagues por "curiosidad", paga por matemática.',
+        'en': 'On the river there are no more draws: your medium hand only wins if you call a bluff. To decide, compare the pot odds with how many bluffs villain has in range: if you\'re getting 2:1 (need 33%), calling is correct if you think they bluff more than 1 in 3 times. Use your BLOCKERS: if your card blocks their value combos, there are relatively more bluffs in range → call. MDF tells you the minimum you must defend to avoid being exploited. Don\'t call out of curiosity, call by math.',
+      },
+    ),
+    PuxiTopic(
+      id: 'initiative',
+      title: 'Iniciativa y agresión',
+      keywords: ['iniciativa', 'agresion', 'agresivo', 'initiative', 'quien apuesta gana', 'ser agresivo'],
+      answer: {
+        'es': 'La iniciativa es tenerla tú: ser el que apuesta y obliga al rival a tomar decisiones. Apostar gana de dos formas (el rival foldea, o llegas al showdown con la mejor mano); pagar solo gana de una. Por eso el póker ganador es AGRESIVO: el TAG (tight-agresivo) y el LAG seleccionan bien sus manos pero las juegan con fuerza. El factor de agresión (apuestas+subidas / igualadas) de un buen reg es alto. Pagar pasivo es de pescado: o subes con un plan, o foldeas.',
+        'en': 'Initiative is having it: being the one who bets and forces villain to make decisions. Betting wins two ways (villain folds, or you reach showdown with the best hand); calling only wins one. That\'s why winning poker is AGGRESSIVE: TAG (tight-aggressive) and LAG players select their hands well but play them with force. A good reg\'s aggression factor (bets+raises / calls) is high. Passive calling is for fish: either raise with a plan, or fold.',
+      },
+    ),
+    PuxiTopic(
+      id: 'rangemath',
+      title: 'Matemática de rangos',
+      keywords: ['cuantas manos', 'porcentaje de rango', 'combos totales', 'matematica de rango', 'rango porcentaje', 'cuantos combos'],
+      answer: {
+        'es': 'Hay 1.326 combos posibles de mano inicial. Las parejas: 6 combos cada una (78 en total = 6%). Suited: 4 combos (312 = 24%). Offsuit: 12 combos (936 = 70%). Para traducir un rango a %: cuenta combos y divide entre 1.326. Ej: "QQ+, AK" = 6+6+6 (QQ,KK,AA) + 16 (AK) = 34 combos = 2,6% del total, un rango ULTRA premium. Un open del BTN ~45% son ~597 combos. Pensar en combos te da precisión que el "creo que tiene…" jamás te dará.',
+        'en': 'There are 1,326 possible starting-hand combos. Pairs: 6 combos each (78 total = 6%). Suited: 4 combos (312 = 24%). Offsuit: 12 combos (936 = 70%). To turn a range into a %: count combos and divide by 1,326. E.g. "QQ+, AK" = 6+6+6 (QQ,KK,AA) + 16 (AK) = 34 combos = 2.6% of all hands, an ULTRA premium range. A BTN open of ~45% is ~597 combos. Thinking in combos gives precision that "I think they have…" never will.',
+      },
+    ),
+    PuxiTopic(
+      id: 'realization',
+      title: 'Realización de equity (R)',
+      keywords: ['realizacion', 'realization', 'realizar equity', 'equity realization', 'R factor'],
+      answer: {
+        'es': 'Tu equity en bruto NO es lo que ganas: la realizas según puedas LLEGAR al showdown. El factor R: en posición realizas MÁS del 100% de tu equity (R>1) porque controlas el bote y robas; fuera de posición realizas MENOS (R<0,9). Por eso 65s en el BTN vale más que su equity cruda, y la misma mano en UTG vale menos. Manos con buena realización: suited (ligan color y juegan fácil), conectores en posición. Mala realización: offsuit OOP que se foldean cuando fallan.',
+        'en': 'Your raw equity is NOT what you win: you REALIZE it based on how often you get to showdown. The R factor: in position you realize MORE than 100% of your equity (R>1) because you control the pot and steal; out of position you realize LESS (R<0.9). That\'s why 65s on the BTN is worth more than its raw equity, and the same hand UTG is worth less. Good realization: suited hands (make flushes, play easily), connectors in position. Bad realization: offsuit OOP that folds when it misses.',
+      },
+    ),
+    PuxiTopic(
+      id: 'fourbet',
+      title: '4-Bet',
+      keywords: ['4bet', '4-bet', 'cuatro bet', 're-resubir', 'cuarta apuesta'],
+      answer: {
+        'es': 'Un 4-bet es la resubida sobre un 3-bet. Rango polarizado: VALOR (QQ+, AK) + FAROLES con blockers (A5s-A2s; el As bloquea AA/AK del rival, reduciendo sus combos de continuación). Tamaño: ~2,2-2,5x el 3-bet IP, algo más OOP. Contra un 3-bet bluff frecuente, 4-betea más ligero. Contra nits que solo 3-betean QQ+, foldea hasta AK y no 4-betees de farol: no tienen nada que foldear. El 4-bet bluff vive de los blockers.',
+        'en': 'A 4-bet is the re-raise over a 3-bet. Polarized range: VALUE (QQ+, AK) + BLUFFS with blockers (A5s-A2s; the Ace blocks villain\'s AA/AK, cutting their continue combos). Sizing: ~2.2-2.5x the 3-bet IP, a bit more OOP. Against a frequent 3-bet bluffer, 4-bet lighter. Against nits who only 3-bet QQ+, fold even AK and don\'t 4-bet bluff: they have nothing to fold. The 4-bet bluff lives on blockers.',
+      },
+    ),
+    PuxiTopic(
+      id: 'squeeze',
+      title: 'Squeeze',
+      keywords: ['squeeze', 'apretar', 'resubir con caller', '3bet con call', 'squeeze play'],
+      answer: {
+        'es': 'Squeeze = 3-betear cuando hubo una apertura Y uno o más callers. La presión es brutal: el que abrió aún puede tener un 4-bet, y los callers casi nunca aguantan (entraron con manos de flat). Sube MÁS que un 3-bet normal (+1 tamaño por cada caller, ~4-5x). Buen rango: valor fuerte + suited con blockers. La posición de los callers importa: contra calls de jugadores tight, foldean más; contra fish loose, más valor y menos farol.',
+        'en': 'Squeeze = 3-betting when there was an open AND one or more callers. The pressure is brutal: the opener can still have a 4-bet, and the callers rarely continue (they entered with flatting hands). Size BIGGER than a normal 3-bet (+1 sizing per caller, ~4-5x). Good range: strong value + suited hands with blockers. Caller position matters: against tight callers they fold more; against loose fish, more value and fewer bluffs.',
+      },
+    ),
+    PuxiTopic(
+      id: 'isolation',
+      title: 'Aislamiento (iso-raise)',
+      keywords: ['aislar', 'isolation', 'iso raise', 'subir al limp', 'isolar limper'],
+      answer: {
+        'es': 'Iso-raise = subir sobre un limp para AISLAR al limper (normalmente un fish) y jugar el bote contra él en posición. Sube más que un open normal (+1bb por limper) para que no entren más. Amplía tu rango de valor: el limper suele tener un rango débil y capped, así que QJ, KT, Axs ganan muchísimo. El objetivo no es robar las ciegas, es jugar botes postflop con ventaja contra el jugador más débil de la mesa.',
+        'en': 'Iso-raise = raising over a limp to ISOLATE the limper (usually a fish) and play the pot against them in position. Raise bigger than a normal open (+1bb per limper) so others don\'t come along. Widen your value range: the limper usually has a weak, capped range, so QJ, KT, Axs print money. The goal isn\'t to steal the blinds, it\'s to play postflop pots with an edge against the weakest player at the table.',
+      },
+    ),
+    PuxiTopic(
+      id: 'protection',
+      title: 'Protección y negación de equity',
+      keywords: ['proteccion', 'protection', 'negar equity', 'equity denial', 'proteger mano', 'apostar para proteger'],
+      answer: {
+        'es': 'Apostar no es solo por valor o farol: también para NEGAR EQUITY. Con top pair en un board húmedo (proyectos de color y escalera), apuestas para que el rival no vea cartas gratis con su 35% de equity de proyecto. Cada vez que le haces foldear una mano que tenía outs, ganas EV. Por eso en boards mojados se apuesta más grande y más a menudo con manos vulnerables: las nuts pueden esperar, las manos medias necesitan cobrar y proteger YA.',
+        'en': 'Betting isn\'t only for value or as a bluff: it also DENIES EQUITY. With top pair on a wet board (flush and straight draws), you bet so villain doesn\'t see free cards with their 35% draw equity. Every time you make them fold a hand that had outs, you gain EV. That\'s why on wet boards you bet bigger and more often with vulnerable hands: the nuts can wait, medium hands need to charge and protect NOW.',
+      },
+    ),
+    PuxiTopic(
+      id: 'multiway',
+      title: 'Botes multiway',
+      keywords: ['multiway', 'varios jugadores', 'bote multiple', 'tres jugadores', 'multi way'],
+      answer: {
+        'es': 'En botes con 3+ jugadores, todo cambia: los faroles pierden valor (alguien siempre puede pagar) y las manos marginales valen menos (necesitas más fuerza para apostar de valor). Regla: aprieta tu rango, farolea MUCHO menos y apuesta de valor más fuerte (top pair débil se convierte en bluff-catcher). La equity se reparte: tu 60% heads-up puede ser 40% contra dos rangos. Juega más directo, menos creativo. Las nuts valen oro; las manos medias, cautela.',
+        'en': 'In pots with 3+ players everything changes: bluffs lose value (someone can always call) and marginal hands are worth less (you need more strength to value bet). Rule: tighten your range, bluff MUCH less and value bet stronger (weak top pair becomes a bluff-catcher). Equity splits: your 60% heads-up can be 40% against two ranges. Play more straightforward, less creative. The nuts are gold; medium hands, caution.',
+      },
+    ),
+    PuxiTopic(
+      id: 'commitment',
+      title: 'Umbral de compromiso (stack-off)',
+      keywords: ['stack off', 'comprometer stack', 'commitment', 'meter todo', 'umbral de compromiso', 'cuando ir all in'],
+      answer: {
+        'es': 'El umbral de stack-off es el punto donde tu mano vale para meter TODAS las fichas. Depende del SPR: con SPR 1-2, top pair buen kicker ya es suficiente para ir all-in; con SPR 6+, necesitas dos pares o mejor. Antes de comprometerte pregúntate: ¿qué rango me paga peor que yo? Si te pagan solo manos que te ganan (sets, dos pares) cuando vas con top pair, NO te comprometas. El SPR planificado preflop decide qué manos pueden jugar por stacks.',
+        'en': 'The stack-off threshold is the point where your hand is worth getting ALL the chips in. It depends on SPR: at SPR 1-2, top pair good kicker is enough to get it in; at SPR 6+, you need two pair or better. Before committing ask: what range calls me that I beat? If only hands that beat you (sets, two pair) call when you have top pair, do NOT commit. The SPR you planned preflop decides which hands can play for stacks.',
+      },
+    ),
+    PuxiTopic(
+      id: 'leveling',
+      title: 'Niveles y metajuego',
+      keywords: ['niveles', 'leveling', 'metajuego', 'metagame', 'nivel de pensamiento', 'que piensa que pienso'],
+      answer: {
+        'es': 'Los niveles de pensamiento: Nivel 1 = "¿qué tengo yo?". Nivel 2 = "¿qué tiene él?". Nivel 3 = "¿qué cree él que tengo yo?". Nivel 4 = "¿qué cree él que creo yo que tiene?". Contra fish (nivel 1), juega EXPLOTATIVO simple: value bet fino y no farolees. Contra regs (nivel 3+), vuelve al GTO para no ser explotado. El error es "fancy play syndrome": niveles de más contra rivales que no piensan. Ajusta tu nivel UNO por encima del rival, no más.',
+        'en': 'Levels of thinking: Level 1 = "what do I have?". Level 2 = "what do they have?". Level 3 = "what do they think I have?". Level 4 = "what do they think I think they have?". Against fish (level 1), play simple EXPLOITATIVE: thin value bet and don\'t bluff. Against regs (level 3+), return to GTO so you\'re not exploited. The mistake is "fancy play syndrome": too many levels against opponents who don\'t think. Set your level ONE above your opponent, no more.',
+      },
+    ),
+    PuxiTopic(
+      id: 'coolers',
+      title: 'Coolers vs errores',
+      keywords: ['cooler', 'mala suerte', 'set over set', 'bad beat', 'error vs cooler', 'perder con buena mano'],
+      answer: {
+        'es': 'Distingue COOLER de ERROR. Cooler: pierdes todo el stack en un spot donde cualquier jugador habría hecho lo mismo (set vs set, AA vs KK all-in preflop). No es un fallo, es varianza, suéltalo. Error: pierdes fichas por una decisión -EV (pagar sin odds, farolear a un calling station). En ANALIZAR, el Puxi solo te marca los ERRORES; los coolers no cuentan contra ti. Confundir ambos lleva al tilt: no te castigues por coolers ni te excuses los errores como "mala suerte".',
+        'en': 'Tell a COOLER from a MISTAKE. Cooler: you lose your stack in a spot where any player would have done the same (set vs set, AA vs KK all-in preflop). It\'s not a leak, it\'s variance, let it go. Mistake: you lose chips to a -EV decision (calling without odds, bluffing a calling station). In ANALYZE, el Puxi only flags the MISTAKES; coolers don\'t count against you. Confusing the two leads to tilt: don\'t punish yourself for coolers, and don\'t excuse mistakes as "bad luck".',
+      },
+    ),
+    PuxiTopic(
+      id: 'bluffratio',
+      title: 'Ratio valor/farol',
+      keywords: ['ratio valor farol', 'value to bluff', 'cuantos faroles', 'proporcion farol', 'equilibrio valor farol'],
+      answer: {
+        'es': 'Un rango de apuesta equilibrado lleva la proporción correcta de faroles para cada tamaño, según las odds que le das al rival. En el RIVER: apuesta de ½ bote → 2 valor : 1 farol (33% faroles). Apuesta de bote → 1:1 (50% faroles). Overbet 2x → más faroles aún. ¿Por qué? Porque le das mejores odds para pagar, así que necesitas más faroles para que su bluff-catcher quede indiferente. En flop/turn llevas MÁS faroles (aún pueden mejorar). Equilibra y serás imposible de explotar.',
+        'en': 'A balanced betting range carries the right proportion of bluffs for each size, based on the odds you give villain. On the RIVER: ½-pot bet → 2 value : 1 bluff (33% bluffs). Pot bet → 1:1 (50% bluffs). 2x overbet → even more bluffs. Why? Because you give better calling odds, so you need more bluffs to keep their bluff-catcher indifferent. On flop/turn you carry MORE bluffs (they can still improve). Balance this and you\'re impossible to exploit.',
+      },
+    ),
+    PuxiTopic(
+      id: 'wetdry',
+      title: 'Boards: secos, mojados y dinámicos',
+      keywords: ['board seco', 'board mojado', 'textura', 'dinamico', 'estatico', 'wet dry board', 'tipo de board'],
+      answer: {
+        'es': 'SECO/ESTÁTICO (K72 rainbow): pocas cartas cambian el ganador; el agresor c-betea pequeño y a menudo (tiene ventaja de rango). MOJADO/DINÁMICO (T98 con dos del mismo palo): muchísimas cartas cambian todo; apuesta más grande con valor para proteger y cobrar a los proyectos, y frena tus manos medias. MONOCOLOR: cuidado, alguien puede tener color ya. EMPAREJADO (KK7): reduce los proyectos, favorece c-bets baratas. La textura decide tu sizing, tu frecuencia y a quién favorece el board.',
+        'en': 'DRY/STATIC (K72 rainbow): few cards change the winner; the aggressor c-bets small and often (range advantage). WET/DYNAMIC (T98 two-tone): tons of cards change everything; bet bigger with value to protect and charge draws, and slow down your medium hands. MONOTONE: careful, someone may already have a flush. PAIRED (KK7): fewer draws, favors cheap c-bets. Texture decides your sizing, your frequency and who the board favors.',
+      },
+    ),
   ];
 
   /// Matches a free-text question to the best topic by keyword overlap.

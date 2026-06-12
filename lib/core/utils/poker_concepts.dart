@@ -390,23 +390,62 @@ class HumanReadModel {
   int aggressiveActions = 0;
   int passiveActions = 0;
 
-  /// Overall fold-vs-bet frequency (default 0.5 with Laplace smoothing).
-  double get foldVsBetRate =>
-      (foldsVsBet + 2) / (facedBets + 4);
+  // Prior seeded from previous sessions (cross-session learning). These
+  // give the bots a head start and decay in influence as live data piles up.
+  double _priorFoldVsBet = 0.5;
+  double _priorBarrelFold = 0.5;
+  double _priorAggression = 1.0;
+  bool _seeded = false;
+
+  /// Seeds the model from the persisted cross-session human profile so the
+  /// bots can exploit known tendencies from the very first hand.
+  void seedFrom(Map<String, double> profile) {
+    if (profile.isEmpty) return;
+    _seeded = true;
+    final riverFold = profile['riverFold'];
+    final foldVsBet = profile['foldVsBet'];
+    final aggression = profile['aggression'];
+    if (foldVsBet != null) _priorFoldVsBet = (foldVsBet / 100).clamp(0.05, 0.95);
+    if (riverFold != null) _priorBarrelFold = (riverFold / 100).clamp(0.05, 0.95);
+    if (aggression != null) _priorAggression = aggression.clamp(0.2, 4.0);
+  }
+
+  /// Learning curve 0..1: how much the bot trusts its live reads. Grows with
+  /// observed hands; if seeded from history it starts already confident.
+  double get confidence {
+    final live = (handsObserved / 25).clamp(0.0, 1.0);
+    return _seeded ? (0.45 + live * 0.55).clamp(0.0, 1.0) : live;
+  }
+
+  /// Overall fold-vs-bet frequency, blending the seeded prior with live data
+  /// according to how much we've observed this session.
+  double get foldVsBetRate {
+    final live = (foldsVsBet + 2) / (facedBets + 4);
+    final w = (facedBets / 12).clamp(0.0, 1.0);
+    return _priorFoldVsBet * (1 - w) + live * w;
+  }
 
   /// Fold rate specifically on turn/river — drives Ivey's barrel exploit.
-  double get foldVsBarrelRate =>
-      (foldsVsTurnRiverBets + 2) / (facedTurnRiverBets + 4);
+  double get foldVsBarrelRate {
+    final live = (foldsVsTurnRiverBets + 2) / (facedTurnRiverBets + 4);
+    final w = (facedTurnRiverBets / 8).clamp(0.0, 1.0);
+    return _priorBarrelFold * (1 - w) + live * w;
+  }
 
-  /// Aggression factor: raises+bets / calls.
-  double get aggressionFactor =>
-      passiveActions == 0 ? 1.0 : aggressiveActions / passiveActions;
+  /// Aggression factor: raises+bets / calls (blended with prior).
+  double get aggressionFactor {
+    final live = passiveActions == 0 ? 1.0 : aggressiveActions / passiveActions;
+    final w = ((aggressiveActions + passiveActions) / 12).clamp(0.0, 1.0);
+    return _priorAggression * (1 - w) + live * w;
+  }
 
   /// Is the human a calling station? Bluff less, value bet thinner.
-  bool get isCallingStation => facedBets >= 6 && foldVsBetRate < 0.30;
+  bool get isCallingStation =>
+      (facedBets >= 6 || _seeded) && foldVsBetRate < 0.30;
 
   /// Does the human overfold? Bluff relentlessly.
-  bool get overFolds => facedBets >= 4 && foldVsBetRate > 0.55;
+  bool get overFolds =>
+      (facedBets >= 4 || _seeded) && foldVsBetRate > 0.55;
 }
 
 /// Heuristic range-vs-range edge on a given texture.

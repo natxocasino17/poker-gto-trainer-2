@@ -62,13 +62,13 @@ class PreflopCharts {
       '88', '77', '66', '55', '44', '33', '22',
       'A9s', 'A8s', 'A7s', 'A6s', 'A3s', 'A2s',
       'KTs', 'K9s', 'QJs', 'QTs', 'Q9s', 'JTs', 'J9s', 'T9s', '98s', '87s', '76s', '65s',
-      'AJo', 'ATo', 'KQo', 'KJo',
+      'AJo', 'ATo', 'A9o', 'KQo', 'KJo', 'KTo', 'QJo',
     },
     TablePosition.co: {
       '77', '66', '55', '44', '33', '22',
       'A9s', 'A8s', 'A7s', 'A6s', 'A2s',
       'KTs', 'K9s', 'K8s', 'QTs', 'Q9s', 'J9s', 'JTs', 'T9s', 'T8s', '98s', '97s', '87s', '86s', '76s', '65s', '54s',
-      'ATo', 'A9o', 'KJo', 'KTo', 'QJo', 'QTo', 'JTo',
+      'ATo', 'A9o', 'A8o', 'A7o', 'A5o', 'KJo', 'KTo', 'K9o', 'QJo', 'QTo', 'Q9o', 'JTo', 'J9o', 'T9o',
     },
     TablePosition.btn: {
       '66', '55', '44', '33', '22',
@@ -125,10 +125,11 @@ class PreflopCharts {
     TablePosition.btn: {
       '99', '88', '77', '66', '55', '44', '33', '22',
       'AQs', 'AJs', 'ATs', 'A9s', 'KQs', 'KJs', 'KTs', 'QJs', 'QTs', 'JTs',
-      'T9s', '98s', '87s', '76s', '65s', 'AQo', 'AJo', 'KQo',
+      'T9s', '98s', '87s', '76s', '65s', 'AQo', 'AJo', 'ATo', 'KQo', 'KJo', 'KTo', 'QJo', 'QTo', 'JTo',
     },
     TablePosition.sb: {
-      '99', '88', '77', '66', '55', 'AQs', 'AJs', 'ATs', 'KQs', 'KJs', 'QJs', 'JTs', 'T9s', 'AQo',
+      '99', '88', '77', '66', '55', 'AQs', 'AJs', 'ATs', 'KQs', 'KJs', 'QJs', 'JTs', 'T9s',
+      'AQo', 'AJo', 'KQo', 'KJo', 'QJo',
     },
     TablePosition.bb: {
       // BB closes the action getting a discount: defend wide
