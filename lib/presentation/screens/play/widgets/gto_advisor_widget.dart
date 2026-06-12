@@ -15,16 +15,36 @@ class GTOAdvisorFAB extends StatelessWidget {
     return AnimatedOpacity(
       opacity: isMyTurn ? 1.0 : 0.4,
       duration: const Duration(milliseconds: 300),
-      child: FloatingActionButton.small(
-        onPressed: isMyTurn ? () => gp.requestGTOAdvice() : null,
-        backgroundColor: AppColors.surfaceElevated,
-        elevation: 4,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.psychology, color: AppColors.accent, size: 18),
-            Text('GTO', style: TextStyle(color: AppColors.accent, fontSize: 7, fontWeight: FontWeight.w700)),
-          ],
+      child: GestureDetector(
+        onTap: isMyTurn ? () => gp.requestGTOAdvice() : null,
+        child: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.surfaceElevated,
+            border: Border.all(color: AppColors.accent, width: 2),
+            boxShadow: const [BoxShadow(color: AppColors.accentGlow, blurRadius: 10, spreadRadius: 1)],
+          ),
+          child: Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              const Center(child: ZerosAvatar(size: 44)),
+              // Small "GTO" badge so its purpose stays clear (Puxi = the AI face)
+              Positioned(
+                bottom: -2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text('GTO',
+                      style: TextStyle(color: Color(0xFF06231E), fontSize: 7, fontWeight: FontWeight.w900)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
