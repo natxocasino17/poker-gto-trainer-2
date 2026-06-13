@@ -28,19 +28,15 @@ void main() {
 
     test('P0 bluffs with J at the right frequency (~1/3)', () {
       final solver = CfrSolver(const KuhnPoker());
-      final kuhn = const KuhnPoker();
-      
       solver.train(10000);
 
-      // At the key Kuhn equilibrium: P0 bets with J at frequency α ≈ 1/3
-      // Query the strategy from the root state instead of accessing nodes directly
-      final actions = solver.query(kuhn.root());
-      
-      expect(actions, isNotEmpty);
-      if (actions.length > 1) {
-        // actions[1] = bet frequency; optimal α ∈ [1/3, 1/3]
-        expect(actions[1].frequency, closeTo(1 / 3, 0.05));
-      }
+      // infoSetKey for KuhnPoker = '$card:$history'
+      // P0 (acts first, empty history) with J (card=0) → key = '0:'
+      final node = solver.nodes['0:'];
+      expect(node, isNotNull);
+      final avg = node!.averageStrategy();
+      // avg[1] = bet frequency; Nash equilibrium α ≈ 1/3
+      expect(avg[1], closeTo(1 / 3, 0.05));
     });
 
     test('query() returns strategies summing to 1.0', () {
