@@ -70,6 +70,10 @@ class LegendProfile {
   // Phil Hellmuth "White Magic": trusts reads over GTO — hero-calls vs aggression,
   // prioritises stack survival, folds marginal risky spots, patient max value
   final bool whiteMagicReader;
+  // OOP probe bet frequency when IP checks back (demonstrates weakness on prior street)
+  final double probeBetFreq;
+  // OOP donk bet frequency when defender's range hits this board texture better
+  final double donkBetFreq;
   // Optional illustrated avatar asset path (null → show emoji)
   final String? avatarAsset;
 
@@ -111,6 +115,8 @@ class LegendProfile {
     this.readsOpponent = false,
     this.freestyleAggressor = false,
     this.whiteMagicReader = false,
+    this.probeBetFreq = 0.22,
+    this.donkBetFreq = 0.08,
     this.avatarAsset,
   });
 }
@@ -138,6 +144,7 @@ class LegendaryBotEngine {
       openSizeBB: 2.3,
       bluffRaiseFreq: 0.22, floatFreq: 0.32,
       threeBetBluffFreq: 0.13, squeezeFreq: 0.14,
+      probeBetFreq: 0.30, donkBetFreq: 0.12,
       exploitsHighFolders: true,
       readsOpponent: true,       // "El Observador": exploitation gated on confidence
     ),
@@ -160,6 +167,7 @@ class LegendaryBotEngine {
       riverOverbetThreshold: 0.62,
       openSizeBB: 2.5,
       threeBetBluffFreq: 0.20, squeezeFreq: 0.18, bluffRaiseFreq: 0.20,
+      probeBetFreq: 0.35, donkBetFreq: 0.10,
       // GTO-first: polarized overbets, no pot control
       polarizedBetting: true,
     ),
@@ -176,6 +184,7 @@ class LegendaryBotEngine {
       preferredSizings: [0.25, 0.33, 0.5],
       riverOverbetThreshold: 0.90,
       openSizeBB: 2.0, floatFreq: 0.28, blockerBetFreq: 0.20,
+      probeBetFreq: 0.28, donkBetFreq: 0.14,
     ),
     // 4. Phil Hellmuth — The Poker Brat / White Magic: legendary patience,
     // small-ball survival, hero-calls on reads over GTO, pure-value raises.
@@ -196,6 +205,7 @@ class LegendaryBotEngine {
       riverOverbetThreshold: 0.96,
       openSizeBB: 2.2,
       bluffRaiseFreq: 0.0, threeBetBluffFreq: 0.02, floatFreq: 0.05,
+      probeBetFreq: 0.12, donkBetFreq: 0.04,
       // "White Magic" + "Defensa del Stack": read-based hero calls, survival first
       whiteMagicReader: true,
     ),
@@ -212,6 +222,7 @@ class LegendaryBotEngine {
       preferredSizings: [0.75, 1.0, 1.5, 2.5],
       riverOverbetThreshold: 0.60,
       openSizeBB: 2.8, threeBetBluffFreq: 0.22, bluffRaiseFreq: 0.28,
+      probeBetFreq: 0.42, donkBetFreq: 0.18,
       polarizedBetting: true,
     ),
     // 6. Doyle Brunson — Old School Aggressive: heavy implied-odds weighting
@@ -227,6 +238,7 @@ class LegendaryBotEngine {
       preferredSizings: [0.5, 0.75, 1.0, 1.25],
       riverOverbetThreshold: 0.80,
       openSizeBB: 2.5, impliedOddsWeight: 1.5,
+      probeBetFreq: 0.28, donkBetFreq: 0.12,
     ),
     // 7. Fedor Holz — GTO Strict: perfectly balanced solver trees,
     // standardized sizings.
@@ -240,6 +252,7 @@ class LegendaryBotEngine {
       bluffFreq: 0.28, slowplayFreq: 0.18,
       preferredSizings: [0.33, 0.5, 0.75, 1.0],
       riverOverbetThreshold: 0.80,
+      probeBetFreq: 0.26, donkBetFreq: 0.08,
     ),
     // 8. Chris Moneymaker — Explosive Variance: wide preflop, jams
     // combo draws on the flop to force variance.
@@ -254,6 +267,7 @@ class LegendaryBotEngine {
       preferredSizings: [0.75, 1.0, 1.5],
       riverOverbetThreshold: 0.65,
       threeBetBluffFreq: 0.12,
+      probeBetFreq: 0.34, donkBetFreq: 0.14,
       highVarianceDraws: true,
     ),
     // 9. Justin Bonomo — Computational Frequencies: strict equity-vs-range
@@ -268,6 +282,7 @@ class LegendaryBotEngine {
       bluffFreq: 0.30, slowplayFreq: 0.16,
       preferredSizings: [0.33, 0.5, 0.75, 1.0],
       riverOverbetThreshold: 0.78,
+      probeBetFreq: 0.26, donkBetFreq: 0.08,
     ),
     // 10. Stephen Chidwick — Blind Defense Elite: wide blind defense and
     // relentless technical check-raises.
@@ -282,6 +297,7 @@ class LegendaryBotEngine {
       preferredSizings: [0.5, 0.75, 1.0],
       riverOverbetThreshold: 0.82,
       squeezeFreq: 0.18,
+      probeBetFreq: 0.32, donkBetFreq: 0.10,
     ),
     // 11. Gus Hansen — Classic LAG: opens marginal hands from any seat,
     // grinds solid ranges down with extreme postflop aggression.
@@ -296,6 +312,7 @@ class LegendaryBotEngine {
       preferredSizings: [0.75, 1.0, 1.25, 1.5],
       riverOverbetThreshold: 0.68,
       openSizeBB: 2.6, threeBetBluffFreq: 0.20, bluffRaiseFreq: 0.20,
+      probeBetFreq: 0.38, donkBetFreq: 0.16,
       exploitsHighFolders: true,
     ),
     // 12. Antonio Esfandiari — Pot Control Specialist: keeps pots small with
@@ -311,6 +328,7 @@ class LegendaryBotEngine {
       preferredSizings: [0.25, 0.33, 0.5],
       riverOverbetThreshold: 0.92,
       openSizeBB: 2.2, blockerBetFreq: 0.35,
+      probeBetFreq: 0.22, donkBetFreq: 0.08,
       potControl: true,
     ),
     // 13. Michael Addamo — Overbet Terror: 2-3x pot bombs from the flop
@@ -326,6 +344,7 @@ class LegendaryBotEngine {
       preferredSizings: [1.0, 1.5, 2.0, 3.0],
       riverOverbetThreshold: 0.60,
       openSizeBB: 3.0, bluffRaiseFreq: 0.18,
+      probeBetFreq: 0.36, donkBetFreq: 0.14,
       polarizedBetting: true,
     ),
     // 14. Linus Loeliger — High Roller Cash GTO: mathematically perfect
@@ -341,6 +360,7 @@ class LegendaryBotEngine {
       preferredSizings: [0.33, 0.5, 0.75, 1.0],
       riverOverbetThreshold: 0.80,
       threeBetBluffFreq: 0.14,
+      probeBetFreq: 0.26, donkBetFreq: 0.08,
     ),
     // 15. Bryn Kenney — Stack Pressure: sizes bets to punish survival
     // ranges, maximizing chip leverage.
@@ -355,6 +375,7 @@ class LegendaryBotEngine {
       preferredSizings: [0.75, 1.0, 1.25],
       riverOverbetThreshold: 0.72,
       openSizeBB: 2.5,
+      probeBetFreq: 0.30, donkBetFreq: 0.12,
       stackPressure: true,
     ),
     // 16. Raúl Mestre — The Professor / Strategic Analyst: plays RANGES not cards.
@@ -378,6 +399,7 @@ class LegendaryBotEngine {
       openSizeBB: 2.3,
       threeBetBluffFreq: 0.12, squeezeFreq: 0.13,
       blockerBetFreq: 0.18,
+      probeBetFreq: 0.25, donkBetFreq: 0.08,
       // "Gestión del Bote": never inflates with medium hands
       potControl: true,
     ),
@@ -400,6 +422,7 @@ class LegendaryBotEngine {
       preferredSizings: [0.33, 0.75, 1.5, 2.5],
       riverOverbetThreshold: 0.58,
       openSizeBB: 2.7, threeBetBluffFreq: 0.22, bluffRaiseFreq: 0.28,
+      probeBetFreq: 0.42, donkBetFreq: 0.20,
       polarizedBetting: true, highVarianceDraws: true,
       // "La Bestia": surprise factor + attacks tight players + instinct jams
       freestyleAggressor: true,
@@ -417,6 +440,7 @@ class LegendaryBotEngine {
       bluffFreq: 0.04, slowplayFreq: 0.10,
       preferredSizings: [0.5, 0.75], riverOverbetThreshold: 0.97,
       bluffRaiseFreq: 0.0, threeBetBluffFreq: 0.0, floatFreq: 0.04,
+      probeBetFreq: 0.06, donkBetFreq: 0.02,
     ),
     LegendProfile(
       name: 'TAG Clásico', style: 'Tight-Aggressive Sólido', emoji: '🎓', isArchetype: true,
@@ -425,6 +449,7 @@ class LegendaryBotEngine {
       cBetFreq: 0.68, doubleBarrelFreq: 0.52, tripleBarrelFreq: 0.36, checkRaiseFreq: 0.26,
       bluffFreq: 0.24, slowplayFreq: 0.16,
       preferredSizings: [0.5, 0.66, 0.75], riverOverbetThreshold: 0.85,
+      probeBetFreq: 0.20, donkBetFreq: 0.06,
     ),
     LegendProfile(
       name: 'LAG Salvaje', style: 'Loose-Aggressive Total', emoji: '🐺', isArchetype: true,
@@ -434,6 +459,7 @@ class LegendaryBotEngine {
       bluffFreq: 0.52, slowplayFreq: 0.10,
       preferredSizings: [0.66, 1.0, 1.5], riverOverbetThreshold: 0.64,
       openSizeBB: 2.6, threeBetBluffFreq: 0.22, bluffRaiseFreq: 0.24,
+      probeBetFreq: 0.38, donkBetFreq: 0.16,
       exploitsHighFolders: true, polarizedBetting: true,
     ),
     LegendProfile(
@@ -444,6 +470,7 @@ class LegendaryBotEngine {
       bluffFreq: 0.05, slowplayFreq: 0.30,
       preferredSizings: [0.33, 0.5], riverOverbetThreshold: 0.98,
       bluffRaiseFreq: 0.0, threeBetBluffFreq: 0.0, floatFreq: 0.30, impliedOddsWeight: 1.6,
+      probeBetFreq: 0.06, donkBetFreq: 0.06,
       stationCalling: true,
     ),
     LegendProfile(
@@ -454,6 +481,7 @@ class LegendaryBotEngine {
       bluffFreq: 0.68, slowplayFreq: 0.05,
       preferredSizings: [1.0, 1.5, 2.0, 3.0], riverOverbetThreshold: 0.50,
       openSizeBB: 3.5, threeBetBluffFreq: 0.30, bluffRaiseFreq: 0.36,
+      probeBetFreq: 0.55, donkBetFreq: 0.28,
       polarizedBetting: true, highVarianceDraws: true, stackPressure: true,
     ),
     LegendProfile(
@@ -464,6 +492,7 @@ class LegendaryBotEngine {
       bluffFreq: 0.05, slowplayFreq: 0.08,
       preferredSizings: [0.5, 0.75], riverOverbetThreshold: 0.95,
       bluffRaiseFreq: 0.0, threeBetBluffFreq: 0.02, floatFreq: 0.03,
+      probeBetFreq: 0.05, donkBetFreq: 0.02,
       fitOrFold: true,
     ),
     LegendProfile(
@@ -474,6 +503,7 @@ class LegendaryBotEngine {
       bluffFreq: 0.18, slowplayFreq: 0.14,
       preferredSizings: [0.5, 0.66], riverOverbetThreshold: 0.90,
       threeBetBluffFreq: 0.06,
+      probeBetFreq: 0.20, donkBetFreq: 0.06,
     ),
     LegendProfile(
       name: 'Solver Reg', style: 'GTO de Laboratorio', emoji: '🧮', isArchetype: true,
@@ -483,6 +513,7 @@ class LegendaryBotEngine {
       bluffFreq: 0.30, slowplayFreq: 0.17,
       preferredSizings: [0.33, 0.5, 0.75, 1.25], riverOverbetThreshold: 0.76,
       threeBetBluffFreq: 0.16, squeezeFreq: 0.16, blockerBetFreq: 0.18,
+      probeBetFreq: 0.28, donkBetFreq: 0.10,
     ),
     LegendProfile(
       name: 'Nit Agresivo', style: 'Rango Cerrado, Postflop Letal', emoji: '🦂', isArchetype: true,
@@ -492,6 +523,7 @@ class LegendaryBotEngine {
       bluffFreq: 0.30, slowplayFreq: 0.12,
       preferredSizings: [0.75, 1.0, 1.5], riverOverbetThreshold: 0.72,
       bluffRaiseFreq: 0.14, threeBetBluffFreq: 0.05,
+      probeBetFreq: 0.24, donkBetFreq: 0.08,
       polarizedBetting: true,
     ),
     LegendProfile(
@@ -502,6 +534,7 @@ class LegendaryBotEngine {
       bluffFreq: 0.40, slowplayFreq: 0.10,
       preferredSizings: [0.75, 1.0, 1.5], riverOverbetThreshold: 0.60,
       impliedOddsWeight: 1.8, threeBetBluffFreq: 0.15, bluffRaiseFreq: 0.18,
+      probeBetFreq: 0.36, donkBetFreq: 0.14,
       highVarianceDraws: true,
     ),
   ];
@@ -574,6 +607,8 @@ class LegendaryBotEngine {
     required int callersThisStreet,
     required double bigBlind,
     bool inPosition = false,
+    bool villainCheckedBack = false,
+    List<CardModel> prevBoard = const [],
   }) async {
     // "Thinking time": 1-3s, harder spots take longer
     final difficulty = callAmount > currentPot * 0.6 ? 600 : 0;
@@ -616,6 +651,8 @@ class LegendaryBotEngine {
         inPosition: inPosition,
         street: street,
         bb: bigBlind,
+        villainCheckedBack: villainCheckedBack,
+        prevBoard: prevBoard,
       );
     }
 
@@ -844,6 +881,8 @@ class LegendaryBotEngine {
     required String street,
     required double bb,
     bool inPosition = false,
+    bool villainCheckedBack = false,
+    List<CardModel> prevBoard = const [],
   }) {
     final texture = BoardTexture.analyze(board);
     final analysis = HandStrengthAnalysis.analyze(hole, board);
@@ -853,6 +892,10 @@ class LegendaryBotEngine {
     final isRiver = street == 'river';
     final isTurnOrRiver = street == 'turn' || isRiver;
     final stackBBsPost = stack / bb;
+    final drawCompleted = prevBoard.isNotEmpty && board.isNotEmpty
+        ? BoardTexture.drawCompletedOn(prevBoard, board.last)
+        : false;
+    final defAdv = RangeModel.defenderRangeAdvantage(texture);
 
     // ── Phil Ivey "El Observador": build a read before exploiting.
     // With low confidence (<30%), plays close to GTO baseline.
@@ -933,6 +976,71 @@ class LegendaryBotEngine {
 
     // ════════════ NO BET TO FACE: bet or check ════════════
     if (callAmount <= 0) {
+      // ── OOP Probe bet: IP checked back last street → fire to exploit weakness ──
+      if (!inPosition && villainCheckedBack && !wasAggressor) {
+        switch (analysis.bucket) {
+          case HandBucket.nuts:
+          case HandBucket.strongValue:
+            return BotDecision(
+              type: ActionType.bet,
+              amount: clampBet(_valueSize(profile, pot, texture, street, spr: spr, nut: analysis.bucket == HandBucket.nuts)),
+              thinkMs: 0,
+            );
+          case HandBucket.mediumValue:
+            if (rand < profile.probeBetFreq * 0.75) {
+              return BotDecision(type: ActionType.bet, amount: clampBet(pot * 0.40), thinkMs: 0);
+            }
+            break;
+          case HandBucket.comboDraw:
+          case HandBucket.strongDraw:
+            if (!isRiver && rand < profile.probeBetFreq) {
+              return BotDecision(type: ActionType.bet, amount: clampBet(pot * 0.55), thinkMs: 0);
+            }
+            break;
+          case HandBucket.weakDraw:
+          case HandBucket.weakShowdown:
+            if (!isRiver && rand < profile.probeBetFreq * 0.45) {
+              return BotDecision(type: ActionType.bet, amount: clampBet(pot * 0.33), thinkMs: 0);
+            }
+            break;
+          case HandBucket.air:
+            if (!isRiver && blockers.goodBluffBlockers && rand < profile.probeBetFreq * 0.30) {
+              return BotDecision(type: ActionType.bet, amount: clampBet(pot * 0.40), thinkMs: 0);
+            }
+            break;
+        }
+      }
+
+      // ── OOP Donk bet: defender's range advantage is high and not a probe spot ──
+      if (!inPosition && !wasAggressor && !villainCheckedBack &&
+          defAdv > 0.10 && !profile.fitOrFold) {
+        switch (analysis.bucket) {
+          case HandBucket.nuts:
+          case HandBucket.strongValue:
+            if (rand < profile.donkBetFreq * 2.0) {
+              return BotDecision(
+                type: ActionType.bet,
+                amount: clampBet(_valueSize(profile, pot, texture, street, spr: spr, nut: analysis.bucket == HandBucket.nuts)),
+                thinkMs: 0,
+              );
+            }
+            break;
+          case HandBucket.mediumValue:
+            if (rand < profile.donkBetFreq * 0.8) {
+              return BotDecision(type: ActionType.bet, amount: clampBet(pot * 0.33), thinkMs: 0);
+            }
+            break;
+          case HandBucket.comboDraw:
+          case HandBucket.strongDraw:
+            if (!isRiver && rand < profile.donkBetFreq * 1.2) {
+              return BotDecision(type: ActionType.bet, amount: clampBet(pot * 0.50), thinkMs: 0);
+            }
+            break;
+          default:
+            break;
+        }
+      }
+
       // SPR commitment: short SPR + made value → get it in
       if (spr < 1.3 && analysis.isMadeValue) {
         return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
@@ -954,7 +1062,7 @@ class LegendaryBotEngine {
           // Phil vs station: size up to extract maximum value
           final nutsSize = (profile.readsOpponent && human.isCallingStation)
               ? clampBet(pot * 0.90)
-              : clampBet(_valueSize(profile, pot, texture, street, nut: true) * raulValueMult);
+              : clampBet(_valueSize(profile, pot, texture, street, spr: spr, nut: true) * raulValueMult);
           return BotDecision(type: ActionType.bet, amount: nutsSize, thinkMs: 0);
 
         case HandBucket.strongValue:
@@ -964,12 +1072,16 @@ class LegendaryBotEngine {
           if (iveyInduceVsAgg) {
             return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
           }
-          if (texture.wetness < 0.30 && rand < profile.slowplayFreq * 0.5) {
+          // IP balance: occasionally check back strong value on dry boards to protect range
+          if (inPosition && texture.wetness < 0.30 && rand < profile.slowplayFreq * 0.5) {
+            return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
+          }
+          if (!inPosition && texture.wetness < 0.30 && rand < profile.slowplayFreq * 0.5) {
             return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
           }
           final strongSize = (profile.readsOpponent && human.isCallingStation)
               ? clampBet(pot * 0.75)
-              : clampBet(_valueSize(profile, pot, texture, street, nut: false) * raulValueMult);
+              : clampBet(_valueSize(profile, pot, texture, street, spr: spr, nut: false) * raulValueMult);
           return BotDecision(type: ActionType.bet, amount: strongSize, thinkMs: 0);
 
         case HandBucket.mediumValue:
@@ -978,12 +1090,15 @@ class LegendaryBotEngine {
           if (profile.polarizedBetting && !profile.potControl) {
             return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
           }
-          // Pot control (Esfandiari): keep it small, milk rivers
+          // River polarization: medium value rarely bets river — check or small blocker only
           if (isRiver) {
-            if (rand < profile.blockerBetFreq + 0.25) {
+            final riverBetFreq = profile.potControl
+                ? profile.blockerBetFreq * 2.0
+                : profile.blockerBetFreq;
+            if (rand < riverBetFreq) {
               return BotDecision(
                 type: ActionType.bet,
-                amount: clampBet(pot * (profile.potControl ? 0.30 : 0.40)),
+                amount: clampBet(pot * (profile.potControl ? 0.30 : 0.38)),
                 thinkMs: 0,
               );
             }
@@ -1079,6 +1194,7 @@ class LegendaryBotEngine {
             raulBluffMult: raulBluffMult,
             papoBluffMult: papoBluffMult,
             papoSizingChaos: papoSizingChaos,
+            drawCompleted: drawCompleted,
           );
       }
     }
@@ -1090,6 +1206,10 @@ class LegendaryBotEngine {
     final isSmallBet = betFraction <= 0.40;
     final isMediumBet = betFraction > 0.40 && betFraction <= 0.85;
     final facingAllInPrice = callAmount >= stack;
+    // OOP check-raise multiplier: wet boards reward semi-bluff check-raises OOP
+    final oopCRMult = (!inPosition && !wasAggressor && texture.wetness > 0.45) ? 1.40 : 1.0;
+    // Position-adjusted equity realization: IP draws worth more, OOP draws worth less
+    final eqReal = inPosition ? 1.15 : 0.85;
 
     // ── Archetype-specific bet-size reactions ────────────────────────────────
     // Calling station: pays anything with a piece, adjusts marginally vs overbets
@@ -1158,7 +1278,8 @@ class LegendaryBotEngine {
         return BotDecision(type: ActionType.raise, amount: to, thinkMs: 0);
 
       case HandBucket.strongValue:
-        final raiseFreq = 0.40 + (wasAggressor ? 0.0 : profile.checkRaiseFreq * 0.6);
+        final raiseFreq = (isRiver ? 0.20 : 0.40) +
+            (wasAggressor ? 0.0 : profile.checkRaiseFreq * (isRiver ? 0.3 : 0.6) * oopCRMult);
         if (rand < raiseFreq && !facingAllInPrice) {
           final to = raiseTo();
           if (to >= stack * 0.85) {
@@ -1212,7 +1333,7 @@ class LegendaryBotEngine {
         if (profile.highVarianceDraws && !isRiver && rand < 0.50) {
           return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
         }
-        if (!isRiver && rand < profile.checkRaiseFreq + 0.25 && foldEst > 0.35) {
+        if (!isRiver && rand < (profile.checkRaiseFreq + 0.25) * oopCRMult && foldEst > 0.35) {
           final to = raiseTo();
           if (to >= stack * 0.85) {
             return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
@@ -1228,10 +1349,10 @@ class LegendaryBotEngine {
         if (isRiver) {
           return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
         }
-        // Implied-odds weighted draw equity (Brunson: 1.5x)
-        final effectiveEq = analysis.drawEquity * profile.impliedOddsWeight;
+        // Implied-odds weighted draw equity (Brunson: 1.5x) with position adjustment
+        final effectiveEq = analysis.drawEquity * profile.impliedOddsWeight * eqReal;
         // Semi-bluff check-raise with fold equity (Chidwick technical raises)
-        if (rand < profile.checkRaiseFreq * 0.8 && foldEst > 0.40) {
+        if (rand < profile.checkRaiseFreq * 0.8 * oopCRMult && foldEst > 0.40) {
           final to = raiseTo();
           return BotDecision(type: ActionType.raise, amount: to, thinkMs: 0);
         }
@@ -1251,9 +1372,9 @@ class LegendaryBotEngine {
         if ((isSmallBet || isMediumBet) && rand < floatFreqEff) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
-        // Direct implied-odds call when the draw is priced in
+        // Direct implied-odds call when the draw is priced in (position-adjusted)
         if ((isSmallBet || isMediumBet) &&
-            analysis.drawEquity * profile.impliedOddsWeight >= potOdds) {
+            analysis.drawEquity * profile.impliedOddsWeight * eqReal >= potOdds) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
         return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
@@ -1334,6 +1455,7 @@ class LegendaryBotEngine {
     double papoBluffMult = 1.0,
     double papoSizingChaos = 1.0,
     bool inPosition = false,
+    bool drawCompleted = false,
   }) {
     final rand = _rng.nextDouble();
     final isRiver = street == 'river';
@@ -1400,6 +1522,11 @@ class LegendaryBotEngine {
       sizeFrac = sizeFrac.clamp(0.25, 3.0).toDouble();
     }
 
+    // Draw-completion: reduce barrel frequency when flush/straight completes OTT/OTR
+    if (drawCompleted && wasAggressor) {
+      bluffFreq *= texture.monotone ? 0.35 : 0.60;
+    }
+
     // Raúl: apply level-based bluff multiplier
     bluffFreq = (bluffFreq * raulBluffMult).clamp(0.0, 0.95);
 
@@ -1415,12 +1542,14 @@ class LegendaryBotEngine {
 
   /// Value sizing: texture-aware, with nut-advantage overbets for
   /// polarized profiles (Addamo 2-3x pots, Mateos 1.5x rivers).
+  /// SPR-aware multi-street planning: sizes down with deep SPR, up with shallow.
   static double _valueSize(
     LegendProfile profile,
     double pot,
     BoardTexture texture,
     String street, {
     required bool nut,
+    double spr = 5.0,
   }) {
     final isRiver = street == 'river';
     double frac;
@@ -1436,7 +1565,28 @@ class LegendaryBotEngine {
     } else if (nut && isRiver) {
       frac = max(frac, 0.85);
     }
-    if (profile.potControl && !nut) frac = min(frac, 0.5);
+    // River sizing: minimum 2/3 pot — no tiny river bets with value
+    if (isRiver) {
+      frac = texture.wetness < 0.35
+          ? (profile.potControl ? 0.55 : 0.66)
+          : (profile.potControl ? 0.66 : 0.75);
+      if (nut && profile.polarizedBetting) {
+        frac = profile.preferredSizings.last.clamp(1.0, 3.0).toDouble();
+      } else if (nut) {
+        frac = max(frac, 0.85);
+      }
+    }
+    // SPR multi-street planning (non-river streets only)
+    if (!isRiver) {
+      if (spr <= 2.5) {
+        frac = max(frac, 0.75); // short stack: commit quickly
+      } else if (spr <= 4.5) {
+        frac = max(frac, 0.50); // medium SPR: set up for 2 streets
+      } else if (spr > 8.0 && !nut) {
+        frac = min(frac, 0.45); // deep: keep pot small with non-nuts
+      }
+    }
+    if (profile.potControl && !nut && !isRiver) frac = min(frac, 0.5);
     if (profile.stackPressure) frac = (frac * 1.2).clamp(0.3, 3.0).toDouble();
     return pot * frac;
   }

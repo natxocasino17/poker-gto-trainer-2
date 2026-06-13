@@ -375,6 +375,35 @@ class PokerEngine extends ChangeNotifier {
         p.id != player.id &&
         (postflopOrder[p.position] ?? 0) > myOrder);
 
+    // ── PROBE BET DETECTION: did the IP player check back last street?
+    // If so, they showed weakness and the OOP player can probe bet this street.
+    String? prevStreetName;
+    if (_state.street == 'turn') prevStreetName = 'flop';
+    else if (_state.street == 'river') prevStreetName = 'turn';
+    bool villainCheckedBack = false;
+    if (prevStreetName != null) {
+      final prevActions = _state.currentHandActions
+          .where((a) => a.street == prevStreetName)
+          .toList();
+      if (prevActions.isNotEmpty && prevActions.last.type == ActionType.check) {
+        final checker = _state.players.firstWhere(
+            (p) => p.name == prevActions.last.playerName,
+            orElse: () => _state.players[0]);
+        final checkerOrder = postflopOrder[checker.position] ?? 0;
+        if (!player.isFolded && checkerOrder > myOrder) {
+          villainCheckedBack = true;
+        }
+      }
+    }
+    // ── PREVIOUS BOARD CARDS: for draw-completion detection ──
+    final prevBoard = _state.street == 'turn' &&
+            _state.communityCards.length >= 4
+        ? _state.communityCards.sublist(0, 3)
+        : _state.street == 'river' &&
+                _state.communityCards.length >= 5
+            ? _state.communityCards.sublist(0, 4)
+            : <CardModel>[];
+
     BotDecision decision;
     try {
       decision = await LegendaryBotEngine.decide(
@@ -396,6 +425,8 @@ class PokerEngine extends ChangeNotifier {
         raiseCount: raiseCount,
         callersThisStreet: callersThisStreet,
         bigBlind: bigBlind,
+        villainCheckedBack: villainCheckedBack,
+        prevBoard: prevBoard,
       );
     } catch (e, st) {
       // A bot decision must never freeze the table. Fall back to the safest
