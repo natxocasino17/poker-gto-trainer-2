@@ -64,6 +64,9 @@ class LegendProfile {
   final bool isArchetype;    // style profile (Nit, LAG...) vs real legend
   // Phil Ivey: gates exploitation on observed confidence; traps vs aggressive humans
   final bool readsOpponent;
+  // Papo MC "La Bestia": surprise factor, attacks tight players, sizing chaos,
+  // ignores GTO to jam vs perceived weakness
+  final bool freestyleAggressor;
   // Optional illustrated avatar asset path (null → show emoji)
   final String? avatarAsset;
 
@@ -103,6 +106,7 @@ class LegendProfile {
     this.fitOrFold = false,
     this.isArchetype = false,
     this.readsOpponent = false,
+    this.freestyleAggressor = false,
     this.avatarAsset,
   });
 }
@@ -365,20 +369,28 @@ class LegendaryBotEngine {
       // "Gestión del Bote": never inflates with medium hands
       potControl: true,
     ),
-    // 17. Papo "Lococo" — Argentine freestyle: fearless creative aggression,
-    // unpredictable lines and sizings, loves the big bluff.
+    // 17. Papo MC "La Bestia" — Freestyle Poker: intimidation, psychological
+    // pressure, pattern-breaking. Attacks tight players relentlessly, chaotic
+    // sizings, jams on instinct vs perceived weakness. Ignores GTO dogma.
     LegendProfile(
       name: 'Papo',
-      style: 'Freestyle Agresivo',
+      style: 'La Bestia — Freestyle Poker',
       emoji: '🎤',
-      utgOpen: 0.54, mpOpen: 0.46, coOpen: 0.36, btnOpen: 0.26, sbOpen: 0.38, bbDefend: 0.24,
-      threeBetThreshold: 0.63, fourBetThreshold: 0.80,
-      cBetFreq: 0.80, doubleBarrelFreq: 0.66, tripleBarrelFreq: 0.50, checkRaiseFreq: 0.34,
-      bluffFreq: 0.48, slowplayFreq: 0.14,
-      preferredSizings: [0.5, 1.0, 1.5, 2.2],
-      riverOverbetThreshold: 0.64,
-      openSizeBB: 2.7, threeBetBluffFreq: 0.19, bluffRaiseFreq: 0.24,
+      avatarAsset: 'assets/avatars/papo.png',
+      // Wide, fearless preflop ranges from every seat
+      utgOpen: 0.52, mpOpen: 0.44, coOpen: 0.34, btnOpen: 0.24, sbOpen: 0.36, bbDefend: 0.22,
+      threeBetThreshold: 0.60, fourBetThreshold: 0.78,
+      // "Confianza Total": relentless multi-street pressure
+      cBetFreq: 0.84, doubleBarrelFreq: 0.70, tripleBarrelFreq: 0.54, checkRaiseFreq: 0.38,
+      // "El Factor Sorpresa": very high bluff frequency, rarely slowplays
+      bluffFreq: 0.52, slowplayFreq: 0.12,
+      // Chaotic sizing menu: tiny stabs to massive overbets
+      preferredSizings: [0.33, 0.75, 1.5, 2.5],
+      riverOverbetThreshold: 0.58,
+      openSizeBB: 2.7, threeBetBluffFreq: 0.22, bluffRaiseFreq: 0.28,
       polarizedBetting: true, highVarianceDraws: true,
+      // "La Bestia": surprise factor + attacks tight players + instinct jams
+      freestyleAggressor: true,
     ),
   ];
 
@@ -861,9 +873,30 @@ class LegendaryBotEngine {
       }
     }
 
+    // ── Papo MC "La Bestia": freestyle pressure & intimidation.
+    // "Presión de Límites": vs tight/over-folding humans, attacks ruthlessly.
+    // "El Factor Sorpresa": injects sizing chaos to break opponent reads.
+    // "Irreverente": jams on instinct vs perceived weakness, ignoring strict math.
+    double papoBluffMult = 1.0;
+    double papoSizingChaos = 1.0; // random multiplier on bluff bet sizing
+    if (profile.freestyleAggressor) {
+      // Surprise factor: chaotic sizing on every bluff (0.7x - 1.6x)
+      papoSizingChaos = 0.7 + _rng.nextDouble() * 0.9;
+      // Attacks tight players: over-folders or low aggression get hammered
+      if (human.overFolds || (human.confidence >= 0.30 && human.aggressionFactor < 0.9)) {
+        papoBluffMult = 1.50;
+      }
+      // vs calling station he reins it in (instinct still respects a payer)
+      if (human.isCallingStation) papoBluffMult = 0.45;
+    }
+
     // Villain fold estimate (exploit input for all bluff math)
     double foldEst = isTurnOrRiver ? human.foldVsBarrelRate : human.foldVsBetRate;
     if (human.isCallingStation) foldEst *= 0.55;
+    // Papo plays his bluffs with conviction — treats villain as foldier than real
+    if (profile.freestyleAggressor && !human.isCallingStation) {
+      foldEst = (foldEst + 0.12).clamp(0.0, 0.95);
+    }
 
     // Profile-specific SPR commitment threshold: the SPR at or below which this
     // profile will stack-off with the given hand bucket.
@@ -1028,6 +1061,8 @@ class LegendaryBotEngine {
             bb: bb,
             iveyExploitMult: iveyExploitMult,
             raulBluffMult: raulBluffMult,
+            papoBluffMult: papoBluffMult,
+            papoSizingChaos: papoSizingChaos,
           );
       }
     }
@@ -1204,10 +1239,22 @@ class LegendaryBotEngine {
         if (profile.exploitsHighFolders && human.overFolds && isTurnOrRiver) {
           bluffRaiseFreq = max(bluffRaiseFreq, 0.55 * iveyExploitMult);
         }
+        // Papo "Irreverente": jams on instinct vs perceived weakness. When the
+        // human folds too much, he raises air far beyond what strict math allows.
+        if (profile.freestyleAggressor && human.overFolds && isTurnOrRiver) {
+          bluffRaiseFreq = max(bluffRaiseFreq, 0.50);
+        }
         if (human.isCallingStation) bluffRaiseFreq *= 0.2;
         final alphaNeeded = GtoMath.alpha(pot, raiseTo() - callAmount);
-        if (blockers.goodBluffBlockers && !facingAllInPrice &&
-            rand < bluffRaiseFreq && foldEst >= alphaNeeded * 0.75) {
+        // Papo respects blockers loosely — conviction over precision
+        final papoLooseGate = profile.freestyleAggressor && human.overFolds
+            ? 0.55
+            : 0.75;
+        final blockerGate = profile.freestyleAggressor
+            ? (blockers.goodBluffBlockers || rand < 0.30)
+            : blockers.goodBluffBlockers;
+        if (blockerGate && !facingAllInPrice &&
+            rand < bluffRaiseFreq && foldEst >= alphaNeeded * papoLooseGate) {
           return BotDecision(type: ActionType.raise, amount: raiseTo(), thinkMs: 0);
         }
         return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
@@ -1229,6 +1276,8 @@ class LegendaryBotEngine {
     required double bb,
     double iveyExploitMult = 1.0,
     double raulBluffMult = 1.0,
+    double papoBluffMult = 1.0,
+    double papoSizingChaos = 1.0,
   }) {
     final rand = _rng.nextDouble();
     final isRiver = street == 'river';
@@ -1264,6 +1313,9 @@ class LegendaryBotEngine {
       bluffFreq = (bluffFreq * 1.25).clamp(0.0, 0.95);
     }
 
+    // Papo "Presión de Límites": hammer tight/over-folding opponents
+    bluffFreq *= papoBluffMult;
+
     // Adrián sizing: always large — 1.0x on flop/turn, 1.5-2.0x overbet on river
     double sizeFrac = profile.polarizedBetting
         ? (isRiver ? 1.5 : 1.0)
@@ -1272,6 +1324,16 @@ class LegendaryBotEngine {
       sizeFrac = 2.0; // river blocker overbet
     }
     if (profile.stackPressure) sizeFrac = (sizeFrac * 1.25).clamp(0.4, 2.0).toDouble();
+
+    // Papo "El Factor Sorpresa / Improvisación": chaotic sizing to break reads.
+    // On dry boards he flips expectations — small turns big, checks turn into bets.
+    if (profile.freestyleAggressor) {
+      sizeFrac *= papoSizingChaos;
+      if (texture.wetness < 0.4 && rand < 0.35) {
+        sizeFrac *= 1.6; // unexpected overbet on a dry board
+      }
+      sizeFrac = sizeFrac.clamp(0.25, 3.0).toDouble();
+    }
 
     // Raúl: apply level-based bluff multiplier
     bluffFreq = (bluffFreq * raulBluffMult).clamp(0.0, 0.95);
