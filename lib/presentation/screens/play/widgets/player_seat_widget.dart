@@ -12,6 +12,7 @@ class PlayerSeatWidget extends StatelessWidget {
   final bool isActive;
   final bool isHuman;
   final String emoji;
+  final String? avatarAsset; // illustrated image overrides emoji when set
   final String stackLabel;
   final HandAction? lastStreetAction;
   final String? actionAmountLabel;
@@ -22,6 +23,7 @@ class PlayerSeatWidget extends StatelessWidget {
     required this.isActive,
     required this.isHuman,
     required this.emoji,
+    this.avatarAsset,
     required this.stackLabel,
     this.lastStreetAction,
     this.actionAmountLabel,
@@ -88,7 +90,18 @@ class PlayerSeatWidget extends StatelessWidget {
                   : [const BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(1, 2))],
             ),
             child: Center(
-              child: Text(emoji, style: TextStyle(fontSize: avatarSize * 0.52)),
+              child: avatarAsset != null
+                  ? ClipOval(
+                      child: Image.asset(
+                        avatarAsset!,
+                        width: avatarSize,
+                        height: avatarSize,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            Text(emoji, style: TextStyle(fontSize: avatarSize * 0.52)),
+                      ),
+                    )
+                  : Text(emoji, style: TextStyle(fontSize: avatarSize * 0.52)),
             ),
           ),
           const SizedBox(height: 2),

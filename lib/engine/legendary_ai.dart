@@ -62,6 +62,10 @@ class LegendProfile {
   final bool stationCalling; // calling station: barely ever folds a piece
   final bool fitOrFold;      // gives up postflop without a made hand
   final bool isArchetype;    // style profile (Nit, LAG...) vs real legend
+  // Phil Ivey: gates exploitation on observed confidence; traps vs aggressive humans
+  final bool readsOpponent;
+  // Optional illustrated avatar asset path (null → show emoji)
+  final String? avatarAsset;
 
   const LegendProfile({
     required this.name,
@@ -98,6 +102,8 @@ class LegendProfile {
     this.stationCalling = false,
     this.fitOrFold = false,
     this.isArchetype = false,
+    this.readsOpponent = false,
+    this.avatarAsset,
   });
 }
 
@@ -105,20 +111,27 @@ class LegendaryBotEngine {
   static final Random _rng = Random();
 
   static const List<LegendProfile> _allLegends = [
-    // 1. Phil Ivey — Loose-Aggressive Exploiter: reads weakness instantly,
-    // barrels turn/river up to 80% vs over-folders.
+    // 1. Phil Ivey — High-Stakes Exploiter: reads patterns, barrels turn/river
+    // vs over-folders, value-maximises vs stations, never tilts.
     LegendProfile(
       name: 'Phil',
       style: 'Loose-Aggressive Exploiter',
       emoji: '🦅',
-      utgOpen: 0.64, mpOpen: 0.57, coOpen: 0.49, btnOpen: 0.40, sbOpen: 0.52, bbDefend: 0.38,
+      avatarAsset: 'assets/avatars/phil.png',
+      // Disciplined preflop — oportunista desde BTN/CO
+      utgOpen: 0.64, mpOpen: 0.57, coOpen: 0.49, btnOpen: 0.38, sbOpen: 0.52, bbDefend: 0.36,
       threeBetThreshold: 0.72, fourBetThreshold: 0.88,
-      cBetFreq: 0.72, doubleBarrelFreq: 0.58, tripleBarrelFreq: 0.42, checkRaiseFreq: 0.28,
-      bluffFreq: 0.38, slowplayFreq: 0.20,
-      preferredSizings: [0.5, 0.75, 1.0],
-      riverOverbetThreshold: 0.75,
-      bluffRaiseFreq: 0.22, floatFreq: 0.30,
+      // Fuerte en turn/river — expert en calles tardías con profundidad de stacks
+      cBetFreq: 0.70, doubleBarrelFreq: 0.65, tripleBarrelFreq: 0.50, checkRaiseFreq: 0.32,
+      bluffFreq: 0.38, slowplayFreq: 0.22,
+      // Sizing medio-grande como herramienta de presión
+      preferredSizings: [0.66, 0.85, 1.0],
+      riverOverbetThreshold: 0.72,
+      openSizeBB: 2.3,
+      bluffRaiseFreq: 0.22, floatFreq: 0.32,
+      threeBetBluffFreq: 0.13, squeezeFreq: 0.14,
       exploitsHighFolders: true,
+      readsOpponent: true,       // "El Observador": exploitation gated on confidence
     ),
     // 2. Adrián Mateos — GTO Hyper-Aggressive: high 3-bet frequency,
     // polarized 150%+ river overbets with optimal blockers.
@@ -797,6 +810,20 @@ class LegendaryBotEngine {
     final isTurnOrRiver = street == 'turn' || isRiver;
     final stackBBsPost = stack / bb;
 
+    // ── Phil Ivey "El Observador": build a read before exploiting.
+    // With low confidence (<30%), plays close to GTO baseline.
+    // With enough reads, adapts aggressively to every detected weakness.
+    // vs calling station → maximises value, never bluffs.
+    // vs over-folder → barrels turn/river without hesitation.
+    // vs aggressive human → slows down, check-raises more, traps.
+    double iveyExploitMult = 1.0; // multiplies exploit frequency
+    if (profile.readsOpponent) {
+      final conf = human.confidence;
+      iveyExploitMult = conf < 0.30
+          ? 0.55  // not enough data: plays GTO-ish
+          : (0.55 + conf * 1.45).clamp(0.6, 2.0); // ramps hard with reads
+    }
+
     // Villain fold estimate (exploit input for all bluff math)
     double foldEst = isTurnOrRiver ? human.foldVsBarrelRate : human.foldVsBetRate;
     if (human.isCallingStation) foldEst *= 0.55;
@@ -828,25 +855,37 @@ class LegendaryBotEngine {
 
       switch (analysis.bucket) {
         case HandBucket.nuts:
-          // Trap on dry boards at slowplay frequency (Negreanu/Hellmuth high)
-          if (texture.wetness < 0.35 && rand < profile.slowplayFreq) {
+          // Phil vs calling station: never slow-play, maximise value now.
+          // Phil vs aggressive human: trap more often (check-raise setup).
+          final iveyTrapVsAgg = profile.readsOpponent &&
+              human.aggressionFactor > 1.8 && human.confidence > 0.35;
+          if (iveyTrapVsAgg && rand < 0.55) {
             return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
           }
-          return BotDecision(
-            type: ActionType.bet,
-            amount: clampBet(_valueSize(profile, pot, texture, street, nut: true)),
-            thinkMs: 0,
-          );
+          final skipSlowplay = profile.readsOpponent && human.isCallingStation;
+          if (!skipSlowplay && texture.wetness < 0.35 && rand < profile.slowplayFreq) {
+            return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
+          }
+          // Phil vs station: size up to extract maximum value
+          final nutsSize = (profile.readsOpponent && human.isCallingStation)
+              ? clampBet(pot * 0.90)
+              : clampBet(_valueSize(profile, pot, texture, street, nut: true));
+          return BotDecision(type: ActionType.bet, amount: nutsSize, thinkMs: 0);
 
         case HandBucket.strongValue:
+          // Phil vs aggressive human: check to induce bluffs
+          final iveyInduceVsAgg = profile.readsOpponent &&
+              human.aggressionFactor > 2.0 && human.confidence > 0.40 && rand < 0.45;
+          if (iveyInduceVsAgg) {
+            return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
+          }
           if (texture.wetness < 0.30 && rand < profile.slowplayFreq * 0.5) {
             return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
           }
-          return BotDecision(
-            type: ActionType.bet,
-            amount: clampBet(_valueSize(profile, pot, texture, street, nut: false)),
-            thinkMs: 0,
-          );
+          final strongSize = (profile.readsOpponent && human.isCallingStation)
+              ? clampBet(pot * 0.75)
+              : clampBet(_valueSize(profile, pot, texture, street, nut: false));
+          return BotDecision(type: ActionType.bet, amount: strongSize, thinkMs: 0);
 
         case HandBucket.mediumValue:
           // Pot control (Esfandiari): keep it small, milk rivers
@@ -945,6 +984,7 @@ class LegendaryBotEngine {
             wasAggressor: wasAggressor,
             street: street,
             bb: bb,
+            iveyExploitMult: iveyExploitMult,
           );
       }
     }
@@ -1115,11 +1155,11 @@ class LegendaryBotEngine {
 
       case HandBucket.air:
         // Pure bluff-raise: needs blockers + fold equity.
-        // Hellmuth never does this (bluffRaiseFreq = 0); Ivey ramps to ~80%
-        // on turn/river vs over-folders.
+        // Hellmuth never does this (bluffRaiseFreq = 0); Ivey ramps vs over-folders
+        // scaled by how many hands of reads he has ("El Observador").
         double bluffRaiseFreq = profile.bluffRaiseFreq;
         if (profile.exploitsHighFolders && human.overFolds && isTurnOrRiver) {
-          bluffRaiseFreq = max(bluffRaiseFreq, 0.55);
+          bluffRaiseFreq = max(bluffRaiseFreq, 0.55 * iveyExploitMult);
         }
         if (human.isCallingStation) bluffRaiseFreq *= 0.2;
         final alphaNeeded = GtoMath.alpha(pot, raiseTo() - callAmount);
@@ -1144,6 +1184,7 @@ class LegendaryBotEngine {
     required bool wasAggressor,
     required String street,
     required double bb,
+    double iveyExploitMult = 1.0,
   }) {
     final rand = _rng.nextDouble();
     final isRiver = street == 'river';
@@ -1166,7 +1207,7 @@ class LegendaryBotEngine {
     // Ivey/Hansen exploit: vs over-folders barrel turn/river up to 80%
     if (profile.exploitsHighFolders && human.overFolds &&
         (street == 'turn' || isRiver)) {
-      bluffFreq = max(bluffFreq, 0.80);
+      bluffFreq = max(bluffFreq, 0.80 * iveyExploitMult);
     }
     if (human.isCallingStation) bluffFreq *= 0.35;
 
