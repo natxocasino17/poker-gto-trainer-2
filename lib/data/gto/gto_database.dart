@@ -27,7 +27,7 @@ import 'vs_open.dart';
 ///     context: PreflopContext(action: PreflopAction.facingOpen,
 ///                            opener: TablePosition.co),
 ///   );
-///   print(s.primary); // 'call' / '3bet' / 'fold' / ...
+///   print(s.primary.action); // 'call' / '3bet' / 'fold' / ...
 enum PreflopAction {
   /// No prior action — hero is first to act or all folded to hero.
   rfi,
@@ -121,13 +121,13 @@ class GTODatabase {
   /// Returns the primary recommended action label ('open', 'call', '3bet', 'fold', …).
   static String recommendedAction(
       TablePosition hero, String hand, PreflopContext ctx) {
-    return preflop(hero, hand, ctx).primary;
+    return preflop(hero, hand, ctx).primary.action;
   }
 
   /// Returns the EV of the primary action (in BB).
   static double recommendedEv(
       TablePosition hero, String hand, PreflopContext ctx) {
-    return preflop(hero, hand, ctx).bestEv;
+    return preflop(hero, hand, ctx).primary.ev;
   }
 
   // ─── Full-range queries ────────────────────────────────────────────────────

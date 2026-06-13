@@ -799,7 +799,7 @@ class PokerEngine extends ChangeNotifier {
           (a.type == ActionType.allIn && a.amount > bigBlind);
       if (isRaise) {
         final p = _state.players.firstWhere(
-            (pl) => pl.name == a.player, orElse: () => _state.players[0]);
+            (pl) => pl.name == a.playerName, orElse: () => _state.players[0]);
         opener ??= p.position;
         lastAggressor = p.position;
       }
@@ -821,25 +821,28 @@ class PokerEngine extends ChangeNotifier {
         : ctx;
 
     final strategy = GTODatabase.preflop(hero, handCode, effectiveCtx);
+    // primary = the highest-frequency action (a SpotRecord).
     final primary = strategy.primary;
-    final ev = strategy.bestEv;
+    final action = primary.action;
+    final ev = primary.ev;
 
     // Map the GTO DB action to the GTORecommendation format.
     double amount = 0;
     final callAmount = _state.callAmount;
 
-    if (primary == 'open' || primary == '3bet' || primary == '4bet' ||
-        primary == 'squeeze' || primary == '5bet_jam') {
-      final multiplier = primary == '5bet_jam' ? 99.0 : 3.2;
+    if (action == 'open' || action == '3bet' || action == '4bet' ||
+        action == 'squeeze' || action == '5bet_jam') {
+      final multiplier = action == '5bet_jam' ? 99.0 : 3.2;
       amount = (callAmount > 0 ? callAmount * multiplier : bigBlind * 3.0)
           .clamp(bigBlind, human.stack);
-    } else if (primary == 'call') {
+    } else if (action == 'call') {
       amount = callAmount;
     }
 
-    // Get the best explanation from the strategy record.
-    final bestRecord = strategy.actions.isNotEmpty ? strategy.actions.first : null;
-    final explanation = bestRecord?.explanation ?? '$handCode → $primary (EV ≈ +${ev.toStringAsFixed(2)}BB)';
+    // Explanation comes straight from the primary action's coach note.
+    final explanation = primary.explanation.isNotEmpty
+        ? primary.explanation
+        : '$handCode → $action (EV ≈ +${ev.toStringAsFixed(2)}BB)';
 
     // Compute a rough preflop equity for display.
     final preflopEquity = EquityCalculator.calculate(
@@ -851,7 +854,7 @@ class PokerEngine extends ChangeNotifier {
     );
 
     return GTORecommendation(
-      action: _actionLabel(primary),
+      action: _actionLabel(action),
       amount: amount,
       equity: preflopEquity,
       potOdds: callAmount > 0

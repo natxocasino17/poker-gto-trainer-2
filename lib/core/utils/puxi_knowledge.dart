@@ -681,11 +681,13 @@ class PuxiCorrector {
     required String chosenAction,
     required HandStrategy gtoStrategy,
   }) {
-    final correct = gtoStrategy.primary;
+    // primary / bestEv are SpotRecords; the action label and EV live on them.
+    final correctRecord = gtoStrategy.bestEv;
+    final correct = correctRecord.action;
 
     // Find EV of chosen action; default to 0 if the action is folding to nothing.
     final evChosen = gtoStrategy.evOf(chosenAction) ?? 0.0;
-    final evCorrect = gtoStrategy.bestEv;
+    final evCorrect = correctRecord.ev;
     final lost = (evCorrect - evChosen).clamp(0.0, 99.0);
 
     if (lost < 0.05) return null; // negligible — no feedback needed
@@ -700,14 +702,9 @@ class PuxiCorrector {
 
     if (level == ErrorLevel.negligible) return null;
 
-    // Prefer the explanation from the correct action record if available.
-    final correctRecord = gtoStrategy.actions
-        .where((a) => a.action == correct)
-        .cast<SpotRecord?>()
-        .firstWhere((_) => true, orElse: () => null);
-
-    final explanation = correctRecord?.explanation ??
-        _fallbackExplanation(hand, chosenAction, correct, lost);
+    final explanation = correctRecord.explanation.isNotEmpty
+        ? correctRecord.explanation
+        : _fallbackExplanation(hand, chosenAction, correct, lost);
 
     return DecisionError(
       hand: hand,
