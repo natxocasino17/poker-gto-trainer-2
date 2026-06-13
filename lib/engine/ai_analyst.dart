@@ -152,7 +152,7 @@ class HandReviewerEngine {
         texture: texture,
       );
 
-      final (explanationKey, explanationParams) = _zerosExplanation(
+      final (expKey, expParams) = _zerosExplanation(
         action: humanAction,
         equity: equity,
         potOdds: potOdds,
@@ -167,6 +167,27 @@ class HandReviewerEngine {
         callAmt: callAmt,
       );
 
+      // Postflop: use the same full 8-section reasoning engine as the live
+      // GTO advisor so the hand review is as precise as the in-game overlay.
+      // Preflop stays with the Puxi i18n coach phrase (no board to analyze).
+      String fullExplanation = '';
+      String finalKey = expKey;
+      Map<String, String> finalParams = expParams;
+
+      if (boardCount >= 3) {
+        final rec = EquityCalculator.recommend(
+          heroCards: humanHole,
+          communityCards: communityAtStreet,
+          callAmount: callAmt,
+          potSize: potAtStreet,
+          numOpponents: max(1, activePlayers - 1),
+          heroStack: startStack,
+        );
+        fullExplanation = rec.reasoning;
+        finalKey = '';
+        finalParams = {};
+      }
+
       analyses.add(StreetAnalysis(
         street: street,
         heroEquity: equity,
@@ -174,9 +195,9 @@ class HandReviewerEngine {
         heroAction: humanAction.label,
         heroAmount: humanAction.amount,
         quality: quality,
-        explanation: '', // re-localized live from key+params
-        explanationKey: explanationKey,
-        explanationParams: explanationParams,
+        explanation: fullExplanation,
+        explanationKey: finalKey,
+        explanationParams: finalParams,
       ));
     }
 
