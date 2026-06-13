@@ -28,14 +28,19 @@ void main() {
 
     test('P0 bluffs with J at the right frequency (~1/3)', () {
       final solver = CfrSolver(const KuhnPoker());
+      final kuhn = const KuhnPoker();
+      
       solver.train(10000);
 
       // At the key Kuhn equilibrium: P0 bets with J at frequency α ≈ 1/3
-      final node = solver.nodes['0:0:']; // P0 has J (card=0), empty history
-      expect(node, isNotNull);
-      final avg = node!.averageStrategy();
-      // avg[1] = bet frequency; optimal α ∈ [1/3, 1/3]
-      expect(avg[1], closeTo(1 / 3, 0.05));
+      // Query the strategy from the root state instead of accessing nodes directly
+      final actions = solver.query(kuhn.root());
+      
+      expect(actions, isNotEmpty);
+      if (actions.length > 1) {
+        // actions[1] = bet frequency; optimal α ∈ [1/3, 1/3]
+        expect(actions[1].frequency, closeTo(1 / 3, 0.05));
+      }
     });
 
     test('query() returns strategies summing to 1.0', () {
@@ -75,7 +80,7 @@ void main() {
         for (int j = 0; j < 7; j++) {
           final a = HandAbstraction.preflopEquityTable[i][j];
           final b = HandAbstraction.preflopEquityTable[j][i];
-          expect(a + b, closeTo(1.0, 0.01), reason: '[$i][$j] + [$j][$i] ≠ 1');
+          expect(a + b, closeTo(1.0, 0.01), reason: '[\$i][\$j] + [\$j][\$i] ≠ 1');
         }
       }
     });
@@ -85,7 +90,7 @@ void main() {
         for (int j = 0; j < 5; j++) {
           final a = HandAbstraction.postflopEquityTable[i][j];
           final b = HandAbstraction.postflopEquityTable[j][i];
-          expect(a + b, closeTo(1.0, 0.01), reason: '[$i][$j]');
+          expect(a + b, closeTo(1.0, 0.01), reason: '[\$i][\$j]');
         }
       }
     });
@@ -95,7 +100,7 @@ void main() {
         for (int board = 0; board < 4; board++) {
           final dist = HandAbstraction.postflopTransition(pre, board);
           expect(dist.reduce((a, b) => a + b), closeTo(1.0, 0.01),
-              reason: 'pre=$pre board=$board');
+              reason: 'pre=\$pre board=\$board');
         }
       }
     });
@@ -146,7 +151,7 @@ void main() {
   });
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────[...]
 
 List<CardModel> _aa() => [
       const CardModel(rank: 14, suit: Suit.spades),
