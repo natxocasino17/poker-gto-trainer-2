@@ -341,25 +341,35 @@ class PokerEngine extends ChangeNotifier {
     final callersThisStreet =
         streetActions.where((a) => a.type == ActionType.call).length;
 
-    final decision = await LegendaryBotEngine.decide(
-      profile: profile,
-      holeCards: player.holeCards,
-      communityCards: _state.communityCards,
-      position: player.position,
-      callAmount: callAmount.toDouble(),
-      currentBet: _state.currentBet,
-      myStreetBet: player.streetBet,
-      currentPot: _state.pot,
-      botStack: player.stack,
-      humanModel: _humanModel,
-      isPreflop: _state.phase == GamePhase.preflop,
-      wasAggressor: _state.wasAggressorThisStreet,
-      activePlayers: _state.activeCount,
-      street: _state.street,
-      raiseCount: raiseCount,
-      callersThisStreet: callersThisStreet,
-      bigBlind: bigBlind,
-    );
+    BotDecision decision;
+    try {
+      decision = await LegendaryBotEngine.decide(
+        profile: profile,
+        holeCards: player.holeCards,
+        communityCards: _state.communityCards,
+        position: player.position,
+        callAmount: callAmount.toDouble(),
+        currentBet: _state.currentBet,
+        myStreetBet: player.streetBet,
+        currentPot: _state.pot,
+        botStack: player.stack,
+        humanModel: _humanModel,
+        isPreflop: _state.phase == GamePhase.preflop,
+        wasAggressor: _state.wasAggressorThisStreet,
+        activePlayers: _state.activeCount,
+        street: _state.street,
+        raiseCount: raiseCount,
+        callersThisStreet: callersThisStreet,
+        bigBlind: bigBlind,
+      );
+    } catch (e, st) {
+      // A bot decision must never freeze the table. Fall back to the safest
+      // legal action: check if free, otherwise fold (never crash the hand).
+      debugPrint('Bot decision error (safe fallback applied): $e\n$st');
+      final safeType =
+          callAmount <= 0 ? ActionType.check : ActionType.fold;
+      decision = BotDecision(type: safeType, amount: 0, thinkMs: 0);
+    }
 
     if (_disposed) return;
     _applyAction(idx, decision.type, decision.amount);
@@ -458,21 +468,36 @@ class PokerEngine extends ChangeNotifier {
 
       case ActionType.bet:
       case ActionType.raise:
-        final amount = rawAmount.clamp(bigBlind, player.stack);
+        // Target total street bet. The most a player can put in is their whole
+        // remaining stack (streetBet + stack); never clamp with a lower bound
+        // above the upper bound (that throws on short stacks).
+        final maxTotal = player.streetBet + player.stack;
+        final minTotal = min(bigBlind.toDouble(), maxTotal);
+        final amount = rawAmount.clamp(minTotal, maxTotal).toDouble();
         final extraBet = amount - player.streetBet;
         pot += extraBet;
-        currentBet = amount;
-        wasAggressor = true;
+        final goesAllIn = player.stack - extraBet <= 0;
+        // A short "raise" that can't exceed the current bet is really a call/
+        // all-in — it must NOT lower the current bet or reopen the action.
+        final reopens = amount > currentBet;
+        if (reopens) {
+          currentBet = amount;
+          wasAggressor = true;
+        }
         updated = player.copyWith(
           stack: player.stack - extraBet,
           streetBet: amount,
           totalHandBet: player.totalHandBet + extraBet,
-          isAllIn: player.stack - extraBet <= 0,
+          isAllIn: goesAllIn,
         );
-        // After a raise, all OTHER active players need to act again
-        final otherActiveCount = players.where((p) =>
-            !p.isFolded && !p.isAllIn && p.id != player.id).length;
-        actorsRemaining = otherActiveCount;
+        if (reopens) {
+          // After a genuine raise, all OTHER active players must act again.
+          actorsRemaining = players.where((p) =>
+              !p.isFolded && !p.isAllIn && p.id != player.id).length;
+        } else {
+          // Undersized all-in that doesn't reopen: this player has acted.
+          actorsRemaining = max(0, actorsRemaining - 1);
+        }
         break;
 
       case ActionType.allIn:
@@ -833,8 +858,10 @@ class PokerEngine extends ChangeNotifier {
     if (action == 'open' || action == '3bet' || action == '4bet' ||
         action == 'squeeze' || action == '5bet_jam') {
       final multiplier = action == '5bet_jam' ? 99.0 : 3.2;
+      // Safe clamp: stack can be below one BB — never let the lower bound
+      // exceed the upper bound (clamp would throw).
       amount = (callAmount > 0 ? callAmount * multiplier : bigBlind * 3.0)
-          .clamp(bigBlind, human.stack);
+          .clamp(min(bigBlind.toDouble(), human.stack), human.stack);
     } else if (action == 'call') {
       amount = callAmount;
     }

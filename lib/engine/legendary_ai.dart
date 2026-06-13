@@ -596,7 +596,9 @@ class LegendaryBotEngine {
     final posThreshold = _openThreshold(profile, position);
     final stackBBs = stack / bb;
 
-    double clampTo(double v) => v.clamp(bb, stack).toDouble();
+    // Safe clamp: when the stack is shorter than one BB the lower bound would
+    // exceed the upper bound and Dart's clamp() throws — collapse to all-in.
+    double clampTo(double v) => v.clamp(min(bb, stack), stack).toDouble();
     final potOdds = GtoMath.potOdds(callAmount, pot);
     final inPosition = position == TablePosition.btn || position == TablePosition.co;
 
@@ -814,7 +816,8 @@ class LegendaryBotEngine {
         : profile.bluffFreq > 0.48 ? 2.5
         : 1.5;
 
-    double clampBet(double v) => v.clamp(bb, stack).toDouble();
+    // Safe clamp (see _preflopDecision): avoid low>high crash on short stacks.
+    double clampBet(double v) => v.clamp(min(bb, stack), stack).toDouble();
 
     // ════════════ NO BET TO FACE: bet or check ════════════
     if (callAmount <= 0) {
@@ -1001,8 +1004,12 @@ class LegendaryBotEngine {
       return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
     }
 
-    double raiseTo() =>
-        (currentBet * 2.8).clamp(currentBet + 2 * bb, stack).toDouble();
+    // Safe raise sizing: if the stack can't cover a min-raise (currentBet+2bb),
+    // the lower bound would exceed the stack and clamp() would throw — collapse
+    // the lower bound to the stack so the "raise" becomes an all-in shove.
+    double raiseTo() => (currentBet * 2.8)
+        .clamp(min(currentBet + 2 * bb, stack), stack)
+        .toDouble();
 
     switch (analysis.bucket) {
       case HandBucket.nuts:
@@ -1171,7 +1178,7 @@ class LegendaryBotEngine {
     }
     if (profile.stackPressure) sizeFrac = (sizeFrac * 1.25).clamp(0.4, 2.0).toDouble();
 
-    final betAmount = (pot * sizeFrac).clamp(bb, stack).toDouble();
+    final betAmount = (pot * sizeFrac).clamp(min(bb, stack), stack).toDouble();
     // Alpha gate: bluff must clear break-even fold frequency (with margin)
     final alphaNeeded = GtoMath.alpha(pot, betAmount);
 
