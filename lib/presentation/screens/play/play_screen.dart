@@ -302,12 +302,12 @@ class _PokerTable extends StatelessWidget {
                 ),
               ),
             ),
-        // Dealer button on the felt next to the dealer's seat
+        // Dealer button on the felt, close in front of the dealer's seat
         for (int i = 0; i < 6; i++)
           if (players[i].isDealer)
             Positioned(
-              left: cx + rx * 0.82 * cos(_seatAngles[i] - 0.45) - 10,
-              top: cy + ry * 0.78 * sin(_seatAngles[i] - 0.45) - 10,
+              left: cx + rx * 0.89 * cos(_seatAngles[i] - 0.18) - 10,
+              top: cy + ry * 0.86 * sin(_seatAngles[i] - 0.18) - 10,
               child: const _DealerButton(),
             ),
         // Player seats around the table
@@ -594,7 +594,7 @@ class _CenterDisplay extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (gs.pot > 0)
+        if (gs.mainPot > 0)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
             margin: const EdgeInsets.only(bottom: 5),
@@ -607,8 +607,8 @@ class _CenterDisplay extends StatelessWidget {
               transitionBuilder: (child, anim) =>
                   FadeTransition(opacity: anim, child: child),
               child: Text(
-                I18n.t('pot_lbl', {'v': gp.money(gs.pot)}),
-                key: ValueKey(gs.pot),
+                I18n.t('pot_lbl', {'v': gp.money(gs.mainPot)}),
+                key: ValueKey(gs.mainPot),
                 style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w800),
               ),
             ),

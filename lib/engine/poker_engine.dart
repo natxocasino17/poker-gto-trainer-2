@@ -77,6 +77,14 @@ class GameState {
     return diff.clamp(0.0, hp.stack);
   }
 
+  /// Chips committed from COMPLETED streets — what belongs to the "closed" pot.
+  /// Current street bets are shown "in front of" each player via [PlayerModel.streetBet].
+  /// The center display shows this value; the solver uses [pot] (total) for correct odds.
+  double get mainPot {
+    final streetTotal = players.fold(0.0, (double s, p) => s + p.streetBet);
+    return (pot - streetTotal).clamp(0.0, double.infinity);
+  }
+
   GameState copyWith({
     List<PlayerModel>? players,
     List<CardModel>? communityCards,
