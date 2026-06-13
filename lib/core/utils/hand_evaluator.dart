@@ -116,8 +116,8 @@ class HandEvaluator {
 
     if (isFlush && isStraight) {
       final desc = straightHigh == 14
-          ? 'Royal Flush'
-          : 'Straight Flush, ${_rn(straightHigh)} high';
+          ? 'Escalera Real'
+          : 'Escalera de Color al ${_rn(straightHigh)}';
       return HandScore(
           category: HandCategory.straightFlush,
           tiebreakers: [straightHigh],
@@ -130,28 +130,28 @@ class HandEvaluator {
       return HandScore(
           category: HandCategory.fourOfAKind,
           tiebreakers: [q, k],
-          description: 'Four of a Kind, ${_rn(q)}s');
+          description: 'Póker de ${_rnPlural(q)}');
     }
 
     if (groups[0].value == 3 && groups[1].value == 2) {
       return HandScore(
           category: HandCategory.fullHouse,
           tiebreakers: [groups[0].key, groups[1].key],
-          description: 'Full House, ${_rn(groups[0].key)}s full of ${_rn(groups[1].key)}s');
+          description: 'Full de ${_rnPlural(groups[0].key)} con ${_rnPlural(groups[1].key)}');
     }
 
     if (isFlush) {
       return HandScore(
           category: HandCategory.flush,
           tiebreakers: ranks,
-          description: 'Flush, ${_rn(ranks.first)} high');
+          description: 'Color al ${_rn(ranks.first)}');
     }
 
     if (isStraight) {
       return HandScore(
           category: HandCategory.straight,
           tiebreakers: [straightHigh],
-          description: 'Straight, ${_rn(straightHigh)} high');
+          description: 'Escalera al ${_rn(straightHigh)}');
     }
 
     if (groups[0].value == 3) {
@@ -160,7 +160,7 @@ class HandEvaluator {
       return HandScore(
           category: HandCategory.threeOfAKind,
           tiebreakers: [t, ...ks],
-          description: 'Three of a Kind, ${_rn(t)}s');
+          description: 'Trío de ${_rnPlural(t)}');
     }
 
     if (groups[0].value == 2 && groups[1].value == 2) {
@@ -170,7 +170,7 @@ class HandEvaluator {
       return HandScore(
           category: HandCategory.twoPair,
           tiebreakers: [p1, p2, k],
-          description: 'Two Pair, ${_rn(p1)}s and ${_rn(p2)}s');
+          description: 'Doble Pareja: ${_rnPlural(p1)} y ${_rnPlural(p2)}');
     }
 
     if (groups[0].value == 2) {
@@ -179,20 +179,29 @@ class HandEvaluator {
       return HandScore(
           category: HandCategory.onePair,
           tiebreakers: [p, ...ks],
-          description: 'One Pair, ${_rn(p)}s');
+          description: 'Pareja de ${_rnPlural(p)}');
     }
 
     return HandScore(
         category: HandCategory.highCard,
         tiebreakers: ranks,
-        description: 'High Card, ${_rn(ranks.first)}');
+        description: 'Carta Alta: ${_rn(ranks.first)}');
   }
 
   static String _rn(int r) {
     const m = {
-      2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six',
-      7: 'Seven', 8: 'Eight', 9: 'Nine', 10: 'Ten',
-      11: 'Jack', 12: 'Queen', 13: 'King', 14: 'Ace',
+      2: 'Dos', 3: 'Tres', 4: 'Cuatro', 5: 'Cinco', 6: 'Seis',
+      7: 'Siete', 8: 'Ocho', 9: 'Nueve', 10: 'Diez',
+      11: 'Jota', 12: 'Dama', 13: 'Rey', 14: 'As',
+    };
+    return m[r] ?? '$r';
+  }
+
+  static String _rnPlural(int r) {
+    const m = {
+      2: 'Doses', 3: 'Treses', 4: 'Cuatros', 5: 'Cincos', 6: 'Seises',
+      7: 'Sietes', 8: 'Ochos', 9: 'Nueves', 10: 'Dieces',
+      11: 'Jotas', 12: 'Damas', 13: 'Reyes', 14: 'Ases',
     };
     return m[r] ?? '$r';
   }

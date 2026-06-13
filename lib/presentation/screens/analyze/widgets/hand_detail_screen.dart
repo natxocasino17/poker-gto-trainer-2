@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../data/models/hand_log_model.dart';
+import '../../../widgets/zeros_avatar.dart';
+import '../../../../core/i18n/i18n.dart';
 
 class HandDetailScreen extends StatelessWidget {
   final HandLog log;
@@ -11,7 +13,7 @@ class HandDetailScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Hand #${log.handNumber}'),
+        title: Text(I18n.t('hand_title', {'n': log.handNumber.toString()})),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, size: 18),
@@ -46,38 +48,47 @@ class _ResultBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final won = log.humanProfit > 0;
+    final cleanFold = log.isCleanFold && !won;
+    final color = won
+        ? AppColors.winning
+        : cleanFold
+            ? AppColors.neutral
+            : AppColors.losing;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: won
-              ? [AppColors.winning.withOpacity(0.2), AppColors.winning.withOpacity(0.05)]
-              : [AppColors.losing.withOpacity(0.2), AppColors.losing.withOpacity(0.05)],
+          colors: [color.withOpacity(0.2), color.withOpacity(0.05)],
         ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: won ? AppColors.winning : AppColors.losing, width: 1),
+        border: Border.all(color: color, width: 1),
       ),
       child: Row(
         children: [
-          Icon(won ? Icons.emoji_events : Icons.trending_down,
-              color: won ? AppColors.winning : AppColors.losing, size: 32),
+          Icon(
+            won
+                ? Icons.emoji_events
+                : cleanFold
+                    ? Icons.shield_outlined
+                    : Icons.trending_down,
+            color: color,
+            size: 32,
+          ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                won ? 'You Won This Hand' : 'You Lost This Hand',
-                style: TextStyle(
-                  color: won ? AppColors.winning : AppColors.losing,
-                  fontSize: 16, fontWeight: FontWeight.w700,
-                ),
+                won
+                    ? I18n.t('won_hand')
+                    : cleanFold
+                        ? I18n.t('clean_fold_banner')
+                        : I18n.t('lost_hand'),
+                style: TextStyle(color: color, fontSize: 15, fontWeight: FontWeight.w700),
               ),
               Text(
                 log.resultLabel,
-                style: TextStyle(
-                  color: won ? AppColors.winning : AppColors.losing,
-                  fontSize: 22, fontWeight: FontWeight.w900,
-                ),
+                style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.w900),
               ),
             ],
           ),
@@ -85,8 +96,8 @@ class _ResultBanner extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('Winner: ${log.winnerName}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-              Text('Pot: \$${log.finalPot.toStringAsFixed(0)}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+              Text(I18n.t('winner_lbl', {'w': log.winnerName}), style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+              Text(I18n.t('pot_short', {'v': log.finalPot.toStringAsFixed(0)}), style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
               Text(log.humanHandDescription, style: const TextStyle(color: AppColors.accent, fontSize: 10, fontWeight: FontWeight.w600)),
             ],
           ),
@@ -112,7 +123,7 @@ class _BoardSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('YOUR HAND', style: TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
+          Text(I18n.t('your_hand'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -163,21 +174,16 @@ class _AIAssistantHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.accentGlow,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(Icons.smart_toy, color: AppColors.accent, size: 20),
-        ),
+        const ZerosAvatar(size: 42),
         const SizedBox(width: 10),
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('AI EQUITY ASSISTANT', style: TextStyle(color: AppColors.accent, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-            Text('Street-by-street analysis of your decisions', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('EL PUXI', style: const TextStyle(color: AppColors.accent, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+              Text(I18n.t('zeros_sub'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+            ],
+          ),
         ),
       ],
     );
@@ -242,18 +248,18 @@ class _StreetAnalysisCard extends StatelessWidget {
                     if (sa.potOdds > 0)
                       _MetricPill(label: 'Pot Odds', value: '${(sa.potOdds * 100).toStringAsFixed(1)}%', color: AppColors.textSecondary),
                     const SizedBox(width: 8),
-                    _MetricPill(label: 'Action', value: sa.heroAction, color: AppColors.textPrimary),
+                    _MetricPill(label: I18n.t('action_lbl'), value: sa.heroAction, color: AppColors.textPrimary),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.smart_toy, color: AppColors.accent, size: 14),
+                    const ZerosAvatar(size: 20),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        sa.explanation,
+                        sa.localizedExplanation,
                         style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5),
                       ),
                     ),
@@ -311,6 +317,16 @@ class _AllHandsReveal extends StatelessWidget {
   final HandLog log;
   const _AllHandsReveal({required this.log});
 
+  /// Resolves player ids (bot0, bot1...) to legend names using the
+  /// hand's action history.
+  String _displayName(String playerId) {
+    if (playerId == 'human') return 'Tú';
+    for (final a in log.actions) {
+      if (a.playerId == playerId) return a.playerName;
+    }
+    return playerId;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (log.allHoleCards.isEmpty) return const SizedBox.shrink();
@@ -324,16 +340,16 @@ class _AllHandsReveal extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('ALL HANDS (SHOWDOWN)', style: TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
+          Text(I18n.t('all_hands_sd'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
           const SizedBox(height: 10),
           ...log.allHoleCards.entries.map((e) => Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(
               children: [
                 SizedBox(
-                  width: 80,
+                  width: 90,
                   child: Text(
-                    e.key == 'human' ? 'You' : e.key,
+                    _displayName(e.key),
                     style: TextStyle(
                       color: e.key == 'human' ? AppColors.accent : AppColors.textSecondary,
                       fontSize: 11,
@@ -368,7 +384,7 @@ class _ActionTimeline extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('ACTION TIMELINE', style: TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
+          Text(I18n.t('timeline'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
           const SizedBox(height: 10),
           ..._buildStreetWidgets(),
         ],

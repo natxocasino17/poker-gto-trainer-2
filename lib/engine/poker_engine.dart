@@ -1,11 +1,15 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import '../data/gto/gto_database.dart';
 import '../data/models/card_model.dart';
 import '../data/models/player_model.dart';
 import '../data/models/hand_log_model.dart';
 import '../core/utils/hand_evaluator.dart';
 import '../core/utils/equity_calculator.dart';
+import '../core/utils/poker_concepts.dart';
+import '../core/utils/preflop_charts.dart';
 import 'legendary_ai.dart';
+import '../core/i18n/i18n.dart';
 
 enum GamePhase { idle, preflop, flop, turn, river, showdown, handComplete }
 
@@ -75,6 +79,14 @@ class GameState {
     return diff.clamp(0.0, hp.stack);
   }
 
+  /// Chips committed from COMPLETED streets — what belongs to the "closed" pot.
+  /// Current street bets are shown "in front of" each player via [PlayerModel.streetBet].
+  /// The center display shows this value; the solver uses [pot] (total) for correct odds.
+  double get mainPot {
+    final streetTotal = players.fold(0.0, (double s, p) => s + p.streetBet);
+    return (pot - streetTotal).clamp(0.0, double.infinity);
+  }
+
   GameState copyWith({
     List<PlayerModel>? players,
     List<CardModel>? communityCards,
@@ -121,11 +133,8 @@ class PokerEngine extends ChangeNotifier {
   static const double bigBlind = 2.0;
 
   GameState _state;
-  final List<LegendProfile> _legends;
   bool _disposed = false;
-  double _humanFoldRate = 0.50;
-  int _humanHandsSeen = 0;
-  int _humanFoldCount = 0;
+  final HumanReadModel _humanModel = HumanReadModel();
 
   Function(GameState)? onHandComplete;
 
@@ -133,10 +142,13 @@ class PokerEngine extends ChangeNotifier {
     required double tableStack,
     required double bankroll,
     required List<LegendProfile> legends,
-  })  : _legends = legends,
-        _state = _buildInitialState(tableStack, legends);
+  })  : _state = _buildInitialState(tableStack, legends);
 
   GameState get state => _state;
+
+  /// Seeds the bots' shared read model from the persisted human profile so
+  /// they exploit known tendencies from the first hand (cross-session learning).
+  void seedHumanModel(Map<String, double> profile) => _humanModel.seedFrom(profile);
 
   static GameState _buildInitialState(double tableStack, List<LegendProfile> legends) {
     const botStack = 200.0;
@@ -165,6 +177,31 @@ class PokerEngine extends ChangeNotifier {
 
   void startNewHand() {
     if (_disposed) return;
+
+    // Busted bots leave the table; fresh legends take their seats.
+    final seated = _state.players.map((p) => p.name).toList();
+    var roster = List<PlayerModel>.from(_state.players);
+    String? rotationMsg;
+    for (int i = 0; i < roster.length; i++) {
+      final p = roster[i];
+      if (!p.isHuman && p.stack < bigBlind) {
+        final fresh = LegendaryBotEngine.replacementFor(seated);
+        seated.add(fresh.name);
+        rotationMsg = I18n.t('bot_busts', {'out': p.name, 'inn': fresh.name});
+        roster[i] = PlayerModel(
+          id: p.id,
+          name: fresh.name,
+          isHuman: false,
+          stack: 200.0,
+          legendName: fresh.name,
+        );
+      }
+    }
+    if (rotationMsg != null) {
+      _state = _state.copyWith(players: roster, lastAction: rotationMsg);
+      notifyListeners();
+    }
+
     final deck = CardModel.shuffledDeck();
     final handNum = _state.handNumber + 1;
     final dealerIdx = handNum == 1 ? 0 : (_state.dealerIndex + 1) % 6;
@@ -208,15 +245,21 @@ class PokerEngine extends ChangeNotifier {
     final bbIdx = (dealerIdx + 2) % 6;
     final utgIdx = (dealerIdx + 3) % 6;
 
+    // Safe blind posting: a short stack posts what it has and is all-in,
+    // never going negative (negative stacks froze the game).
+    final sbPost = min(smallBlind, players[sbIdx].stack);
     players[sbIdx] = players[sbIdx].copyWith(
-      stack: players[sbIdx].stack - smallBlind,
-      streetBet: smallBlind,
-      totalHandBet: smallBlind,
+      stack: players[sbIdx].stack - sbPost,
+      streetBet: sbPost,
+      totalHandBet: sbPost,
+      isAllIn: players[sbIdx].stack - sbPost <= 0,
     );
+    final bbPost = min(bigBlind, players[bbIdx].stack);
     players[bbIdx] = players[bbIdx].copyWith(
-      stack: players[bbIdx].stack - bigBlind,
-      streetBet: bigBlind,
-      totalHandBet: bigBlind,
+      stack: players[bbIdx].stack - bbPost,
+      streetBet: bbPost,
+      totalHandBet: bbPost,
+      isAllIn: players[bbIdx].stack - bbPost <= 0,
     );
 
     // Preflop: 6 players need to act (including BB who has the option)
@@ -226,7 +269,7 @@ class PokerEngine extends ChangeNotifier {
       players: players,
       communityCards: [],
       deck: remainingDeck,
-      pot: smallBlind + bigBlind,
+      pot: sbPost + bbPost,
       currentBet: bigBlind,
       activePlayerIndex: utgIdx,
       dealerIndex: dealerIdx,
@@ -287,21 +330,46 @@ class PokerEngine extends ChangeNotifier {
     final profile = LegendaryBotEngine.profileByName(player.legendName ?? '');
     final callAmount = (_state.currentBet - player.streetBet).clamp(0.0, player.stack);
 
-    final decision = await LegendaryBotEngine.decide(
-      profile: profile,
-      holeCards: player.holeCards,
-      communityCards: _state.communityCards,
-      position: player.position,
-      callAmount: callAmount,
-      currentPot: _state.pot,
-      botStack: player.stack,
-      humanFoldRate: _humanFoldRate,
-      isPreflop: _state.phase == GamePhase.preflop,
-      wasAggressor: _state.wasAggressorThisStreet,
-      activePlayers: _state.activeCount,
-      street: _state.street,
-      raiseCount: _state.currentHandActions.where((a) => a.street == _state.street && (a.type == ActionType.raise || a.type == ActionType.bet)).length,
-    );
+    final streetActions = _state.currentHandActions
+        .where((a) => a.street == _state.street)
+        .toList();
+    final raiseCount = streetActions
+        .where((a) => a.type == ActionType.raise ||
+            a.type == ActionType.bet ||
+            (a.type == ActionType.allIn && a.amount > bigBlind))
+        .length;
+    final callersThisStreet =
+        streetActions.where((a) => a.type == ActionType.call).length;
+
+    BotDecision decision;
+    try {
+      decision = await LegendaryBotEngine.decide(
+        profile: profile,
+        holeCards: player.holeCards,
+        communityCards: _state.communityCards,
+        position: player.position,
+        callAmount: callAmount.toDouble(),
+        currentBet: _state.currentBet,
+        myStreetBet: player.streetBet,
+        currentPot: _state.pot,
+        botStack: player.stack,
+        humanModel: _humanModel,
+        isPreflop: _state.phase == GamePhase.preflop,
+        wasAggressor: _state.wasAggressorThisStreet,
+        activePlayers: _state.activeCount,
+        street: _state.street,
+        raiseCount: raiseCount,
+        callersThisStreet: callersThisStreet,
+        bigBlind: bigBlind,
+      );
+    } catch (e, st) {
+      // A bot decision must never freeze the table. Fall back to the safest
+      // legal action: check if free, otherwise fold (never crash the hand).
+      debugPrint('Bot decision error (safe fallback applied): $e\n$st');
+      final safeType =
+          callAmount <= 0 ? ActionType.check : ActionType.fold;
+      decision = BotDecision(type: safeType, amount: 0, thinkMs: 0);
+    }
 
     if (_disposed) return;
     _applyAction(idx, decision.type, decision.amount);
@@ -310,10 +378,47 @@ class PokerEngine extends ChangeNotifier {
   void humanAction(ActionType type, double amount) {
     if (!_state.awaitingHumanAction) return;
     final idx = _state.humanIndex;
-    _humanHandsSeen++;
-    if (type == ActionType.fold) _humanFoldCount++;
-    _humanFoldRate = _humanHandsSeen > 0 ? _humanFoldCount / _humanHandsSeen : 0.5;
+    _trackHumanTendencies(type);
     _applyAction(idx, type, amount);
+  }
+
+  /// Feeds the live exploit model used by the legendary bots.
+  void _trackHumanTendencies(ActionType type) {
+    final facingBet = _state.callAmount > 0;
+    final isTurnRiver = _state.street == 'turn' || _state.street == 'river';
+
+    if (_state.street == 'preflop') {
+      _humanModel.handsObserved++;
+      if (type == ActionType.fold) {
+        _humanModel.preflopFolds++;
+      } else if (type != ActionType.check) {
+        _humanModel.preflopVpip++;
+      }
+    }
+
+    if (facingBet) {
+      _humanModel.facedBets++;
+      if (isTurnRiver) _humanModel.facedTurnRiverBets++;
+      switch (type) {
+        case ActionType.fold:
+          _humanModel.foldsVsBet++;
+          if (isTurnRiver) _humanModel.foldsVsTurnRiverBets++;
+          break;
+        case ActionType.raise:
+        case ActionType.allIn:
+          _humanModel.raisesVsBet++;
+          _humanModel.aggressiveActions++;
+          break;
+        case ActionType.call:
+          _humanModel.passiveActions++;
+          break;
+        default:
+          break;
+      }
+    } else if (type == ActionType.bet || type == ActionType.raise ||
+        type == ActionType.allIn) {
+      _humanModel.aggressiveActions++;
+    }
   }
 
   void _applyAction(int playerIdx, ActionType type, double rawAmount) {
@@ -363,21 +468,36 @@ class PokerEngine extends ChangeNotifier {
 
       case ActionType.bet:
       case ActionType.raise:
-        final amount = rawAmount.clamp(bigBlind, player.stack);
+        // Target total street bet. The most a player can put in is their whole
+        // remaining stack (streetBet + stack); never clamp with a lower bound
+        // above the upper bound (that throws on short stacks).
+        final maxTotal = player.streetBet + player.stack;
+        final minTotal = min(bigBlind.toDouble(), maxTotal);
+        final amount = rawAmount.clamp(minTotal, maxTotal).toDouble();
         final extraBet = amount - player.streetBet;
         pot += extraBet;
-        currentBet = amount;
-        wasAggressor = true;
+        final goesAllIn = player.stack - extraBet <= 0;
+        // A short "raise" that can't exceed the current bet is really a call/
+        // all-in — it must NOT lower the current bet or reopen the action.
+        final reopens = amount > currentBet;
+        if (reopens) {
+          currentBet = amount;
+          wasAggressor = true;
+        }
         updated = player.copyWith(
           stack: player.stack - extraBet,
           streetBet: amount,
           totalHandBet: player.totalHandBet + extraBet,
-          isAllIn: player.stack - extraBet <= 0,
+          isAllIn: goesAllIn,
         );
-        // After a raise, all OTHER active players need to act again
-        final otherActiveCount = players.where((p) =>
-            !p.isFolded && !p.isAllIn && p.id != player.id).length;
-        actorsRemaining = otherActiveCount;
+        if (reopens) {
+          // After a genuine raise, all OTHER active players must act again.
+          actorsRemaining = players.where((p) =>
+              !p.isFolded && !p.isAllIn && p.id != player.id).length;
+        } else {
+          // Undersized all-in that doesn't reopen: this player has acted.
+          actorsRemaining = max(0, actorsRemaining - 1);
+        }
         break;
 
       case ActionType.allIn:
@@ -462,11 +582,9 @@ class PokerEngine extends ChangeNotifier {
 
     switch (phase) {
       case GamePhase.preflop:
-        nextPhase = GamePhase.flop;
-        nextStreet = 'flop';
-        newCommunity.addAll(newDeck.take(3));
-        newDeck = newDeck.sublist(3);
-        break;
+        // The flop is dealt ONE CARD AT A TIME (slower, dramatic reveal).
+        _dealFlopStaggered(resetPlayers, newDeck, canAct);
+        return;
       case GamePhase.flop:
         nextPhase = GamePhase.turn;
         nextStreet = 'turn';
@@ -480,6 +598,8 @@ class PokerEngine extends ChangeNotifier {
         newDeck = newDeck.sublist(1);
         break;
       case GamePhase.river:
+        // The river is the LAST card. After it, the hand goes straight to
+        // showdown — there is no further street, no more pot odds.
         _runShowdown();
         return;
       default:
@@ -503,33 +623,83 @@ class PokerEngine extends ChangeNotifier {
 
     notifyListeners();
 
-    // If all active players are all-in, deal remaining streets automatically
+    // If all active players are all-in, run the remaining board out (one
+    // card at a time) and then showdown.
     if (canAct <= 1 && newCommunity.length < 5) {
-      _dealRemainingBoard(nextPhase, newCommunity, newDeck, resetPlayers, firstActiveIdx, activePlayers);
+      _runOutBoard();
       return;
     }
 
     _advanceTurn();
   }
 
-  void _dealRemainingBoard(GamePhase currentPhase, List<CardModel> community, List<CardModel> deck,
-      List<PlayerModel> players, int firstIdx, int activePlayers) {
-    var board = List<CardModel>.from(community);
-    var remainDeck = List<CardModel>.from(deck);
-
-    while (board.length < 5 && remainDeck.isNotEmpty) {
-      board.add(remainDeck.removeAt(0));
-    }
+  /// Deals the three flop cards individually, with a short pause between
+  /// each, before opening the flop betting round.
+  void _dealFlopStaggered(List<PlayerModel> resetPlayers, List<CardModel> deck, int canAct) {
+    final flop = deck.take(3).toList();
+    final rest = deck.sublist(3);
+    final firstActiveIdx = _firstActiveAfterDealer();
+    final activePlayers = resetPlayers.where((p) => !p.isFolded && !p.isAllIn).length;
 
     _state = _state.copyWith(
-      communityCards: board,
-      deck: remainDeck,
+      players: resetPlayers,
+      communityCards: const [],
+      deck: rest,
+      currentBet: 0,
+      activePlayerIndex: firstActiveIdx,
+      phase: GamePhase.flop,
+      street: 'flop',
+      wasAggressorThisStreet: false,
+      actorsRemaining: activePlayers,
+      awaitingHumanAction: false,
+      isProcessingBot: false,
     );
     notifyListeners();
+    _revealFlopCard(flop, 0, canAct);
+  }
 
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (!_disposed) _runShowdown();
-    });
+  void _revealFlopCard(List<CardModel> flop, int i, int canAct) {
+    if (_disposed) return;
+    if (i >= flop.length) {
+      if (canAct <= 1) {
+        _runOutBoard();
+      } else {
+        _advanceTurn();
+      }
+      return;
+    }
+    final board = List<CardModel>.from(_state.communityCards)..add(flop[i]);
+    _state = _state.copyWith(communityCards: board);
+    notifyListeners();
+    Future.delayed(const Duration(milliseconds: 420), () => _revealFlopCard(flop, i + 1, canAct));
+  }
+
+  /// All-in runout: reveals every live player's hole cards, then deals the
+  /// remaining board cards ONE AT A TIME before the showdown.
+  void _runOutBoard() {
+    if (_disposed) return;
+    final players = _state.players
+        .map((p) => p.copyWith(cardsVisible: !p.isFolded))
+        .toList();
+    _state = _state.copyWith(players: players);
+    notifyListeners();
+    Future.delayed(const Duration(milliseconds: 600), _revealRunoutCard);
+  }
+
+  void _revealRunoutCard() {
+    if (_disposed) return;
+    if (_state.communityCards.length >= 5 || _state.deck.isEmpty) {
+      Future.delayed(const Duration(milliseconds: 700), () {
+        if (!_disposed) _runShowdown();
+      });
+      return;
+    }
+    final remain = List<CardModel>.from(_state.deck);
+    final next = remain.removeAt(0);
+    final board = List<CardModel>.from(_state.communityCards)..add(next);
+    _state = _state.copyWith(communityCards: board, deck: remain);
+    notifyListeners();
+    Future.delayed(const Duration(milliseconds: 750), _revealRunoutCard);
   }
 
   int _firstActiveAfterDealer() {
@@ -589,13 +759,8 @@ class PokerEngine extends ChangeNotifier {
       );
     }
 
-    final humanIdx = players.indexWhere((p) => p.isHuman);
-    final humanBet = _state.players[humanIdx].totalHandBet;
-    final humanWon = winners.contains(humanIdx) ? share : 0.0;
-    final humanProfit = humanWon - humanBet;
-
     final winnerNames = winners.map((i) => players[i].name).join(' & ');
-    final resultMsg = '$winnerNames wins \$${_state.pot.toStringAsFixed(0)}';
+    final resultMsg = I18n.t('wins_msg', {'who': winnerNames, 'amt': _state.pot.toStringAsFixed(0)});
 
     _state = _state.copyWith(
       players: players,
@@ -606,13 +771,20 @@ class PokerEngine extends ChangeNotifier {
 
     onHandComplete?.call(_state);
 
-    Future.delayed(const Duration(milliseconds: 2800), () {
+    Future.delayed(const Duration(milliseconds: 3200), () {
       if (!_disposed) startNewHand();
     });
   }
 
   GTORecommendation getGTOAdvice() {
     final human = _state.humanPlayer;
+
+    // ── Preflop: DB-driven decision hierarchy ────────────────────────────────
+    if (_state.phase == GamePhase.preflop && human.holeCards.length == 2) {
+      return _preflopGTOAdvice(human);
+    }
+
+    // ── Postflop: dynamic equity-based calculation ────────────────────────────
     return EquityCalculator.recommend(
       heroCards: human.holeCards,
       communityCards: _state.communityCards,
@@ -620,6 +792,117 @@ class PokerEngine extends ChangeNotifier {
       potSize: _state.pot,
       numOpponents: max(1, _state.activeCount - 1),
     );
+  }
+
+  /// Preflop GTO advice using the full database hierarchy:
+  ///   Open → Facing Open → Facing 3B → Facing 4B → BvB → Squeeze → Multiway
+  GTORecommendation _preflopGTOAdvice(PlayerModel human) {
+    final handCode = PreflopCharts.handCode(human.holeCards);
+    final hero = human.position;
+
+    // Build context from current hand actions (preflop street only).
+    final preflopActions = _state.currentHandActions
+        .where((a) => a.street == 'preflop')
+        .toList();
+
+    int numRaisers = preflopActions
+        .where((a) =>
+            a.type == ActionType.raise ||
+            a.type == ActionType.bet ||
+            (a.type == ActionType.allIn && a.amount > bigBlind))
+        .length;
+    int numCallers = preflopActions
+        .where((a) => a.type == ActionType.call)
+        .length;
+
+    // Find the first aggressor and the most recent aggressor.
+    TablePosition? opener;
+    TablePosition? lastAggressor;
+    for (final a in preflopActions) {
+      final isRaise = a.type == ActionType.raise ||
+          a.type == ActionType.bet ||
+          (a.type == ActionType.allIn && a.amount > bigBlind);
+      if (isRaise) {
+        final p = _state.players.firstWhere(
+            (pl) => pl.name == a.playerName, orElse: () => _state.players[0]);
+        opener ??= p.position;
+        lastAggressor = p.position;
+      }
+    }
+
+    final ctx = GTODatabase.inferContext(
+      hero: hero,
+      numRaisers: numRaisers,
+      numCallers: numCallers,
+      opener: opener,
+      lastAggressor: lastAggressor,
+    );
+
+    // If BB is just opening (no prior action, only blind posted), detect BvB.
+    final effectiveCtx = (ctx.action == PreflopAction.rfi &&
+            (hero == TablePosition.bb || hero == TablePosition.sb) &&
+            _state.activeCount == 2)
+        ? const PreflopContext(action: PreflopAction.blindVsBlind)
+        : ctx;
+
+    final strategy = GTODatabase.preflop(hero, handCode, effectiveCtx);
+    // primary = the highest-frequency action (a SpotRecord).
+    final primary = strategy.primary;
+    final action = primary.action;
+    final ev = primary.ev;
+
+    // Map the GTO DB action to the GTORecommendation format.
+    double amount = 0;
+    final callAmount = _state.callAmount;
+
+    if (action == 'open' || action == '3bet' || action == '4bet' ||
+        action == 'squeeze' || action == '5bet_jam') {
+      final multiplier = action == '5bet_jam' ? 99.0 : 3.2;
+      // Safe clamp: stack can be below one BB — never let the lower bound
+      // exceed the upper bound (clamp would throw).
+      amount = (callAmount > 0 ? callAmount * multiplier : bigBlind * 3.0)
+          .clamp(min(bigBlind.toDouble(), human.stack), human.stack);
+    } else if (action == 'call') {
+      amount = callAmount;
+    }
+
+    // Explanation comes straight from the primary action's coach note.
+    final explanation = primary.explanation.isNotEmpty
+        ? primary.explanation
+        : '$handCode → $action (EV ≈ +${ev.toStringAsFixed(2)}BB)';
+
+    // Compute a rough preflop equity for display.
+    final preflopEquity = EquityCalculator.calculate(
+      heroCards: human.holeCards,
+      communityCards: const [],
+      numOpponents: max(1, _state.activeCount - 1),
+      simulations: 200,
+      deterministic: true,
+    );
+
+    return GTORecommendation(
+      action: _actionLabel(action),
+      amount: amount,
+      equity: preflopEquity,
+      potOdds: callAmount > 0
+          ? EquityCalculator.potOddsRequired(callAmount, _state.pot)
+          : 0,
+      ev: ev,
+      reasoning: explanation,
+    );
+  }
+
+  static String _actionLabel(String a) {
+    switch (a) {
+      case 'open': return 'Raise';
+      case '3bet': return 'Raise';
+      case '4bet': return 'Raise';
+      case 'squeeze': return 'Raise';
+      case '5bet_jam': return 'All-In';
+      case 'call': return 'Call';
+      case 'fold': return 'Fold';
+      default: return a[0].toUpperCase() + a.substring(1);
+    }
   }
 
   void updateTableStack(double newStack) {
