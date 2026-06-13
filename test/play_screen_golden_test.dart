@@ -1,3 +1,8 @@
+// Golden screenshot tests — excluded from CI (run locally with --update-goldens).
+// Skip in CI via: flutter test --exclude-tags golden
+@Tags(['golden'])
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
