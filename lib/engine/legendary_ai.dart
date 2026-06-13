@@ -133,19 +133,26 @@ class LegendaryBotEngine {
       exploitsHighFolders: true,
       readsOpponent: true,       // "El Observador": exploitation gated on confidence
     ),
-    // 2. Adrián Mateos — GTO Hyper-Aggressive: high 3-bet frequency,
-    // polarized 150%+ river overbets with optimal blockers.
+    // 2. Adrián Mateos — GTO Aggressive Master: polarized overbets, relentless
+    // multi-street pressure, pure GTO base with data-gated exploitation.
     LegendProfile(
       name: 'Adrián',
-      style: 'GTO Hyper-Aggressive',
+      style: 'GTO Aggressive Master',
       emoji: '⚡',
-      utgOpen: 0.68, mpOpen: 0.60, coOpen: 0.52, btnOpen: 0.42, sbOpen: 0.54, bbDefend: 0.40,
-      threeBetThreshold: 0.66, fourBetThreshold: 0.84,
-      cBetFreq: 0.78, doubleBarrelFreq: 0.62, tripleBarrelFreq: 0.46, checkRaiseFreq: 0.30,
-      bluffFreq: 0.32, slowplayFreq: 0.10,
-      preferredSizings: [0.5, 0.75, 1.0, 1.5],
-      riverOverbetThreshold: 0.70,
-      threeBetBluffFreq: 0.18, squeezeFreq: 0.16,
+      avatarAsset: 'assets/avatars/adrian.png',
+      // Aggressive preflop — opens wide, 3-bets often, squeezes relentlessly
+      utgOpen: 0.66, mpOpen: 0.58, coOpen: 0.50, btnOpen: 0.40, sbOpen: 0.52, bbDefend: 0.38,
+      threeBetThreshold: 0.64, fourBetThreshold: 0.82,
+      // "Presión Continua": very high C-bet, fires Turn/River without mercy
+      cBetFreq: 0.82, doubleBarrelFreq: 0.70, tripleBarrelFreq: 0.52, checkRaiseFreq: 0.34,
+      // "Polarización": air or nuts — no medium bets. No slowplay.
+      bluffFreq: 0.36, slowplayFreq: 0.06,
+      // Large sizing only: 1.0-1.5x pot, river overbets at 1.5-2.0x
+      preferredSizings: [0.75, 1.0, 1.5, 2.0],
+      riverOverbetThreshold: 0.62,
+      openSizeBB: 2.5,
+      threeBetBluffFreq: 0.20, squeezeFreq: 0.18, bluffRaiseFreq: 0.20,
+      // GTO-first: polarized overbets, no pot control
       polarizedBetting: true,
     ),
     // 3. Daniel Negreanu — Small Ball Trapper: 2x opens, high check-call
@@ -888,6 +895,11 @@ class LegendaryBotEngine {
           return BotDecision(type: ActionType.bet, amount: strongSize, thinkMs: 0);
 
         case HandBucket.mediumValue:
+          // Adrián "Polarización": medium value is checked, not bet small.
+          // He only bets big (nuts/bluff). Medium hands go to check-call/check-fold.
+          if (profile.polarizedBetting && !profile.potControl) {
+            return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
+          }
           // Pot control (Esfandiari): keep it small, milk rivers
           if (isRiver) {
             if (rand < profile.blockerBetFreq + 0.25) {
@@ -1209,13 +1221,23 @@ class LegendaryBotEngine {
         (street == 'turn' || isRiver)) {
       bluffFreq = max(bluffFreq, 0.80 * iveyExploitMult);
     }
-    if (human.isCallingStation) bluffFreq *= 0.35;
+    // Adrián "Adaptabilidad GTO": trust theory unless data is solid.
+    // vs calling station with sufficient reads → clamp bluffs hard
+    if (human.isCallingStation) {
+      final dataGate = human.confidence >= 0.40 ? 0.20 : 0.50;
+      bluffFreq *= dataGate;
+    }
+    // vs passive over-folder with reads → slight boost (but stays GTO-anchored)
+    if (profile.polarizedBetting && human.overFolds && human.confidence >= 0.45) {
+      bluffFreq = (bluffFreq * 1.25).clamp(0.0, 0.95);
+    }
 
-    // Sizing: small on dry, big on wet; polarized profiles overbet rivers
-    // with good blockers (Mateos blocker-optimal 150% pots)
-    double sizeFrac = texture.wetness < 0.4 ? 0.40 : 0.66;
+    // Adrián sizing: always large — 1.0x on flop/turn, 1.5-2.0x overbet on river
+    double sizeFrac = profile.polarizedBetting
+        ? (isRiver ? 1.5 : 1.0)
+        : (texture.wetness < 0.4 ? 0.40 : 0.66);
     if (isRiver && profile.polarizedBetting && blockers.goodBluffBlockers) {
-      sizeFrac = 1.5;
+      sizeFrac = 2.0; // river blocker overbet
     }
     if (profile.stackPressure) sizeFrac = (sizeFrac * 1.25).clamp(0.4, 2.0).toDouble();
 
