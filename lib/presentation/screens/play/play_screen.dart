@@ -329,6 +329,9 @@ class _PokerTable extends StatelessWidget {
                 avatarAsset: players[i].isHuman
                     ? null
                     : LegendaryBotEngine.profileByName(players[i].legendName ?? '').avatarAsset,
+                bankrollLabel: players[i].isHuman
+                    ? gp.money(gp.bankroll)
+                    : null,
                 stackLabel: gp.money(players[i].stack),
                 lastStreetAction: lastActionOf(players[i].id),
                 actionAmountLabel: _amountLabelFor(lastActionOf(players[i].id)),

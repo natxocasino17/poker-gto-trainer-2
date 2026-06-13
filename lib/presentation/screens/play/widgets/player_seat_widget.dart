@@ -12,7 +12,8 @@ class PlayerSeatWidget extends StatelessWidget {
   final bool isActive;
   final bool isHuman;
   final String emoji;
-  final String? avatarAsset; // illustrated image overrides emoji when set
+  final String? avatarAsset;    // illustrated image overrides emoji when set
+  final String? bankrollLabel;  // human only: shows session money in avatar circle
   final String stackLabel;
   final HandAction? lastStreetAction;
   final String? actionAmountLabel;
@@ -24,6 +25,7 @@ class PlayerSeatWidget extends StatelessWidget {
     required this.isHuman,
     required this.emoji,
     this.avatarAsset,
+    this.bankrollLabel,
     required this.stackLabel,
     this.lastStreetAction,
     this.actionAmountLabel,
@@ -77,7 +79,9 @@ class PlayerSeatWidget extends StatelessWidget {
                 end: Alignment.bottomRight,
                 colors: player.isWinner
                     ? [AppColors.gold, AppColors.goldDark]
-                    : [AppColors.surfaceElevated, AppColors.surface],
+                    : isHuman
+                        ? [const Color(0xFF1C3528), const Color(0xFF0F1F18)]
+                        : [AppColors.surfaceElevated, AppColors.surface],
               ),
               border: Border.all(
                 color: isActive
@@ -90,18 +94,40 @@ class PlayerSeatWidget extends StatelessWidget {
                   : [const BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(1, 2))],
             ),
             child: Center(
-              child: avatarAsset != null
-                  ? ClipOval(
-                      child: Image.asset(
-                        avatarAsset!,
-                        width: avatarSize,
-                        height: avatarSize,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            Text(emoji, style: TextStyle(fontSize: avatarSize * 0.52)),
+              child: isHuman && bankrollLabel != null
+                  // Human: show session money in the circle
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              bankrollLabel!,
+                              style: TextStyle(
+                                color: AppColors.gold,
+                                fontSize: avatarSize * 0.28,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     )
-                  : Text(emoji, style: TextStyle(fontSize: avatarSize * 0.52)),
+                  : avatarAsset != null
+                      ? ClipOval(
+                          child: Image.asset(
+                            avatarAsset!,
+                            width: avatarSize,
+                            height: avatarSize,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                Text(emoji, style: TextStyle(fontSize: avatarSize * 0.52)),
+                          ),
+                        )
+                      : Text(emoji, style: TextStyle(fontSize: avatarSize * 0.52)),
             ),
           ),
           const SizedBox(height: 2),
