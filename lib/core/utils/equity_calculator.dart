@@ -82,6 +82,30 @@ class EquityCalculator {
     return (wins + ties * 0.5) / simulations;
   }
 
+  /// Exact equity vs a known villain hand (runs out remaining board cards).
+  static double calculateVsVillain({
+    required List<CardModel> heroCards,
+    required List<CardModel> villainCards,
+    required List<CardModel> communityCards,
+    int simulations = 800,
+  }) {
+    if (heroCards.length != 2 || villainCards.length != 2) return 0.5;
+    final known = <CardModel>{...heroCards, ...villainCards, ...communityCards};
+    final deck = CardModel.freshDeck().where((c) => !_has(known, c)).toList();
+    final boardNeeded = 5 - communityCards.length;
+    int wins = 0, ties = 0;
+    for (int sim = 0; sim < simulations; sim++) {
+      deck.shuffle(_rng);
+      final board = [...communityCards, ...deck.take(boardNeeded)];
+      final heroScore = HandEvaluator.evaluateBest([...heroCards, ...board]);
+      final villScore = HandEvaluator.evaluateBest([...villainCards, ...board]);
+      final cmp = heroScore.compareTo(villScore);
+      if (cmp > 0) wins++;
+      else if (cmp == 0) ties++;
+    }
+    return (wins + ties * 0.5) / simulations;
+  }
+
   static bool _has(Set<CardModel> set, CardModel c) =>
       set.any((x) => x.rank == c.rank && x.suit == c.suit);
 
