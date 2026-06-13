@@ -67,6 +67,9 @@ class LegendProfile {
   // Papo MC "La Bestia": surprise factor, attacks tight players, sizing chaos,
   // ignores GTO to jam vs perceived weakness
   final bool freestyleAggressor;
+  // Phil Hellmuth "White Magic": trusts reads over GTO — hero-calls vs aggression,
+  // prioritises stack survival, folds marginal risky spots, patient max value
+  final bool whiteMagicReader;
   // Optional illustrated avatar asset path (null → show emoji)
   final String? avatarAsset;
 
@@ -107,6 +110,7 @@ class LegendProfile {
     this.isArchetype = false,
     this.readsOpponent = false,
     this.freestyleAggressor = false,
+    this.whiteMagicReader = false,
     this.avatarAsset,
   });
 }
@@ -173,19 +177,27 @@ class LegendaryBotEngine {
       riverOverbetThreshold: 0.90,
       openSizeBB: 2.0, floatFreq: 0.28, blockerBetFreq: 0.20,
     ),
-    // 4. Phil Hellmuth — Tight-Passive White Magic: ultra-tight ranges,
-    // his raises on later streets are PURE value (zero bluff raises).
+    // 4. Phil Hellmuth — The Poker Brat / White Magic: legendary patience,
+    // small-ball survival, hero-calls on reads over GTO, pure-value raises.
     LegendProfile(
       name: 'Philip',
-      style: 'Tight-Passive Premium',
+      style: 'White Magic — The Poker Brat',
       emoji: '👑',
-      utgOpen: 0.74, mpOpen: 0.69, coOpen: 0.62, btnOpen: 0.53, sbOpen: 0.65, bbDefend: 0.50,
-      threeBetThreshold: 0.82, fourBetThreshold: 0.92,
-      cBetFreq: 0.60, doubleBarrelFreq: 0.42, tripleBarrelFreq: 0.25, checkRaiseFreq: 0.15,
-      bluffFreq: 0.08, slowplayFreq: 0.12,
-      preferredSizings: [0.5, 0.75],
-      riverOverbetThreshold: 0.95,
-      bluffRaiseFreq: 0.0, threeBetBluffFreq: 0.02, floatFreq: 0.06,
+      avatarAsset: 'assets/avatars/philip.png',
+      // "Paciencia Disciplinada": ultra-tight, no unnecessary pots
+      utgOpen: 0.76, mpOpen: 0.71, coOpen: 0.64, btnOpen: 0.55, sbOpen: 0.66, bbDefend: 0.50,
+      threeBetThreshold: 0.84, fourBetThreshold: 0.93,
+      // Small-ball: low aggression frequencies, controlled barrels
+      cBetFreq: 0.58, doubleBarrelFreq: 0.40, tripleBarrelFreq: 0.22, checkRaiseFreq: 0.14,
+      // "White Magic" raises are PURE value (bluffRaiseFreq 0), minimal bluffing
+      bluffFreq: 0.07, slowplayFreq: 0.18,
+      // Small-ball sizings: lots of small pots, big only with the nuts
+      preferredSizings: [0.33, 0.5, 0.66],
+      riverOverbetThreshold: 0.96,
+      openSizeBB: 2.2,
+      bluffRaiseFreq: 0.0, threeBetBluffFreq: 0.02, floatFreq: 0.05,
+      // "White Magic" + "Defensa del Stack": read-based hero calls, survival first
+      whiteMagicReader: true,
     ),
     // 5. Tom Dwan — Ultra-Loose Aggressive: triple barrels with total air,
     // unpredictable sizings designed to crack tight ranges.
@@ -1167,6 +1179,17 @@ class LegendaryBotEngine {
         if (human.aggressionFactor > 2.0) callThreshold -= 0.03; // they bluff a lot
         // Board texture: on monotone/paired boards tighten (risk of flush/full)
         if (texture.wetness > 0.65) callThreshold += 0.04;
+        // Hellmuth "White Magic": trusts the read over the math. vs an aggressive
+        // human he hero-calls lighter; but "Defensa del Stack" makes him fold
+        // marginal spots when an overbet threatens his survival.
+        if (profile.whiteMagicReader) {
+          if (human.aggressionFactor > 1.5 && human.confidence >= 0.30 && !isOverbet) {
+            callThreshold -= 0.07; // reads the bluff, pays off
+          }
+          if (isOverbet && !blockers.topCardBlocker) {
+            callThreshold += 0.08; // survival first: don't risk stack on a guess
+          }
+        }
         if (equity >= callThreshold) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
@@ -1226,7 +1249,12 @@ class LegendaryBotEngine {
         if (isMediumBet && equity >= potOdds + 0.03) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
-        if (human.aggressionFactor > 2.5 && equity >= potOdds - 0.02 && !isOverbet) {
+        // Hellmuth "White Magic": picks off aggressive bluffers with weak showdown,
+        // but only when it doesn't endanger the stack (never vs overbets).
+        final magicCallGate = (profile.whiteMagicReader && human.confidence >= 0.30)
+            ? 1.7
+            : 2.5;
+        if (human.aggressionFactor > magicCallGate && equity >= potOdds - 0.02 && !isOverbet) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
         return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
