@@ -1,11 +1,13 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import '../data/gto/gto_database.dart';
 import '../data/models/card_model.dart';
 import '../data/models/player_model.dart';
 import '../data/models/hand_log_model.dart';
 import '../core/utils/hand_evaluator.dart';
 import '../core/utils/equity_calculator.dart';
 import '../core/utils/poker_concepts.dart';
+import '../core/utils/preflop_charts.dart';
 import 'legendary_ai.dart';
 import '../core/i18n/i18n.dart';
 
@@ -751,6 +753,13 @@ class PokerEngine extends ChangeNotifier {
 
   GTORecommendation getGTOAdvice() {
     final human = _state.humanPlayer;
+
+    // ── Preflop: DB-driven decision hierarchy ────────────────────────────────
+    if (_state.phase == GamePhase.preflop && human.holeCards.length == 2) {
+      return _preflopGTOAdvice(human);
+    }
+
+    // ── Postflop: dynamic equity-based calculation ────────────────────────────
     return EquityCalculator.recommend(
       heroCards: human.holeCards,
       communityCards: _state.communityCards,
@@ -758,6 +767,112 @@ class PokerEngine extends ChangeNotifier {
       potSize: _state.pot,
       numOpponents: max(1, _state.activeCount - 1),
     );
+  }
+
+  /// Preflop GTO advice using the full database hierarchy:
+  ///   Open → Facing Open → Facing 3B → Facing 4B → BvB → Squeeze → Multiway
+  GTORecommendation _preflopGTOAdvice(PlayerModel human) {
+    final handCode = PreflopCharts.handCode(human.holeCards);
+    final hero = human.position;
+
+    // Build context from current hand actions (preflop street only).
+    final preflopActions = _state.currentHandActions
+        .where((a) => a.street == 'preflop')
+        .toList();
+
+    int numRaisers = preflopActions
+        .where((a) =>
+            a.type == ActionType.raise ||
+            a.type == ActionType.bet ||
+            (a.type == ActionType.allIn && a.amount > bigBlind))
+        .length;
+    int numCallers = preflopActions
+        .where((a) => a.type == ActionType.call)
+        .length;
+
+    // Find the first aggressor and the most recent aggressor.
+    TablePosition? opener;
+    TablePosition? lastAggressor;
+    for (final a in preflopActions) {
+      final isRaise = a.type == ActionType.raise ||
+          a.type == ActionType.bet ||
+          (a.type == ActionType.allIn && a.amount > bigBlind);
+      if (isRaise) {
+        final p = _state.players.firstWhere(
+            (pl) => pl.name == a.player, orElse: () => _state.players[0]);
+        opener ??= p.position;
+        lastAggressor = p.position;
+      }
+    }
+
+    final ctx = GTODatabase.inferContext(
+      hero: hero,
+      numRaisers: numRaisers,
+      numCallers: numCallers,
+      opener: opener,
+      lastAggressor: lastAggressor,
+    );
+
+    // If BB is just opening (no prior action, only blind posted), detect BvB.
+    final effectiveCtx = (ctx.action == PreflopAction.rfi &&
+            (hero == TablePosition.bb || hero == TablePosition.sb) &&
+            _state.activeCount == 2)
+        ? const PreflopContext(action: PreflopAction.blindVsBlind)
+        : ctx;
+
+    final strategy = GTODatabase.preflop(hero, handCode, effectiveCtx);
+    final primary = strategy.primary;
+    final ev = strategy.bestEv;
+
+    // Map the GTO DB action to the GTORecommendation format.
+    double amount = 0;
+    final callAmount = _state.callAmount;
+
+    if (primary == 'open' || primary == '3bet' || primary == '4bet' ||
+        primary == 'squeeze' || primary == '5bet_jam') {
+      final multiplier = primary == '5bet_jam' ? 99.0 : 3.2;
+      amount = (callAmount > 0 ? callAmount * multiplier : bigBlind * 3.0)
+          .clamp(bigBlind, human.stack);
+    } else if (primary == 'call') {
+      amount = callAmount;
+    }
+
+    // Get the best explanation from the strategy record.
+    final bestRecord = strategy.actions.isNotEmpty ? strategy.actions.first : null;
+    final explanation = bestRecord?.explanation ?? '$handCode → $primary (EV ≈ +${ev.toStringAsFixed(2)}BB)';
+
+    // Compute a rough preflop equity for display.
+    final preflopEquity = EquityCalculator.calculate(
+      heroCards: human.holeCards,
+      communityCards: const [],
+      numOpponents: max(1, _state.activeCount - 1),
+      simulations: 200,
+      deterministic: true,
+    );
+
+    return GTORecommendation(
+      action: _actionLabel(primary),
+      amount: amount,
+      equity: preflopEquity,
+      potOdds: callAmount > 0
+          ? EquityCalculator.potOddsRequired(callAmount, _state.pot)
+          : 0,
+      ev: ev,
+      reasoning: explanation,
+    );
+  }
+
+  static String _actionLabel(String a) {
+    switch (a) {
+      case 'open': return 'Raise';
+      case '3bet': return 'Raise';
+      case '4bet': return 'Raise';
+      case 'squeeze': return 'Raise';
+      case '5bet_jam': return 'All-In';
+      case 'call': return 'Call';
+      case 'fold': return 'Fold';
+      default: return a[0].toUpperCase() + a.substring(1);
+    }
   }
 
   void updateTableStack(double newStack) {
