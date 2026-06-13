@@ -190,8 +190,10 @@ class EquityCalculator {
     required double callAmount,
     required double potSize,
     required int numOpponents,
+    double heroStack = 100.0,
   }) {
     final isPostflop = communityCards.length >= 3;
+    final isRiver = communityCards.length == 5;
     final equity = calculate(
       heroCards: heroCards,
       communityCards: communityCards,
@@ -206,135 +208,314 @@ class EquityCalculator {
     final eqPct = (equity * 100).toStringAsFixed(1);
     final oddsPct = (odds * 100).toStringAsFixed(1);
 
+    final analysis = isPostflop ? HandStrengthAnalysis.analyze(heroCards, communityCards) : null;
+    final blockers = isPostflop ? Blockers.analyze(heroCards, communityCards) : null;
+    final texture = isPostflop ? BoardTexture.analyze(communityCards) : null;
+    final spr = GtoMath.spr(heroStack, max(potSize, 1.0));
+    final mdf = callAmount > 0 ? GtoMath.mdf(potSize - callAmount, callAmount) : 0.0;
+    final alpha = callAmount > 0 ? GtoMath.alpha(potSize - callAmount, callAmount) : 0.0;
+
+    // ── Determine primary action ─────────────────────────────────────────────
+    String action;
+    double amount;
+    double evFinal;
+
     if (callAmount <= 0) {
-      if (equity > 0.68) {
-        final bet = _snapToBetSize(potSize * 0.75);
-        return GTORecommendation(
-          action: 'Bet',
-          amount: bet,
-          equity: equity,
-          potOdds: 0,
-          ev: equity - 0.5,
-          reasoning: 'Equity $eqPct% — mano fuerte de valor. Bet de \$${bet.toStringAsFixed(0)} (75% del bote) para construir bote y protegerte.',
-        );
+      if (equity > 0.64 || analysis?.bucket == HandBucket.nuts || analysis?.bucket == HandBucket.strongValue) {
+        final bet = _snapToBetSize(potSize * (texture != null && texture.wetness > 0.5 ? 0.75 : 0.66));
+        action = 'Bet'; amount = bet; evFinal = equity - 0.5;
+      } else if ((analysis?.bucket == HandBucket.comboDraw || analysis?.bucket == HandBucket.strongDraw) && !isRiver) {
+        final bet = _snapToBetSize(potSize * 0.66);
+        action = 'Bet'; amount = bet; evFinal = equity - 0.35;
+      } else if (equity > 0.52) {
+        final bet = _snapToBetSize(potSize * 0.40);
+        action = 'Bet'; amount = bet; evFinal = equity - 0.45;
+      } else if (equity > 0.28 && potSize > 15 && (blockers?.goodBluffBlockers ?? false) && !isRiver) {
+        final bet = _snapToBetSize(potSize * 0.50);
+        action = 'Bet'; amount = bet; evFinal = 0.08;
+      } else {
+        action = 'Check'; amount = 0; evFinal = 0;
       }
-      if (equity > 0.40) {
-        final bet = _snapToBetSize(potSize * 0.33);
-        if (equity > 0.55) {
-          return GTORecommendation(
-            action: 'Bet',
-            amount: bet,
-            equity: equity,
-            potOdds: 0,
-            ev: equity - 0.45,
-            reasoning: 'Equity $eqPct% — valor fino. Bet pequeño (\$${bet.toStringAsFixed(0)}, 33% del bote) para extraer valor controlando el bote.',
-          );
-        }
-        return GTORecommendation(
-          action: 'Check',
-          amount: 0,
-          equity: equity,
-          potOdds: 0,
-          ev: 0,
-          reasoning: 'Equity $eqPct% — fuerza media. Check para controlar el tamaño del bote y seguir con cautela.',
-        );
+    } else {
+      if (equity > 0.62 && ev > 0.12) {
+        final raise = _snapToBetSize(callAmount * 2.8);
+        action = 'Raise'; amount = raise; evFinal = ev;
+      } else if (analysis != null &&
+          (analysis.bucket == HandBucket.comboDraw || analysis.bucket == HandBucket.strongDraw) &&
+          !isRiver) {
+        final raise = _snapToBetSize(callAmount * 2.8);
+        action = 'Raise'; amount = raise; evFinal = ev + 0.10;
+      } else if (analysis != null && blockers != null && texture != null &&
+          !isRiver && ev < -0.03 &&
+          (analysis.bucket == HandBucket.air || analysis.bucket == HandBucket.weakShowdown) &&
+          blockers.goodBluffBlockers && texture.wetness < 0.45) {
+        final raise = _snapToBetSize(callAmount * 2.8);
+        action = 'Raise'; amount = raise; evFinal = 0.05;
+      } else if (ev >= -0.03) {
+        action = 'Call'; amount = callAmount; evFinal = ev;
+      } else {
+        action = 'Fold'; amount = 0; evFinal = ev;
       }
-      if (equity > 0.25 && potSize > 20) {
-        final bluff = _snapToBetSize(potSize * 0.5);
-        return GTORecommendation(
-          action: 'Bet',
-          amount: bluff,
-          equity: equity,
-          potOdds: 0,
-          ev: 0.1,
-          reasoning: 'Equity $eqPct% — spot de farol. Semi-bluff de \$${bluff.toStringAsFixed(0)} (50% del bote) usando fold equity + outs del proyecto.',
-        );
-      }
-      return GTORecommendation(
-        action: 'Check',
-        amount: 0,
-        equity: equity,
-        potOdds: 0,
-        ev: 0,
-        reasoning: 'Equity $eqPct% — mano débil. Check y reevalúa en la siguiente calle.',
-      );
     }
 
-    final analysis = communityCards.length >= 3
-        ? HandStrengthAnalysis.analyze(heroCards, communityCards)
-        : null;
-    final blockers = communityCards.length >= 3
-        ? Blockers.analyze(heroCards, communityCards)
-        : null;
-    final texture = communityCards.length >= 3
-        ? BoardTexture.analyze(communityCards)
-        : null;
-
-    // Value raise: strong equity edge — raising beats flat calling
-    if (equity > 0.62 && ev > 0.12) {
-      final raise = _snapToBetSize(callAmount * 2.8);
-      return GTORecommendation(
-        action: 'Raise',
-        amount: raise,
-        equity: equity,
-        potOdds: odds,
-        ev: ev,
-        reasoning: 'Tu equity $eqPct% supera de largo las pot odds $oddsPct%. Lo óptimo NO es pagar: sube a \$${raise.toStringAsFixed(0)} para extraer valor máximo y negarle equity al rival.',
-      );
-    }
-
-    // Semi-bluff raise: strong draw + fold equity = two ways to win
-    if (analysis != null &&
-        (analysis.bucket == HandBucket.comboDraw || analysis.bucket == HandBucket.strongDraw) &&
-        communityCards.length < 5) {
-      final raise = _snapToBetSize(callAmount * 2.8);
-      return GTORecommendation(
-        action: 'Raise',
-        amount: raise,
-        equity: equity,
-        potOdds: odds,
-        ev: ev + 0.10,
-        reasoning: 'Proyecto fuerte con ${analysis.outs} outs (~${(analysis.drawEquity * 100).toStringAsFixed(0)}%). El semi-bluff raise a \$${raise.toStringAsFixed(0)} suma fold equity a tu equity real: ganas cuando foldea Y cuando ligas. Mejor que el call pasivo.',
-      );
-    }
-
-    // Pure bluff-raise: weak equity, but good blockers on a dry board where
-    // villain can't continue often. Sometimes the optimal play is to raise
-    // as a bluff, not fold or call.
-    if (analysis != null && blockers != null && texture != null &&
-        communityCards.length < 5 && ev < -0.03 &&
-        (analysis.bucket == HandBucket.air || analysis.bucket == HandBucket.weakShowdown) &&
-        blockers.goodBluffBlockers && texture.wetness < 0.45) {
-      final raise = _snapToBetSize(callAmount * 2.8);
-      return GTORecommendation(
-        action: 'Raise',
-        amount: raise,
-        equity: equity,
-        potOdds: odds,
-        ev: 0.05,
-        reasoning: 'Spot de farol óptimo: en este board seco tus bloqueadores le quitan al rival las manos fuertes para continuar. Un raise-farol a \$${raise.toStringAsFixed(0)} (alpha favorable) hace más \$ que pagar o foldear. Aquí lo correcto es ATACAR.',
-      );
-    }
-
-    if (ev >= -0.03) {
-      return GTORecommendation(
-        action: 'Call',
-        amount: callAmount,
-        equity: equity,
-        potOdds: odds,
-        ev: ev,
-        reasoning: 'Equity $eqPct% vs pot odds $oddsPct% — el call es rentable (EV = ${(ev * 100).toStringAsFixed(1)}%). Call directo.',
-      );
-    }
+    final reasoning = _buildReasoning(
+      heroCards: heroCards,
+      communityCards: communityCards,
+      equity: equity,
+      callAmount: callAmount,
+      potSize: potSize,
+      heroStack: heroStack,
+      spr: spr,
+      mdf: mdf,
+      alpha: alpha,
+      analysis: analysis,
+      blockers: blockers,
+      texture: texture,
+      primaryAction: action,
+      primaryAmount: amount,
+      isRiver: isRiver,
+    );
 
     return GTORecommendation(
-      action: 'Fold',
-      amount: 0,
+      action: action,
+      amount: amount,
       equity: equity,
       potOdds: odds,
-      ev: ev,
-      reasoning: 'Equity $eqPct% por debajo de las pot odds $oddsPct%. Fold — el valor esperado es negativo (${(ev * 100).toStringAsFixed(1)}%).',
+      ev: evFinal,
+      reasoning: reasoning,
     );
+  }
+
+  static String _buildReasoning({
+    required List<CardModel> heroCards,
+    required List<CardModel> communityCards,
+    required double equity,
+    required double callAmount,
+    required double potSize,
+    required double heroStack,
+    required double spr,
+    required double mdf,
+    required double alpha,
+    HandStrengthAnalysis? analysis,
+    Blockers? blockers,
+    BoardTexture? texture,
+    required String primaryAction,
+    required double primaryAmount,
+    required bool isRiver,
+  }) {
+    final b = StringBuffer();
+    final eqPct = (equity * 100).toStringAsFixed(1);
+    final isPostflop = communityCards.isNotEmpty;
+    final outs = analysis?.outs ?? 0;
+    final drawPct = outs > 0 ? (analysis!.drawEquity * 100).toStringAsFixed(0) : '';
+    final bucket = analysis?.bucket;
+
+    // ── 1. MANO + TEXTURA ───────────────────────────────────────────────────
+    if (isPostflop) {
+      final handLabel = _bucketLabel(bucket);
+      b.write('📊 Fuerza: $handLabel');
+      if (outs > 0) b.write(' · $outs outs (~$drawPct% de ligar)');
+      b.writeln();
+
+      if (texture != null) {
+        b.write('🃏 Board ${_textureDesc(texture)}');
+        final ra = RangeModel.aggressorRangeAdvantage(texture);
+        if (ra > 0.10) b.write(' → ventaja de rango: AGRESOR');
+        else if (ra < -0.10) b.write(' → ventaja de rango: DEFENSOR/CALLER');
+        b.writeln();
+      }
+      b.writeln();
+    }
+
+    // ── 2. MATEMÁTICAS GTO ──────────────────────────────────────────────────
+    b.writeln('━━━ MATEMÁTICAS ━━━');
+    if (callAmount > 0) {
+      final odds = potOddsRequired(callAmount, potSize);
+      final evVal = equity - odds;
+      b.writeln('Equity: $eqPct% | Pot Odds: ${(odds*100).toStringAsFixed(1)}% | EV: ${evVal >= 0 ? "+" : ""}${(evVal*100).toStringAsFixed(1)}%');
+      b.writeln('MDF (tu defensa mínima): ${(mdf*100).toStringAsFixed(0)}% del rango');
+      b.writeln('Alpha (rival necesita ${(alpha*100).toStringAsFixed(0)}% folds para blufar)');
+    } else {
+      b.writeln('Equity: $eqPct% | SPR: ${spr.toStringAsFixed(1)} (${_sprLabel(spr)})');
+    }
+    b.writeln();
+
+    // ── 3. RECOMENDACIÓN PRINCIPAL ──────────────────────────────────────────
+    b.writeln('━━━ RECOMENDACIÓN ━━━');
+    if (primaryAction == 'Bet' || primaryAction == 'Raise') {
+      final sizing = primaryAmount > 0 ? '\$${primaryAmount.toStringAsFixed(0)} (${(primaryAmount / max(potSize, 1) * 100).toStringAsFixed(0)}% bote)' : '';
+      if (bucket == HandBucket.nuts || bucket == HandBucket.strongValue) {
+        b.writeln('BET VALOR $sizing — tu mano está adelante; construye el bote ahora.');
+        if (texture != null && texture.wetness > 0.50) {
+          b.writeln('Board húmedo: 66-75% del bote es el sizing óptimo para proteger + extraer.');
+        } else {
+          b.writeln('Board seco: puedes usar 50-66% del bote. También considera check para inducir bluffs del rival.');
+        }
+      } else if (bucket == HandBucket.comboDraw || bucket == HandBucket.strongDraw) {
+        b.writeln('SEMI-BLUFF $sizing — $outs outs (~$drawPct%) + fold equity = dos formas de ganar.');
+        b.writeln('Ganas cuando el rival foldea Y cuando ligas la mano. Presiona ahora.');
+        b.writeln('Si el rival re-raise: evalúa el SPR. Con SPR ${spr.toStringAsFixed(1)} ${spr < 4 ? "considera el all-in — tienes equity" : "puedes llamar y realizer equity"}.');
+      } else if (primaryAction == 'Raise' && callAmount > 0) {
+        b.writeln('RAISE-FAROL $sizing — tus bloqueadores + board seco hacen viable el bluff.');
+        b.writeln('El rival necesita ${(alpha*100).toStringAsFixed(0)}% de folds para que sea +EV. En este spot lo consigues.');
+      } else {
+        b.writeln('BET de valor fino / protección $sizing.');
+        b.writeln('No dejes que el rival realice equity gratis con draws.');
+      }
+    } else if (primaryAction == 'Call') {
+      b.writeln('CALL rentable — equity $eqPct% cubre las pot odds.');
+      if (bucket == HandBucket.strongDraw || bucket == HandBucket.comboDraw) {
+        b.writeln('⚡ Alternativa: RAISE SEMI-BLUFF a \$${_snapToBetSize(callAmount * 2.8).toStringAsFixed(0)} — suma fold equity a tus $outs outs reales. Suele ser superior al call pasivo.');
+      }
+      if (bucket == HandBucket.mediumValue || bucket == HandBucket.weakShowdown) {
+        b.writeln('Tu mano es bluff-catcher válida. MDF requiere que defiendas ${(mdf*100).toStringAsFixed(0)}% del rango; pagando cumples.');
+      }
+    } else if (primaryAction == 'Fold') {
+      b.writeln('FOLD — equity $eqPct% insuficiente vs pot odds. EV negativo continuar.');
+      if ((blockers?.goodBluffBlockers ?? false) && texture != null && texture.wetness < 0.45 && !isRiver) {
+        b.writeln('🔥 ALTERNATIVA: BLUFF RAISE. Tus bloqueadores + board seco = spot ideal para atacar. Alpha del ${(alpha*100).toStringAsFixed(0)}% es alcanzable. Considera atacar en vez de foldear.');
+      }
+    } else {
+      b.writeln('CHECK — controla el bote y reevalúa.');
+      if (bucket == HandBucket.nuts || bucket == HandBucket.strongValue) {
+        b.writeln('Trampa: si el rival apuesta, puedes check-raise para construir el bote de golpe.');
+      }
+    }
+    b.writeln();
+
+    // ── 4. ANÁLISIS DE BLOQUEADORES ─────────────────────────────────────────
+    if (isPostflop && blockers != null) {
+      b.writeln('━━━ BLOQUEADORES ━━━');
+      if (blockers.goodBluffBlockers) {
+        b.writeln('✅ Tienes BUENAS cartas bloqueadoras:');
+        if (blockers.nutFlushBlocker) b.writeln('  · Bloqueas el flush de nueces → el rival tiene menos nuts para llamar.');
+        if (blockers.straightBlocker) b.writeln('  · Bloqueas las escaleras posibles → reduces el rango de valor del rival.');
+        if (blockers.topCardBlocker) b.writeln('  · Bloqueas el tope del board → el rival tiene menos top pair strong kicker.');
+        if (blockers.hasAce) b.writeln('  · Tienes un As → bloqueas combos AX de valor del rival.');
+        b.writeln('→ Esto mejora la rentabilidad de cualquier apuesta/farol en este spot.');
+      } else {
+        b.writeln('⚠️ Sin bloqueadores fuertes — tus faroles son más arriesgados en este spot.');
+        b.writeln('Prioriza semi-bluffs con outs o apuestas de valor puro.');
+      }
+      b.writeln();
+    }
+
+    // ── 5. MDF / DEFENSA ────────────────────────────────────────────────────
+    if (callAmount > 0 && isPostflop) {
+      b.writeln('━━━ DEFENSA MDF ━━━');
+      b.writeln('Para no ser explotable: defiende ${(mdf*100).toStringAsFixed(0)}% de tu rango.');
+      final odds = potOddsRequired(callAmount, potSize);
+      if (equity >= odds - 0.05) {
+        b.writeln('Tu mano ($eqPct%) entra en el rango de defensa → CALL o RAISE.');
+        b.writeln('El rival necesita ${(alpha*100).toStringAsFixed(0)}% de folds para blufar a 0EV → si tu rango defiende correctamente, sus bluffs son -EV.');
+      } else {
+        b.writeln('Tu mano ($eqPct%) está por debajo del umbral puro.');
+        if (blockers?.goodBluffBlockers ?? false) {
+          b.writeln('Sin embargo, con tus bloqueadores puedes RAISE como defense con ventaja adicional.');
+        } else {
+          b.writeln('Fold es correcto. No defiendas por orgullo — el EV manda.');
+        }
+      }
+      b.writeln();
+    }
+
+    // ── 6. PLANIFICACIÓN DE CALLES ──────────────────────────────────────────
+    if (!isRiver && isPostflop && texture != null) {
+      b.writeln('━━━ PLANIFICACIÓN MULTI-CALLE ━━━');
+      final streetsLeft = communityCards.length == 3 ? 2 : 1;
+      b.writeln('Calles restantes: $streetsLeft | SPR: ${spr.toStringAsFixed(1)}');
+      b.writeln();
+
+      if (texture.wetness > 0.50) {
+        b.writeln('🃏 Board húmedo — cartas que CAMBIAN el spot:');
+        b.writeln('  · Carta completando el flush/straight: FRENA. Check o bet pequeño. El rival pudo llegar.');
+        b.writeln('  · Carta de par en el board: board empareado favorece al caller. Reevalúa.');
+        b.writeln('  · Brick (carta sin conexión): BARREL. Tu historia de fuerza se mantiene.');
+      } else {
+        b.writeln('🃏 Board seco — cartas que CAMBIAN el spot:');
+        b.writeln('  · Carta conectante (7, 8, 9 tipo): ojo con draws que se activan, reduce sizing.');
+        b.writeln('  · Carta de flush (3 del mismo palo): reevalúa si tienes el bloqueador o no.');
+        b.writeln('  · Brick: continúa la presión. Tienes ventaja de rango en este tipo de board.');
+      }
+      if (outs > 0) {
+        b.writeln('  · Si LIGAS ($outs outs, ~$drawPct%): apuesta fuerte, extrae máximo valor.');
+        b.writeln('  · Si NO ligas: decide si el barrel puro vale con tus bloqueadores.');
+      }
+      b.writeln();
+
+      b.writeln('📐 Plan SPR ${spr.toStringAsFixed(1)}:');
+      if (spr <= 2.5) {
+        b.writeln('Stack corto → comprométete con valor ahora. Con mano fuerte: all-in es correcto.');
+        b.writeln('Sizing recomendado: ≥75% del bote en cada calle para comprometerte eficientemente.');
+      } else if (spr <= 5.0) {
+        b.writeln('$streetsLeft calles para llegar al all-in. Plan: bet-bet o bet-check-river bomb.');
+        b.writeln('Sizing recomendado: 50-60% del bote para tener bet de river con todo comprometido.');
+      } else if (spr <= 10.0) {
+        b.writeln('SPR profundo: necesitas 3 calles para stackear. No te comprometas sin mano fuerte.');
+        b.writeln('Sizing recomendado: 33-50% del bote en calles tempranas; escala en river.');
+      } else {
+        b.writeln('SPR muy profundo (${spr.toStringAsFixed(0)}x): controla el bote. Solo stacks off con nueces.');
+      }
+      b.writeln();
+    }
+
+    // ── 7. SPOTS DE BLUFF EN ESTE BOARD ────────────────────────────────────
+    if (isPostflop && texture != null && !isRiver) {
+      b.writeln('━━━ SPOTS DE BLUFF / SEMI-BLUFF ━━━');
+      if (texture.wetness < 0.35) {
+        b.writeln('✅ Board seco: alta frecuencia de bluff (40-55%). El rival necesita mano real para continuar.');
+        b.writeln('→ C-bets, barrels y check-raises son todos más rentables en este tipo de board.');
+      } else if (texture.wetness > 0.60) {
+        b.writeln('⚠️ Board húmedo: bluffs de riesgo alto. Rivales conectan más y pagan más.');
+        b.writeln('→ Prioriza semi-bluffs (con outs) sobre bluffs puros. Reduce sizing en bluffs.');
+      } else {
+        b.writeln('☑️ Textura media: bluffs selectivos. Usa posición e iniciativa a tu favor.');
+      }
+      if (texture.connected && !texture.monotone) {
+        b.writeln('⚡ Board conectado: el rival tiene muchos draws. Check-raise con tus draws semi-bluff es óptimo.');
+      }
+      if (texture.paired) {
+        b.writeln('🎯 Board empareado: el rango se polariza. Bluffs representando trips funcionan bien.');
+      }
+      if (texture.aceHigh) {
+        b.writeln('🎯 Board con As: el agresor preflop tiene muchos combos de AX. Bluffs representando AX creíbles.');
+      }
+    }
+
+    return b.toString().trim();
+  }
+
+  static String _bucketLabel(HandBucket? bucket) {
+    switch (bucket) {
+      case HandBucket.nuts: return 'NUECES 🏆';
+      case HandBucket.strongValue: return 'VALOR FUERTE 💪';
+      case HandBucket.mediumValue: return 'VALOR MEDIO';
+      case HandBucket.weakShowdown: return 'SHOWDOWN DÉBIL';
+      case HandBucket.comboDraw: return 'COMBO DRAW 🔥';
+      case HandBucket.strongDraw: return 'DRAW FUERTE';
+      case HandBucket.weakDraw: return 'DRAW DÉBIL';
+      case HandBucket.air: return 'AIRE (sin equity)';
+      case null: return 'Sin board';
+    }
+  }
+
+  static String _textureDesc(BoardTexture t) {
+    if (t.monotone) return 'MONOTONO (flush draw presente)';
+    if (t.paired) return 'EMPAREJADO';
+    if (t.connected && t.wetness > 0.55) return 'MUY HÚMEDO y CONECTADO';
+    if (t.connected) return 'CONECTADO';
+    if (t.wetness > 0.55) return 'HÚMEDO';
+    if (t.aceHigh) return 'SECO con As';
+    if (t.broadwayHeavy) return 'BROADWAY';
+    if (t.low) return 'BAJO y SECO';
+    return 'SECO';
+  }
+
+  static String _sprLabel(double spr) {
+    if (spr <= 2.5) return 'stack corto: commítete';
+    if (spr <= 5.0) return '2 calles de apuesta';
+    if (spr <= 10.0) return 'profundo: 3 calles';
+    return 'muy profundo: pot control';
   }
 
   static double _snapToBetSize(double amount) {

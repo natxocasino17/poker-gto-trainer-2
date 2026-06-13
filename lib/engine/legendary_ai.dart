@@ -634,7 +634,8 @@ class LegendaryBotEngine {
         heroCards: holeCards,
         communityCards: communityCards,
         numOpponents: max(1, activePlayers - 1),
-        simulations: 250,
+        simulations: 300,
+        rangeWidth: 0.40,
       );
       decision = _postflopDecision(
         profile: profile,
@@ -1152,8 +1153,10 @@ class LegendaryBotEngine {
               thinkMs: 0,
             );
           }
-          // Delayed stab without initiative
-          if (!isRiver && !wasAggressor && rand < profile.floatFreq * 0.7) {
+          // Delayed stab without initiative — blocker bonus: holding blockers
+          // to villain's nuts makes weak-draw stabs more viable
+          if (!isRiver && !wasAggressor &&
+              rand < profile.floatFreq * (blockers.goodBluffBlockers ? 1.2 : 0.7)) {
             return BotDecision(
               type: ActionType.bet,
               amount: clampBet(pot * 0.5),
@@ -1163,6 +1166,11 @@ class LegendaryBotEngine {
           return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
 
         case HandBucket.weakShowdown:
+          // IP blocker stab: use weak showdown value to set own price
+          if (!isRiver && inPosition && blockers.goodBluffBlockers &&
+              rand < profile.floatFreq * 0.9) {
+            return BotDecision(type: ActionType.bet, amount: clampBet(pot * 0.33), thinkMs: 0);
+          }
           // River blocker bet: set our own price with medium showdown value
           if (isRiver && rand < profile.blockerBetFreq) {
             return BotDecision(
@@ -1470,13 +1478,13 @@ class LegendaryBotEngine {
       // In position with initiative: keep the foot on the gas
       if (inPosition) bluffFreq *= 1.12;
     } else {
-      // No initiative but checked to → STAB. In position this is a big edge:
-      // the opponent showed weakness by checking, so we take the pot far more
-      // often than a blind float frequency would suggest.
+      // No initiative but checked to → STAB. In position this is a big edge.
+      // Blocker bonus: holding blockers to villain's strong hands makes OOP
+      // stabs more viable (reduces risk of running into the nuts).
       final stabBase = profile.floatFreq * (texture.wetness < 0.4 ? 1.0 : 0.55);
       bluffFreq = inPosition
-          ? max(stabBase, _streetCBetFreq(profile, street) * 0.62)
-          : stabBase * 0.7; // out of position, probe much less
+          ? max(stabBase, _streetCBetFreq(profile, street) * 0.75)
+          : stabBase * (blockers.goodBluffBlockers ? 1.5 : 0.9);
     }
 
     // Nits stab/float rarely without initiative — but still more IP than OOP

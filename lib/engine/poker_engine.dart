@@ -857,6 +857,7 @@ class PokerEngine extends ChangeNotifier {
       callAmount: _state.callAmount,
       potSize: _state.pot,
       numOpponents: max(1, _state.activeCount - 1),
+      heroStack: human.stack,
     );
   }
 
