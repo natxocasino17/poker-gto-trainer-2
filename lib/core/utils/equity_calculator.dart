@@ -30,6 +30,10 @@ class EquityCalculator {
     required int numOpponents,
     int simulations = 400,
     bool deterministic = false,
+    // Fraction of hands to include for opponents (1.0 = all random,
+    // 0.40 = realistic calling range, excludes garbage like 72o, 83o).
+    // Lower = tighter range = more accurate equity vs real players postflop.
+    double rangeWidth = 1.0,
   }) {
     if (heroCards.length != 2 || numOpponents <= 0) return 0.5;
 
@@ -48,6 +52,27 @@ class EquityCalculator {
     int ties = 0;
     final boardNeeded = 5 - communityCards.length;
 
+    // Range-filtered hand pool: pre-generate all valid 2-card combos from the
+    // remaining deck that clear the strength threshold. Rejection-sampled per
+    // simulation to avoid dealing board-conflicting cards to opponents.
+    // cut = 0 for rangeWidth≥1.0 (pure random / backward-compatible).
+    final useRange = rangeWidth < 0.99;
+    final strengthCut = useRange ? max(0.0, 0.75 - rangeWidth) : 0.0;
+    // rangeWidth=0.40 → cut=0.35 (top ~40%: all pairs, AXo, broadway, suited connectors 65s+)
+    // rangeWidth=0.60 → cut=0.15 (top ~60%: wide LAG range)
+
+    List<List<CardModel>>? handPool;
+    if (useRange) {
+      handPool = [];
+      for (int i = 0; i < deck.length - 1; i++) {
+        for (int j = i + 1; j < deck.length; j++) {
+          final h = [deck[i], deck[j]];
+          if (CardModel.preflopStrength(h) >= strengthCut) handPool!.add(h);
+        }
+      }
+      if (handPool!.isEmpty) handPool = null; // fallback to random
+    }
+
     for (int sim = 0; sim < simulations; sim++) {
       deck.shuffle(rng);
       int idx = 0;
@@ -61,9 +86,40 @@ class EquityCalculator {
 
       bool heroWins = true;
       bool isTie = false;
+      final usedThisSim = <CardModel>{...heroCards, ...board};
 
       for (int op = 0; op < numOpponents; op++) {
-        final opHole = [deck[idx++], deck[idx++]];
+        List<CardModel> opHole;
+
+        if (handPool != null) {
+          // Rejection sampling: pick a pool hand whose cards aren't already used.
+          // Acceptance rate is typically >80% so 30 attempts is always enough.
+          List<CardModel>? found;
+          for (int attempt = 0; attempt < 30; attempt++) {
+            final candidate = handPool![rng.nextInt(handPool!.length)];
+            if (!_has(usedThisSim, candidate[0]) &&
+                !_has(usedThisSim, candidate[1])) {
+              found = candidate;
+              break;
+            }
+          }
+          if (found != null) {
+            opHole = found;
+            usedThisSim.add(opHole[0]);
+            usedThisSim.add(opHole[1]);
+          } else {
+            // Rare fallback: no valid range hand — use next deck cards
+            if (idx + 1 < deck.length) {
+              opHole = [deck[idx++], deck[idx++]];
+            } else {
+              heroWins = false;
+              break;
+            }
+          }
+        } else {
+          opHole = [deck[idx++], deck[idx++]];
+        }
+
         final opScore = HandEvaluator.evaluateBest([...opHole, ...board]);
         final cmp = heroScore.compareTo(opScore);
         if (cmp < 0) {
@@ -135,12 +191,14 @@ class EquityCalculator {
     required double potSize,
     required int numOpponents,
   }) {
+    final isPostflop = communityCards.length >= 3;
     final equity = calculate(
       heroCards: heroCards,
       communityCards: communityCards,
       numOpponents: max(1, numOpponents),
       simulations: 500,
       deterministic: true,
+      rangeWidth: isPostflop ? 0.40 : 1.0,
     );
 
     final odds = potOddsRequired(callAmount, potSize);

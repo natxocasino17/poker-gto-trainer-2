@@ -108,12 +108,18 @@ class HandReviewerEngine {
       if (street == 'preflop' || boardCount == 0) {
         equity = CardModel.preflopStrength(humanHole);
       } else {
+        // Range-filtered Monte Carlo: opponents are sampled from a realistic
+        // calling range (~40% of hands), not purely random. This avoids the
+        // inflated equity numbers caused by including garbage hands (72o, 83o…)
+        // that real players would fold preflop.
+        final rangeW = street == 'flop' ? 0.45 : 0.38;
         equity = EquityCalculator.calculate(
           heroCards: humanHole,
           communityCards: communityAtStreet,
           numOpponents: max(1, activePlayers - 1),
-          simulations: 400,
+          simulations: 500,
           deterministic: true,
+          rangeWidth: rangeW,
         );
       }
 
