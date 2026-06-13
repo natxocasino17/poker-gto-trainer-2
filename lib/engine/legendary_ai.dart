@@ -573,6 +573,7 @@ class LegendaryBotEngine {
     required int raiseCount,
     required int callersThisStreet,
     required double bigBlind,
+    bool inPosition = false,
   }) async {
     // "Thinking time": 1-3s, harder spots take longer
     final difficulty = callAmount > currentPot * 0.6 ? 600 : 0;
@@ -612,6 +613,7 @@ class LegendaryBotEngine {
         stack: botStack,
         human: humanModel,
         wasAggressor: wasAggressor,
+        inPosition: inPosition,
         street: street,
         bb: bigBlind,
       );
@@ -841,6 +843,7 @@ class LegendaryBotEngine {
     required bool wasAggressor,
     required String street,
     required double bb,
+    bool inPosition = false,
   }) {
     final texture = BoardTexture.analyze(board);
     final analysis = HandStrengthAnalysis.analyze(hole, board);
@@ -1069,6 +1072,7 @@ class LegendaryBotEngine {
             foldEst: foldEst,
             human: human,
             wasAggressor: wasAggressor,
+            inPosition: inPosition,
             street: street,
             bb: bb,
             iveyExploitMult: iveyExploitMult,
@@ -1179,6 +1183,15 @@ class LegendaryBotEngine {
         if (human.aggressionFactor > 2.0) callThreshold -= 0.03; // they bluff a lot
         // Board texture: on monotone/paired boards tighten (risk of flush/full)
         if (texture.wetness > 0.65) callThreshold += 0.04;
+        // POSITION: in position we realise more equity and control the pot, so we
+        // defend our bluff-catchers wider (real MDF). Out of position we tighten.
+        callThreshold += inPosition ? -0.05 : 0.025;
+        // Anti-overfold floor: bluff-catchers must defend enough vs normal bets
+        // to not be exploitable. Only true overbets get the disciplined fold.
+        if (!isOverbet && human.aggressionFactor >= 1.0 &&
+            equity >= potOdds - (inPosition ? 0.07 : 0.03)) {
+          return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
+        }
         // Hellmuth "White Magic": trusts the read over the math. vs an aggressive
         // human he hero-calls lighter; but "Defensa del Stack" makes him fold
         // marginal spots when an overbet threatens his survival.
@@ -1231,10 +1244,14 @@ class LegendaryBotEngine {
         if (isRiver) {
           return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
         }
-        // Float small/medium bets planning to take the pot away later
-        if (street == 'flop' && (isSmallBet || isMediumBet) && rand < profile.floatFreq) {
+        // FLOAT: call now planning to take the pot away on a later street when the
+        // opponent gives up. In position this is a core weapon — float wider on
+        // flop AND turn; out of position float much less (we can't realise it).
+        final floatFreqEff = inPosition ? profile.floatFreq * 1.8 : profile.floatFreq * 0.45;
+        if ((isSmallBet || isMediumBet) && rand < floatFreqEff) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
+        // Direct implied-odds call when the draw is priced in
         if ((isSmallBet || isMediumBet) &&
             analysis.drawEquity * profile.impliedOddsWeight >= potOdds) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
@@ -1242,11 +1259,13 @@ class LegendaryBotEngine {
         return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
 
       case HandBucket.weakShowdown:
-        // Small bet: defend per MDF; medium bet: tight; overbet: fold
-        if (isSmallBet && equity >= potOdds) {
+        // Small bet: defend per MDF; medium bet: position-aware; overbet: fold
+        if (isSmallBet && equity >= potOdds - (inPosition ? 0.04 : 0.0)) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
-        if (isMediumBet && equity >= potOdds + 0.03) {
+        // In position we defend weak showdown vs medium bets too (MDF) — this is
+        // what stops the bots being run over by relentless aggression.
+        if (isMediumBet && equity >= potOdds + (inPosition ? -0.01 : 0.03)) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
         // Hellmuth "White Magic": picks off aggressive bluffers with weak showdown,
@@ -1285,6 +1304,14 @@ class LegendaryBotEngine {
             rand < bluffRaiseFreq && foldEst >= alphaNeeded * papoLooseGate) {
           return BotDecision(type: ActionType.raise, amount: raiseTo(), thinkMs: 0);
         }
+        // FLOAT IP with air: in position vs a small flop/turn stab, call with good
+        // blockers planning to take it away later. OOP air just folds.
+        if (inPosition && !isRiver && isSmallBet && !facingAllInPrice &&
+            blockers.goodBluffBlockers &&
+            !profile.fitOrFold && profile.bluffFreq >= 0.15 &&
+            rand < profile.floatFreq * 1.2) {
+          return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
+        }
         return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
     }
   }
@@ -1306,6 +1333,7 @@ class LegendaryBotEngine {
     double raulBluffMult = 1.0,
     double papoBluffMult = 1.0,
     double papoSizingChaos = 1.0,
+    bool inPosition = false,
   }) {
     final rand = _rng.nextDouble();
     final isRiver = street == 'river';
@@ -1313,16 +1341,25 @@ class LegendaryBotEngine {
 
     double bluffFreq;
     if (wasAggressor) {
+      // Has initiative → c-bet / barrel at street frequency
       bluffFreq = _streetCBetFreq(profile, street) * (1 + rangeAdv * 1.4);
       // Wet boards: reduce bluff freq for tight profiles; LAG maintains pressure
       bluffFreq *= texture.wetness < 0.4 ? 1.15 : (profile.bluffFreq > 0.40 ? 0.85 : 0.70);
+      // In position with initiative: keep the foot on the gas
+      if (inPosition) bluffFreq *= 1.12;
     } else {
-      bluffFreq = profile.floatFreq * (texture.wetness < 0.4 ? 1.0 : 0.55);
+      // No initiative but checked to → STAB. In position this is a big edge:
+      // the opponent showed weakness by checking, so we take the pot far more
+      // often than a blind float frequency would suggest.
+      final stabBase = profile.floatFreq * (texture.wetness < 0.4 ? 1.0 : 0.55);
+      bluffFreq = inPosition
+          ? max(stabBase, _streetCBetFreq(profile, street) * 0.62)
+          : stabBase * 0.7; // out of position, probe much less
     }
 
-    // Nits never fire air without initiative
+    // Nits stab/float rarely without initiative — but still more IP than OOP
     if (profile.bluffFreq < 0.10 && !wasAggressor) {
-      bluffFreq *= 0.15;
+      bluffFreq *= inPosition ? 0.30 : 0.15;
     }
 
     // Ivey/Hansen exploit: vs over-folders barrel turn/river up to 80%

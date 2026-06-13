@@ -341,6 +341,40 @@ class PokerEngine extends ChangeNotifier {
     final callersThisStreet =
         streetActions.where((a) => a.type == ActionType.call).length;
 
+    // ── INITIATIVE: the last player to make an aggressive action in the whole
+    // hand (preflop raiser, or whoever bet/raised on a prior street) carries
+    // initiative. First to act on a fresh street with no bet yet → if this is
+    // them, they c-bet/barrel; otherwise they check to the aggressor.
+    String? lastAggressorId;
+    for (final a in _state.currentHandActions) {
+      final isRaise = a.type == ActionType.raise ||
+          a.type == ActionType.bet ||
+          (a.type == ActionType.allIn && a.amount > bigBlind);
+      if (isRaise) {
+        lastAggressorId = _state.players
+            .firstWhere((p) => p.name == a.playerName,
+                orElse: () => _state.players[0])
+            .id;
+      }
+    }
+    final hasInitiative = lastAggressorId == player.id;
+
+    // ── POSITION: postflop, action runs SB→BB→UTG→MP→CO→BTN (button last).
+    // This bot is IN POSITION if no still-active opponent acts after it.
+    const postflopOrder = {
+      TablePosition.sb: 0,
+      TablePosition.bb: 1,
+      TablePosition.utg: 2,
+      TablePosition.mp: 3,
+      TablePosition.co: 4,
+      TablePosition.btn: 5,
+    };
+    final myOrder = postflopOrder[player.position] ?? 0;
+    final inPosition = !_state.players.any((p) =>
+        !p.isFolded &&
+        p.id != player.id &&
+        (postflopOrder[p.position] ?? 0) > myOrder);
+
     BotDecision decision;
     try {
       decision = await LegendaryBotEngine.decide(
@@ -355,7 +389,8 @@ class PokerEngine extends ChangeNotifier {
         botStack: player.stack,
         humanModel: _humanModel,
         isPreflop: _state.phase == GamePhase.preflop,
-        wasAggressor: _state.wasAggressorThisStreet,
+        wasAggressor: hasInitiative,
+        inPosition: inPosition,
         activePlayers: _state.activeCount,
         street: _state.street,
         raiseCount: raiseCount,
