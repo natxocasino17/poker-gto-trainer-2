@@ -1,6 +1,7 @@
 import 'dart:math';
 import '../../data/models/card_model.dart';
 import 'hand_evaluator.dart';
+import 'poker_concepts.dart';
 
 class GTORecommendation {
   final String action;
@@ -28,18 +29,27 @@ class EquityCalculator {
     required List<CardModel> communityCards,
     required int numOpponents,
     int simulations = 400,
+    bool deterministic = false,
   }) {
     if (heroCards.length != 2 || numOpponents <= 0) return 0.5;
 
     final known = <CardModel>{...heroCards, ...communityCards};
     final deck = CardModel.freshDeck().where((c) => !_has(known, c)).toList();
 
+    // Deterministic mode (used by the GTO advisor and the hand analyst):
+    // an identical situation must always yield the EXACT same equity/EV.
+    // We seed the RNG from a hash of the situation so the Monte Carlo is
+    // reproducible. Bots' live decisions pass deterministic:false.
+    final rng = deterministic
+        ? Random(_situationSeed(heroCards, communityCards, numOpponents))
+        : _rng;
+
     int wins = 0;
     int ties = 0;
     final boardNeeded = 5 - communityCards.length;
 
     for (int sim = 0; sim < simulations; sim++) {
-      deck.shuffle(_rng);
+      deck.shuffle(rng);
       int idx = 0;
 
       final board = List<CardModel>.from(communityCards);
@@ -75,6 +85,20 @@ class EquityCalculator {
   static bool _has(Set<CardModel> set, CardModel c) =>
       set.any((x) => x.rank == c.rank && x.suit == c.suit);
 
+  /// Stable seed derived purely from the situation (hero + board + #opps),
+  /// order-independent for hole/board cards. Identical spots → identical seed.
+  static int _situationSeed(
+      List<CardModel> hero, List<CardModel> board, int opps) {
+    int code(CardModel c) => c.rank * 4 + c.suit.index; // 0..55
+    final h = (hero.map(code).toList()..sort());
+    final b = (board.map(code).toList()..sort());
+    int seed = 1469598103 ^ opps;
+    for (final v in [...h, -1, ...b]) {
+      seed = (seed * 31 + v + 7) & 0x7FFFFFFF;
+    }
+    return seed;
+  }
+
   static double potOddsRequired(double callAmount, double potSize) {
     if (callAmount <= 0) return 0.0;
     return callAmount / (callAmount + potSize);
@@ -91,7 +115,8 @@ class EquityCalculator {
       heroCards: heroCards,
       communityCards: communityCards,
       numOpponents: max(1, numOpponents),
-      simulations: 300,
+      simulations: 500,
+      deterministic: true,
     );
 
     final odds = potOddsRequired(callAmount, potSize);
@@ -108,7 +133,7 @@ class EquityCalculator {
           equity: equity,
           potOdds: 0,
           ev: equity - 0.5,
-          reasoning: 'Equity $eqPct% — strong value hand. Bet \$${bet.toStringAsFixed(0)} (75% pot) to build pot and protect.',
+          reasoning: 'Equity $eqPct% — mano fuerte de valor. Bet de \$${bet.toStringAsFixed(0)} (75% del bote) para construir bote y protegerte.',
         );
       }
       if (equity > 0.40) {
@@ -120,7 +145,7 @@ class EquityCalculator {
             equity: equity,
             potOdds: 0,
             ev: equity - 0.45,
-            reasoning: 'Equity $eqPct% — thin value. Bet small (\$${bet.toStringAsFixed(0)}, 33% pot) to extract value while controlling pot.',
+            reasoning: 'Equity $eqPct% — valor fino. Bet pequeño (\$${bet.toStringAsFixed(0)}, 33% del bote) para extraer valor controlando el bote.',
           );
         }
         return GTORecommendation(
@@ -129,7 +154,7 @@ class EquityCalculator {
           equity: equity,
           potOdds: 0,
           ev: 0,
-          reasoning: 'Equity $eqPct% — medium strength. Check to control pot size and proceed with caution.',
+          reasoning: 'Equity $eqPct% — fuerza media. Check para controlar el tamaño del bote y seguir con cautela.',
         );
       }
       if (equity > 0.25 && potSize > 20) {
@@ -140,7 +165,7 @@ class EquityCalculator {
           equity: equity,
           potOdds: 0,
           ev: 0.1,
-          reasoning: 'Equity $eqPct% — bluff spot. Semi-bluff with \$${bluff.toStringAsFixed(0)} (50% pot) using fold equity + draw outs.',
+          reasoning: 'Equity $eqPct% — spot de farol. Semi-bluff de \$${bluff.toStringAsFixed(0)} (50% del bote) usando fold equity + outs del proyecto.',
         );
       }
       return GTORecommendation(
@@ -149,11 +174,22 @@ class EquityCalculator {
         equity: equity,
         potOdds: 0,
         ev: 0,
-        reasoning: 'Equity $eqPct% — weak hand. Check and re-evaluate on next street.',
+        reasoning: 'Equity $eqPct% — mano débil. Check y reevalúa en la siguiente calle.',
       );
     }
 
-    if (equity > 0.72 && ev > 0.20) {
+    final analysis = communityCards.length >= 3
+        ? HandStrengthAnalysis.analyze(heroCards, communityCards)
+        : null;
+    final blockers = communityCards.length >= 3
+        ? Blockers.analyze(heroCards, communityCards)
+        : null;
+    final texture = communityCards.length >= 3
+        ? BoardTexture.analyze(communityCards)
+        : null;
+
+    // Value raise: strong equity edge — raising beats flat calling
+    if (equity > 0.62 && ev > 0.12) {
       final raise = _snapToBetSize(callAmount * 2.8);
       return GTORecommendation(
         action: 'Raise',
@@ -161,7 +197,40 @@ class EquityCalculator {
         equity: equity,
         potOdds: odds,
         ev: ev,
-        reasoning: 'Equity $eqPct% far exceeds pot odds $oddsPct%. Raise to \$${raise.toStringAsFixed(0)} — powerful value hand deserves maximum extraction.',
+        reasoning: 'Tu equity $eqPct% supera de largo las pot odds $oddsPct%. Lo óptimo NO es pagar: sube a \$${raise.toStringAsFixed(0)} para extraer valor máximo y negarle equity al rival.',
+      );
+    }
+
+    // Semi-bluff raise: strong draw + fold equity = two ways to win
+    if (analysis != null &&
+        (analysis.bucket == HandBucket.comboDraw || analysis.bucket == HandBucket.strongDraw) &&
+        communityCards.length < 5) {
+      final raise = _snapToBetSize(callAmount * 2.8);
+      return GTORecommendation(
+        action: 'Raise',
+        amount: raise,
+        equity: equity,
+        potOdds: odds,
+        ev: ev + 0.10,
+        reasoning: 'Proyecto fuerte con ${analysis.outs} outs (~${(analysis.drawEquity * 100).toStringAsFixed(0)}%). El semi-bluff raise a \$${raise.toStringAsFixed(0)} suma fold equity a tu equity real: ganas cuando foldea Y cuando ligas. Mejor que el call pasivo.',
+      );
+    }
+
+    // Pure bluff-raise: weak equity, but good blockers on a dry board where
+    // villain can't continue often. Sometimes the optimal play is to raise
+    // as a bluff, not fold or call.
+    if (analysis != null && blockers != null && texture != null &&
+        communityCards.length < 5 && ev < -0.03 &&
+        (analysis.bucket == HandBucket.air || analysis.bucket == HandBucket.weakShowdown) &&
+        blockers.goodBluffBlockers && texture.wetness < 0.45) {
+      final raise = _snapToBetSize(callAmount * 2.8);
+      return GTORecommendation(
+        action: 'Raise',
+        amount: raise,
+        equity: equity,
+        potOdds: odds,
+        ev: 0.05,
+        reasoning: 'Spot de farol óptimo: en este board seco tus bloqueadores le quitan al rival las manos fuertes para continuar. Un raise-farol a \$${raise.toStringAsFixed(0)} (alpha favorable) hace más \$ que pagar o foldear. Aquí lo correcto es ATACAR.',
       );
     }
 
@@ -172,7 +241,7 @@ class EquityCalculator {
         equity: equity,
         potOdds: odds,
         ev: ev,
-        reasoning: 'Equity $eqPct% vs pot odds $oddsPct% — calling is profitable (EV = ${(ev * 100).toStringAsFixed(1)}%). Direct call.',
+        reasoning: 'Equity $eqPct% vs pot odds $oddsPct% — el call es rentable (EV = ${(ev * 100).toStringAsFixed(1)}%). Call directo.',
       );
     }
 
@@ -182,7 +251,7 @@ class EquityCalculator {
       equity: equity,
       potOdds: odds,
       ev: ev,
-      reasoning: 'Equity $eqPct% below pot odds $oddsPct%. Fold — expected value is negative (${(ev * 100).toStringAsFixed(1)}%).',
+      reasoning: 'Equity $eqPct% por debajo de las pot odds $oddsPct%. Fold — el valor esperado es negativo (${(ev * 100).toStringAsFixed(1)}%).',
     );
   }
 
