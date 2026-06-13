@@ -101,6 +101,30 @@ class BoardTexture {
       wetness: wetness,
     );
   }
+
+  /// True when [newCard] completes a flush draw (2+ same-suited cards already on
+  /// [prevBoard]) or a straight draw (the new rank fills a 5-window that already
+  /// had 2+ board ranks). Aggressor should barrel less as a bluff when this fires.
+  static bool drawCompletedOn(List<CardModel> prevBoard, CardModel newCard) {
+    if (prevBoard.isEmpty) return false;
+    final prevSuits = <Suit, int>{};
+    for (final c in prevBoard) {
+      prevSuits[c.suit] = (prevSuits[c.suit] ?? 0) + 1;
+    }
+    if ((prevSuits[newCard.suit] ?? 0) >= 2) return true;
+    final prevRanks = prevBoard.map((c) => c.rank).toSet();
+    final withWheel = <int>{...prevRanks, if (prevRanks.contains(14)) 1};
+    final nrAll = newCard.rank == 14 ? [14, 1] : [newCard.rank];
+    for (final nr in nrAll) {
+      for (int low = max(1, nr - 4); low <= min(10, nr); low++) {
+        final window = List.generate(5, (i) => low + i);
+        if (window.contains(nr) && window.where(withWheel.contains).length >= 2) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
 }
 
 /// Made-hand + draw analysis of two hole cards against a board.
@@ -461,6 +485,19 @@ class RangeModel {
     if (t.low) adv -= 0.15;
     if (t.connected) adv -= 0.10;
     if (t.monotone) adv -= 0.05;
+    return adv.clamp(-0.3, 0.3).toDouble();
+  }
+
+  /// Returns [-0.3 .. +0.3]: positive = the OOP caller's range connects better.
+  /// BB/caller defends with suited connectors, small pairs and Broadway calls
+  /// that open-raisers rarely have, so low/connected/paired boards favour them.
+  static double defenderRangeAdvantage(BoardTexture t) {
+    double adv = 0.0;
+    if (t.low) adv += 0.20;
+    if (t.connected && t.low) adv += 0.12;
+    if (t.paired && t.highestRank <= 9) adv += 0.08;
+    if (t.aceHigh || t.broadwayHeavy) adv -= 0.18;
+    if (t.monotone) adv -= 0.06;
     return adv.clamp(-0.3, 0.3).toDouble();
   }
 }
