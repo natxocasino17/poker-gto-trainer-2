@@ -341,19 +341,29 @@ class LegendaryBotEngine {
       openSizeBB: 2.5,
       stackPressure: true,
     ),
-    // 16. Raúl Mestre — Spanish GTO pioneer: theory-perfect balanced
-    // frequencies, disciplined 3-bets, surgical postflop play.
+    // 16. Raúl Mestre — The Professor / Strategic Analyst: plays RANGES not cards.
+    // Minimises errors, pots control with medium hands, max value with nuts.
+    // Exploits by table level: solid vs passives, balanced vs strong players.
     LegendProfile(
       name: 'Raúl',
-      style: 'Teórico GTO Español',
+      style: 'The Professor — Strategic Analyst',
       emoji: '🧠',
-      utgOpen: 0.66, mpOpen: 0.59, coOpen: 0.51, btnOpen: 0.42, sbOpen: 0.53, bbDefend: 0.38,
-      threeBetThreshold: 0.69, fourBetThreshold: 0.86,
-      cBetFreq: 0.70, doubleBarrelFreq: 0.56, tripleBarrelFreq: 0.41, checkRaiseFreq: 0.32,
-      bluffFreq: 0.29, slowplayFreq: 0.16,
+      avatarAsset: 'assets/avatars/raul.png',
+      // Disciplined preflop: tight-solid ranges, no fancy opens
+      utgOpen: 0.68, mpOpen: 0.62, coOpen: 0.54, btnOpen: 0.44, sbOpen: 0.56, bbDefend: 0.42,
+      threeBetThreshold: 0.72, fourBetThreshold: 0.88,
+      // "Fundamentos ante Todo": standard C-bet, controlled barrels, measured check-raises
+      cBetFreq: 0.68, doubleBarrelFreq: 0.54, tripleBarrelFreq: 0.38, checkRaiseFreq: 0.30,
+      // Low bluff freq (only when EV-positive), medium slowplay for pot control
+      bluffFreq: 0.22, slowplayFreq: 0.28,
+      // Standard GTO sizings: no overbets, no tiny blocker bets without reason
       preferredSizings: [0.33, 0.5, 0.75, 1.0],
-      riverOverbetThreshold: 0.78,
-      threeBetBluffFreq: 0.15, squeezeFreq: 0.15,
+      riverOverbetThreshold: 0.85,
+      openSizeBB: 2.3,
+      threeBetBluffFreq: 0.12, squeezeFreq: 0.13,
+      blockerBetFreq: 0.18,
+      // "Gestión del Bote": never inflates with medium hands
+      potControl: true,
     ),
     // 17. Papo "Lococo" — Argentine freestyle: fearless creative aggression,
     // unpredictable lines and sizings, loves the big bluff.
@@ -831,6 +841,26 @@ class LegendaryBotEngine {
           : (0.55 + conf * 1.45).clamp(0.6, 2.0); // ramps hard with reads
     }
 
+    // ── Raúl Mestre "Explotación por Nivel": adapts play to table strength.
+    // vs passive/weak (calling station or high folder): value-heavy, minimal bluffs.
+    // vs strong/aggressive: stays balanced GTO, no leaks.
+    // "Sin sesgos": ignores past results — every hand is a fresh EV calculation.
+    // "Pensamiento en Rangos": commitment decisions are range-vs-range, not hand-vs-hand.
+    double raulBluffMult = 1.0;
+    double raulValueMult = 1.0;
+    if (profile.potControl && human.confidence >= 0.30) {
+      if (human.isCallingStation) {
+        raulBluffMult = 0.25; // weak table: barely bluff, extract max value
+        raulValueMult = 1.30; // bigger sizing for value vs station
+      } else if (human.overFolds) {
+        raulBluffMult = 1.40; // passive: fire more when they fold too much
+        raulValueMult = 1.10;
+      } else if (human.aggressionFactor > 1.8) {
+        raulBluffMult = 0.80; // strong player: stay GTO, don't over-bluff
+        raulValueMult = 0.95;
+      }
+    }
+
     // Villain fold estimate (exploit input for all bluff math)
     double foldEst = isTurnOrRiver ? human.foldVsBarrelRate : human.foldVsBetRate;
     if (human.isCallingStation) foldEst *= 0.55;
@@ -876,7 +906,7 @@ class LegendaryBotEngine {
           // Phil vs station: size up to extract maximum value
           final nutsSize = (profile.readsOpponent && human.isCallingStation)
               ? clampBet(pot * 0.90)
-              : clampBet(_valueSize(profile, pot, texture, street, nut: true));
+              : clampBet(_valueSize(profile, pot, texture, street, nut: true) * raulValueMult);
           return BotDecision(type: ActionType.bet, amount: nutsSize, thinkMs: 0);
 
         case HandBucket.strongValue:
@@ -891,7 +921,7 @@ class LegendaryBotEngine {
           }
           final strongSize = (profile.readsOpponent && human.isCallingStation)
               ? clampBet(pot * 0.75)
-              : clampBet(_valueSize(profile, pot, texture, street, nut: false));
+              : clampBet(_valueSize(profile, pot, texture, street, nut: false) * raulValueMult);
           return BotDecision(type: ActionType.bet, amount: strongSize, thinkMs: 0);
 
         case HandBucket.mediumValue:
@@ -997,6 +1027,7 @@ class LegendaryBotEngine {
             street: street,
             bb: bb,
             iveyExploitMult: iveyExploitMult,
+            raulBluffMult: raulBluffMult,
           );
       }
     }
@@ -1197,6 +1228,7 @@ class LegendaryBotEngine {
     required String street,
     required double bb,
     double iveyExploitMult = 1.0,
+    double raulBluffMult = 1.0,
   }) {
     final rand = _rng.nextDouble();
     final isRiver = street == 'river';
@@ -1240,6 +1272,9 @@ class LegendaryBotEngine {
       sizeFrac = 2.0; // river blocker overbet
     }
     if (profile.stackPressure) sizeFrac = (sizeFrac * 1.25).clamp(0.4, 2.0).toDouble();
+
+    // Raúl: apply level-based bluff multiplier
+    bluffFreq = (bluffFreq * raulBluffMult).clamp(0.0, 0.95);
 
     final betAmount = (pot * sizeFrac).clamp(min(bb, stack), stack).toDouble();
     // Alpha gate: bluff must clear break-even fold frequency (with margin)
