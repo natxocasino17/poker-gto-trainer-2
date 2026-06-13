@@ -696,6 +696,18 @@ class _BottomPanel extends StatelessWidget {
 }
 
 
+// ── Vintage palette used only within the lobby ──────────────────────────────
+class _VintageColors {
+  static const cream       = Color(0xFFF5EDD8);
+  static const creamDark   = Color(0xFFE8D9BC);
+  static const inkBlack    = Color(0xFF1A0A00);
+  static const inkBrown    = Color(0xFF3D1C00);
+  static const gold        = Color(0xFFB8922A);
+  static const goldLight   = Color(0xFFD4AA44);
+  static const suitRed     = Color(0xFF8B1A1A);
+  static const borderDark  = Color(0xFF2C1810);
+}
+
 /// Pre-session lobby: the player opens the session when they want.
 class _LobbyView extends StatelessWidget {
   final GameProvider gp;
@@ -705,192 +717,344 @@ class _LobbyView extends StatelessWidget {
   Widget build(BuildContext context) {
     final canSit = gp.canAffordBuyIn;
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Image.asset(
-                  'assets/ipt_logo.png',
-                  width: 110,
-                  height: 110,
-                  errorBuilder: (_, __, ___) =>
-                      const Text('🃏', style: TextStyle(fontSize: 56)),
-                ),
+      backgroundColor: _VintageColors.inkBlack,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // ── Background image ──────────────────────────────────────────
+          Image.asset(
+            'assets/lobby_bg.jpg',
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(color: _VintageColors.cream),
+          ),
+          // ── Subtle dark vignette so top/bottom text stays readable ────
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0x55000000),
+                  Color(0x00000000),
+                  Color(0x00000000),
+                  Color(0x66000000),
+                ],
+                stops: [0.0, 0.18, 0.80, 1.0],
               ),
-              const SizedBox(height: 10),
-              const Text(
-                'iPT',
-                style: TextStyle(
-                  color: AppColors.accent,
-                  fontSize: 34,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 4,
-                ),
-              ),
-              const Text(
-                'iPoker Training',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                I18n.t('tagline'),
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.gold.withOpacity(0.4)),
-                ),
-                child: Text(
-                  I18n.t('coins_chip', {'n': gp.coins.toString()}),
-                  style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w700),
-                ),
-              ),
-              const SizedBox(height: 28),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  children: [
-                    Text(I18n.t('your_bankroll'), style: const TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
-                    Text(
-                      gp.money(gp.bankroll),
-                      style: const TextStyle(color: AppColors.gold, fontSize: 26, fontWeight: FontWeight.w900),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 28),
-              GestureDetector(
-                onTap: canSit ? () => gp.startSession() : null,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: canSit
-                          ? [AppColors.accent, AppColors.accentDark]
-                          : [AppColors.textMuted, AppColors.surfaceElevated],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: canSit
-                        ? [const BoxShadow(color: AppColors.accentGlow, blurRadius: 16, spreadRadius: 2)]
-                        : null,
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        I18n.t('sit_btn'),
-                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1),
-                      ),
-                      Text(
-                        I18n.t('sit_sub'),
-                        style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
+            ),
+          ),
+          // ── Content ───────────────────────────────────────────────────
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _LobbyChipButton(
-                    icon: Icons.group,
-                    label: I18n.t('edit_table'),
-                    onTap: () => _openTableEditor(context, gp),
+                  // Logo
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: _VintageColors.borderDark, width: 3),
+                      boxShadow: const [
+                        BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 4)),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/ipt_logo.png',
+                        width: 90,
+                        height: 90,
+                        errorBuilder: (_, __, ___) =>
+                            Container(width: 90, height: 90, color: _VintageColors.cream,
+                              child: const Center(child: Text('🃏', style: TextStyle(fontSize: 44)))),
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 12),
-                  _LobbyChipButton(
-                    icon: Icons.calculate,
-                    label: I18n.t('simulator'),
+                  const SizedBox(height: 10),
+
+                  // Title
+                  const Text(
+                    'iPT',
+                    style: TextStyle(
+                      color: _VintageColors.inkBlack,
+                      fontSize: 38,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 8,
+                      fontFamily: 'serif',
+                      shadows: [Shadow(color: Color(0x44000000), offset: Offset(1, 2), blurRadius: 4)],
+                    ),
+                  ),
+
+                  // Suit divider
+                  const _SuitDivider(),
+                  const SizedBox(height: 4),
+
+                  // Subtitle
+                  const Text(
+                    'iPoker Training',
+                    style: TextStyle(
+                      color: _VintageColors.inkBrown,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 3,
+                      fontFamily: 'serif',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    I18n.t('tagline'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: _VintageColors.inkBrown,
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      fontFamily: 'serif',
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // Coins chip
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _VintageColors.gold.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _VintageColors.gold, width: 1.5),
+                    ),
+                    child: Text(
+                      I18n.t('coins_chip', {'n': gp.coins.toString()}),
+                      style: const TextStyle(
+                        color: _VintageColors.gold,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  // Bankroll box
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: _VintageColors.cream.withOpacity(0.88),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _VintageColors.borderDark, width: 2),
+                      boxShadow: const [
+                        BoxShadow(color: Color(0x44000000), blurRadius: 10, offset: Offset(0, 4)),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          I18n.t('your_bankroll'),
+                          style: const TextStyle(
+                            color: _VintageColors.inkBrown,
+                            fontSize: 9,
+                            letterSpacing: 2.5,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'serif',
+                          ),
+                        ),
+                        Text(
+                          gp.money(gp.bankroll),
+                          style: const TextStyle(
+                            color: _VintageColors.gold,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'serif',
+                            shadows: [Shadow(color: Color(0x33000000), offset: Offset(0, 2), blurRadius: 3)],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // SIT button — deep red with gold border
+                  GestureDetector(
+                    onTap: canSit ? () => gp.startSession() : null,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 44, vertical: 15),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: canSit
+                              ? const [Color(0xFF9B2020), Color(0xFF5C0F0F)]
+                              : const [Color(0xFF6B5A4E), Color(0xFF3D2B24)],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: canSit ? _VintageColors.goldLight : _VintageColors.inkBrown,
+                          width: 2,
+                        ),
+                        boxShadow: canSit
+                            ? const [BoxShadow(color: Color(0x88000000), blurRadius: 12, offset: Offset(0, 5))]
+                            : null,
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            I18n.t('sit_btn'),
+                            style: const TextStyle(
+                              color: _VintageColors.cream,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 3,
+                              fontFamily: 'serif',
+                            ),
+                          ),
+                          Text(
+                            I18n.t('sit_sub'),
+                            style: TextStyle(
+                              color: _VintageColors.cream.withOpacity(0.75),
+                              fontSize: 11,
+                              letterSpacing: 1,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // ── Edit Table / Simulator / Settings — centrados ──────
+                  Center(
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        _LobbyChipButton(
+                          icon: Icons.group,
+                          label: I18n.t('edit_table'),
+                          onTap: () => _openTableEditor(context, gp),
+                        ),
+                        _LobbyChipButton(
+                          icon: Icons.calculate,
+                          label: I18n.t('simulator'),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const SimulatorScreen()),
+                          ),
+                        ),
+                        _LobbyChipButton(
+                          icon: Icons.settings,
+                          label: I18n.t('settings'),
+                          onTap: () => _openSettings(context, gp),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Puxi Chat
+                  GestureDetector(
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const SimulatorScreen()),
+                      MaterialPageRoute(builder: (_) => const PuxiChatScreen()),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+                      decoration: BoxDecoration(
+                        color: _VintageColors.cream.withOpacity(0.82),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: _VintageColors.borderDark, width: 1.5),
+                        boxShadow: const [
+                          BoxShadow(color: Color(0x33000000), blurRadius: 6, offset: Offset(0, 3)),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.chat_bubble_outline, color: _VintageColors.inkBrown, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            '💬 ${I18n.t('puxi_chat')}',
+                            style: const TextStyle(
+                              color: _VintageColors.inkBrown,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  _LobbyChipButton(
-                    icon: Icons.settings,
-                    label: I18n.t('settings'),
-                    onTap: () => _openSettings(context, gp),
-                  ),
+
+                  if (!canSit) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      I18n.t('no_funds'),
+                      style: const TextStyle(color: _VintageColors.suitRed, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () => gp.reloadBankroll(),
+                      icon: const Icon(Icons.add_card, color: _VintageColors.gold, size: 18),
+                      label: Text(
+                        I18n.t('reload_plus'),
+                        style: const TextStyle(color: _VintageColors.gold, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+
+                  if (gp.handHistory.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      I18n.t('last_session_note', {'n': gp.handHistory.length.toString()}),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: _VintageColors.inkBrown,
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 16),
                 ],
               ),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PuxiChatScreen()),
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-                  decoration: BoxDecoration(
-                    color: AppColors.accentGlow,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.accent.withOpacity(0.5)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.chat_bubble_outline, color: AppColors.accent, size: 18),
-                      const SizedBox(width: 8),
-                      Text('💬 ${I18n.t('puxi_chat')}',
-                          style: const TextStyle(color: AppColors.accent, fontSize: 14, fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                ),
-              ),
-              if (!canSit) ...[
-                const SizedBox(height: 16),
-                Text(
-                  I18n.t('no_funds'),
-                  style: const TextStyle(color: AppColors.losing, fontSize: 12),
-                ),
-                const SizedBox(height: 8),
-                TextButton.icon(
-                  onPressed: () => gp.reloadBankroll(),
-                  icon: const Icon(Icons.add_card, color: AppColors.gold, size: 18),
-                  label: Text(
-                    I18n.t('reload_plus'),
-                    style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-              if (gp.handHistory.isNotEmpty) ...[
-                const SizedBox(height: 20),
-                Text(
-                  I18n.t('last_session_note', {'n': gp.handHistory.length.toString()}),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                ),
-              ],
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
+// ── Small ornamental suit row ────────────────────────────────────────────────
+class _SuitDivider extends StatelessWidget {
+  const _SuitDivider();
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('♠', style: TextStyle(color: _VintageColors.inkBlack, fontSize: 13)),
+          SizedBox(width: 6),
+          Text('♥', style: TextStyle(color: _VintageColors.suitRed, fontSize: 13)),
+          SizedBox(width: 6),
+          Text('♣', style: TextStyle(color: _VintageColors.inkBlack, fontSize: 13)),
+          SizedBox(width: 6),
+          Text('♦', style: TextStyle(color: _VintageColors.suitRed, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+}
 
 class _LobbyChipButton extends StatelessWidget {
   final IconData icon;
@@ -904,18 +1068,30 @@ class _LobbyChipButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.accent.withOpacity(0.4)),
+          color: _VintageColors.cream.withOpacity(0.85),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: _VintageColors.borderDark, width: 1.5),
+          boxShadow: const [
+            BoxShadow(color: Color(0x33000000), blurRadius: 5, offset: Offset(0, 2)),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: AppColors.accent, size: 17),
+            Icon(icon, color: _VintageColors.inkBrown, size: 16),
             const SizedBox(width: 6),
-            Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: const TextStyle(
+                color: _VintageColors.inkBrown,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+                fontFamily: 'serif',
+              ),
+            ),
           ],
         ),
       ),
