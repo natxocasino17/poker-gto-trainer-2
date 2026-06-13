@@ -1,3 +1,4 @@
+import '../../data/gto/spot_record.dart';
 import '../i18n/i18n.dart';
 
 /// Offline poker fundamentals knowledge base for the "el Puxi" chatbot.
@@ -385,6 +386,197 @@ class PuxiKnowledge {
         'en': 'DRY/STATIC (K72 rainbow): few cards change the winner; the aggressor c-bets small and often (range advantage). WET/DYNAMIC (T98 two-tone): tons of cards change everything; bet bigger with value to protect and charge draws, and slow down your medium hands. MONOTONE: careful, someone may already have a flush. PAIRED (KK7): fewer draws, favors cheap c-bets. Texture decides your sizing, your frequency and who the board favors.',
       },
     ),
+
+    // ── New topics (Phase 3 expansion) ─────────────────────────────────────
+    PuxiTopic(
+      id: 'foldequity',
+      title: 'Fold equity',
+      keywords: ['fold equity', 'equity de fold', 'presion', 'que porcentaje foldea', 'cuanto foldea'],
+      answer: {
+        'es': 'Fold equity es el valor extra que añades a tu mano cuando el rival puede foldear. EV total de una apuesta = (fold% × bote ganado) + (call% × equity en el showdown). Por eso apostar con 0% de equity puede ser rentable si el rival foldea lo suficiente (alpha). Y una mano media gana MÁS apostando que checkeando: suma fold equity a su equity real. El semi-bluff vive de la fold equity: ni necesitas ganar el showdown necesariamente.',
+        'en': 'Fold equity is the extra value you add to your hand when villain can fold. Total bet EV = (fold% × pot won) + (call% × showdown equity). That\'s why betting with 0% equity can be profitable if villain folds enough (alpha). And a medium hand wins MORE by betting than checking: it adds fold equity to its real equity. The semi-bluff lives on fold equity: you don\'t even need to win the showdown.',
+      },
+    ),
+    PuxiTopic(
+      id: 'impliedodds',
+      title: 'Implied odds y reverse implied odds',
+      keywords: ['implied odds', 'odds implicitas', 'reverse implied', 'odds inversas', 'cuanto pago si ligo'],
+      answer: {
+        'es': 'IMPLIED ODDS = lo que puedes ganar en calles futuras si ligas tu proyecto, además del bote actual. Por eso pagas un precio "malo" en pot odds directas pero la mano es rentable: si ligas el straight/color, cobras stacks. REVERSE IMPLIED ODDS = cuando ligas una mano que PARECE buena pero te cuesta stacks si el rival tiene mejor: ligar el segundo color o el straight bajo contra un board emparejado. Las reverse implied odds destruyen el EV de manos dominated. Ej: TPWK (top pair weak kicker) en un board húmedo tiene malas RIO: pagas 3 calles, liegas top pair y el rival tiene TPK o mejor.',
+        'en': 'IMPLIED ODDS = what you can win on future streets if you hit your draw, beyond the current pot. That\'s why you pay a "bad" immediate price but the hand is still profitable: if you hit the straight/flush, you collect stacks. REVERSE IMPLIED ODDS = when you hit a hand that LOOKS good but costs you stacks if villain has better: making the second-nut flush or the low end of a straight on a paired board. Reverse implied odds destroy EV for dominated hands. E.g. TPWK (top pair weak kicker) on a wet board has bad RIO: you pay 3 streets, you have top pair, and villain has TPK or better.',
+      },
+    ),
+    PuxiTopic(
+      id: 'delayedcbet',
+      title: 'Delayed c-bet (turno)',
+      keywords: ['delayed cbet', 'delayed c-bet', 'cbet turno', 'checkear flop apostar turno', 'barrear turno'],
+      answer: {
+        'es': 'Una delayed c-bet es checkear el flop tras haber abierto (ceder iniciativa) y apostar el turn. Se usa cuando: el flop te falló pero el turn te mejora o te da una scare card; el board es muy mojado y no quieres inflar el bote con una hand marginal; o usas el check-flop para ocultar la fuerza de tus manos fuertes. OJO: al checkear el flop, el rival intentará robar con una apuesta; necesitas un plan para esa contingencia. Es una línea potente en la BB IP defensiva.',
+        'en': 'A delayed c-bet is checking the flop after opening (giving up initiative) and betting the turn. Use it when: the flop missed you but the turn improves you or gives a scare card; the board is very wet and you don\'t want to bloat the pot with a marginal hand; or you check the flop to disguise the strength of your strong hands. CAREFUL: by checking the flop, villain will try to steal with a bet; you need a plan for that contingency. It\'s a powerful line in the BB defensive spot.',
+      },
+    ),
+    PuxiTopic(
+      id: 'probebet',
+      title: 'Probe bet',
+      keywords: ['probe bet', 'apuesta de sondeo', 'turno checked', 'sondear turno', 'ip chequeó flop'],
+      answer: {
+        'es': 'Probe bet = apostar el turn fuera de posición cuando el jugador IP checkeó detrás en el flop. Al no apostar el flop, mostró debilidad: su rango está lleno de manos medias y proyectos que no pudieron c-betear. Aprovecha sondando: apuesta ½-¾ del bote con manos que quieren valor o proyectos fuertes. Funciona especialmente en boards que mejoran rangos de call (conectores, bajitas) — donde la BB puede tener sets/dos pares que el UTG no llega. No sondees con basura pura: aún puede tener manos.',
+        'en': 'Probe bet = betting the turn out of position when the IP player checked back on the flop. By not betting the flop, they showed weakness: their range is full of medium hands and draws that couldn\'t c-bet. Exploit it by probing: bet ½-¾ pot with hands that want value or strong draws. Works especially on boards that improve calling ranges (connectors, low cards) — where the BB can have sets/two-pair that UTG can\'t reach. Don\'t probe with pure air: they can still have hands.',
+      },
+    ),
+    PuxiTopic(
+      id: 'thinvalue',
+      title: 'Thin value (valor fino)',
+      keywords: ['valor fino', 'thin value', 'value bet fino', 'apostar de valor fino', 'tres calles'],
+      answer: {
+        'es': 'Thin value = apostar de valor con una mano que gana al rango del rival pero solo con un margen estrecho — una sola pareja fuerte, por ejemplo. El objetivo es extraer fichas de manos peores (pares menores, kickers más débiles) que pagarían una calle o dos. La clave: no infles el bote con thin value si el rango que te puede pagar YA te bate a menudo. En el river, thin value al 30-40% del bote es potente: muchos rivales llaman con pares medios. Demasiado thin value = fuente de reverse implied odds.',
+        'en': 'Thin value = betting for value with a hand that beats villain\'s range but only by a narrow margin — a single strong pair, for example. The goal is to extract chips from weaker hands (lower pairs, weaker kickers) that would call one or two streets. The key: don\'t bloat the pot with thin value if the range that can pay you already BEATS you often. On the river, thin value at 30-40% pot is powerful: many opponents call with medium pairs. Too much thin value = a source of reverse implied odds.',
+      },
+    ),
+    PuxiTopic(
+      id: 'coldcall',
+      title: 'Cold call (pagar en frío)',
+      keywords: ['cold call', 'pagar en frio', 'llamar dos apuestas', 'flat 3bet', 'llamar un 3bet'],
+      answer: {
+        'es': 'Cold call = pagar dos apuestas sin haber metido ninguna antes (ej: pagar un 3-bet cuando no abriste tú). Es diferente a defender la BB o pagar como opener. Estándares más altos: pagas 2 apuestas sin la ventaja del agresor y a menudo OOP. Requiere manos con jugabilidad excepcional (pares altos, conectores suited en posición). El principal error: cold-callear 3-bets con manos que deberían 4-betear (QQ+) o foldear (marginals). El rango de cold call está entre "demasiado bueno para foldear, demasiado débil para reraise".',
+        'en': 'Cold call = calling two bets without having any money in before (e.g. calling a 3-bet when you didn\'t open). Different from defending the BB or calling as the opener. Higher standards: you pay 2 bets without the aggressor\'s edge and often OOP. Requires hands with exceptional playability (high pairs, suited connectors in position). The main mistake: cold-calling 3-bets with hands that should 4-bet (QQ+) or fold (marginals). The cold-call range sits between "too good to fold, too weak to re-raise".',
+      },
+    ),
+    PuxiTopic(
+      id: 'stackdepth',
+      title: 'Stack depth y ajustes',
+      keywords: ['stack profundo', 'stack corto', 'deep stack', 'short stack', 'ajuste por stack', 'profundidad de stack'],
+      answer: {
+        'es': 'La profundidad del stack cambia qué manos valen más. Con stacks PROFUNDOS (>150BB): los conectores suited y parejas pequeñas se revalorizan (implied odds enormes); las manos premium siguen siendo buenas pero el SPR alto requiere cautela postflop. Con stacks CORTOS (<40BB): el juego se simplifica (push/fold más a menudo); las manos de valor (AA,KK,AK) mandan, los proyectos pierden valor (no hay calles para cobrarlos). A 100BB (estándar): el equilibrio entre implied odds y valor directo es óptimo.',
+        'en': 'Stack depth changes which hands are worth more. With DEEP stacks (>150BB): suited connectors and small pairs become more valuable (huge implied odds); premium hands are still good but high SPR requires postflop caution. With SHORT stacks (<40BB): play simplifies (push/fold more often); value hands (AA,KK,AK) dominate, draws lose value (no streets to collect them). At 100BB (standard): the balance between implied odds and direct value is optimal.',
+      },
+    ),
+    PuxiTopic(
+      id: 'blinddefense',
+      title: 'Defensa de ciegas (BB)',
+      keywords: ['defender ciega', 'bb defense', 'blind defense', 'cuanto defender bb', 'gran ciega'],
+      answer: {
+        'es': 'La BB tiene un descuento único: ya está en para 1BB. Contra una apertura estándar (2.5BB), llamas 1.5BB para ganar ~4BB → pot odds de ~26%, lo que obliga a defender muy amplio (MDF ≈ 55%). Estrategia: 3-betea manos premium + algunos bluffs Axs; flat manos con jugabilidad (pares, conectores, broadways medios). NO foldees de más: cada BB que regalas aquí es pérdida directa. El error clásico del BB: foldear top pair de kicker débil en flop barato por "miedo al rango del rival".',
+        'en': 'The BB has a unique discount: already in for 1BB. Against a standard open (2.5BB), you call 1.5BB to win ~4BB → pot odds of ~26%, which forces very wide defense (MDF ≈ 55%). Strategy: 3-bet premium hands + some Axs bluffs; flat hands with playability (pairs, connectors, medium broadways). DON\'T over-fold: every BB you give up here is a direct loss. The classic BB mistake: folding top pair weak kicker on a cheap flop out of "fear of villain\'s range".',
+      },
+    ),
+    PuxiTopic(
+      id: 'handreading',
+      title: 'Hand reading (lectura de mano)',
+      keywords: ['lectura de mano', 'hand reading', 'que tiene el rival', 'poner en un rango', 'leer la mano'],
+      answer: {
+        'es': 'Hand reading no es adivinar UNA mano, es ESTRECHAR el rango en cada calle con las acciones observadas. Proceso: preflop (posición + sizing → rango base) → flop (¿apostó, pasó, subió? → ¿qué manos hacen eso?) → turn → river. Cada acción elimina combos y añade otros. Pistas clave: el sizing (grande = polarizado, pequeño = rango amplio), las líneas (check-check-bet en river = nutted o total aire), y el historial con ese jugador. Nunca te comprometas con una lectura única: mantén 2-3 hipótesis.',
+        'en': 'Hand reading isn\'t guessing ONE hand, it\'s NARROWING the range each street using observed actions. Process: preflop (position + sizing → base range) → flop (did they bet, check, raise? → which hands do that?) → turn → river. Each action removes some combos and adds others. Key clues: sizing (large = polarized, small = wide range), lines (check-check-bet on river = nutted or pure air), and history with that player. Never commit to a single read: maintain 2-3 hypotheses.',
+      },
+    ),
+    PuxiTopic(
+      id: 'checkback',
+      title: 'Check back IP (trampa o control)',
+      keywords: ['check back', 'checkear ip', 'no apostar en posicion', 'trampa ip', 'no cbet'],
+      answer: {
+        'es': 'Checkear de vuelta en posición (IP) tiene dos propósitos opuestos: TRAMPA con manos fuertes (dejar que el rival ligue o bluffee en el turn) y POT CONTROL con manos medias (evitar inflar el bote con manos vulnerables). La clave es que el rival NO puede saber cuál de los dos eres. Si solo chekeas de vuelta trampas, explotan tu flop check. Si solo chekeas control, se roban el turn. El equilibrio GTO: checkeas detrás trampas + manos de realización baja + marginals; apuestas: valor, semi-bluffs y manos que niegan equity.',
+        'en': 'Checking back in position (IP) has two opposite purposes: TRAPPING with strong hands (letting villain catch up or bluff the turn) and POT CONTROL with medium hands (avoid bloating the pot with vulnerable holdings). The key is villain can\'t tell which you are. If you only check back traps, they exploit your flop check. If you only check back for control, they steal the turn. GTO balance: check back traps + low-realization hands + marginals; bet: value, semi-bluffs and equity-denial hands.',
+      },
+    ),
+    PuxiTopic(
+      id: 'nutadvantage',
+      title: 'Ventaja de nueces (nut advantage)',
+      keywords: ['nut advantage', 'ventaja de nueces', 'mejor mano posible', 'maximo del rango', 'quien tiene las nuts'],
+      answer: {
+        'es': 'La ventaja de nueces es cuando solo TÚ — no el rival — puedes tener las manos máximas del board. Ej: el que abrió UTG puede tener AA, KK, sets. El que defendió BB no llega a todos ellos. En esos boards, el agresor puede OVERBET porque su rango incluye monstruos que el rival no puede tener. La ventaja de nueces justifica sizings grandes y mayores frecuencias. Sin nueces propias, evita el overbet: si el rival sube, ¿qué tienes para continuar? La combinación de ventaja de rango + nut advantage = el slot más explotable de la mesa.',
+        'en': 'Nut advantage is when only YOU — not villain — can hold the top hands on the board. E.g. the UTG opener can have AA, KK, sets. The BB defender can\'t reach all of them. On those boards, the aggressor can OVERBET because their range includes monsters villain can\'t have. Nut advantage justifies large sizings and higher frequencies. Without your own nuts, avoid the overbet: if villain raises, what do you have to continue? The combination of range advantage + nut advantage = the most exploitable slot at the table.',
+      },
+    ),
+    PuxiTopic(
+      id: 'turnaggression',
+      title: 'Turn play y la calle crucial',
+      keywords: ['turno', 'turn', 'segunda calle', 'turno agresion', 'apostar turno'],
+      answer: {
+        'es': 'El turn es la calle más importante del póker: el bote ya es grande y queda otra calle que puede ser enorme (river). Decisions clave: ¿seguir barreleando (double barrel) o frenar? Dispara el turn cuando: la carta mejora tu rango o empeora el del rival (scare cards: As en board bajo, carta que completa tu historia de draws). Frena cuando: tu mano mediana está OOP contra un rango que conectó, o cuando chekeaste el flop y el turn no mejora tu historia. El sizing del turn sube: ¾-1x bote con valor, ½ bote con marginals.',
+        'en': 'The turn is the most important street in poker: the pot is already large and there\'s one more potentially huge street (river) left. Key decisions: keep barreling (double barrel) or slow down? Fire the turn when: the card improves your range or worsens villain\'s (scare cards: Ace on a low board, card that completes your draw story). Slow down when: your medium hand is OOP against a range that connected, or when you checked the flop and the turn doesn\'t improve your story. Turn sizing goes up: ¾-1x pot for value, ½ pot with marginals.',
+      },
+    ),
+    PuxiTopic(
+      id: 'openlimp',
+      title: 'Open limp (¿cuándo es correcto?)',
+      keywords: ['open limp', 'limp', 'solo igualar', 'entrar limp', 'cuando limp'],
+      answer: {
+        'es': 'El open limp (entrar pagando solo 1BB en vez de abrir) casi siempre es un error: regala iniciativa, capa tu rango y deja entrar a los blinds gratis o barato. La excepción clásica: el SB puede LIMP-CALL o LIMP-RAISE manos fuertes en un formato específico para confundir rangos. En cash, el estándar es ABRIR o FOLDEAR; en torneos con antes, más razones para mantener ese estándar. Un limp de fish invita al iso-raise: castígalo subiendo a 4-5BB para aislarlo en posición.',
+        'en': 'Open limping (entering by just calling 1BB instead of raising) is almost always a mistake: you give away initiative, cap your range and let the blinds in cheaply. The classic exception: the SB can LIMP-CALL or LIMP-RAISE strong hands in a specific format to confuse ranges. In cash, the standard is OPEN or FOLD; in tournaments with antes, even more reason to hold that standard. A fish\'s limp invites the iso-raise: punish it by raising to 4-5BB to isolate them in position.',
+      },
+    ),
+    PuxiTopic(
+      id: 'exploitfish',
+      title: 'Explotando a los fish',
+      keywords: ['fish', 'pescado', 'malo', 'recreacional', 'explotar recreacional', 'jugar vs fish'],
+      answer: {
+        'es': 'Contra un fish (jugador recreacional), el GTO sale por la ventana: EXPLOTA. CALLING STATION (paga todo): deja de farolear, apuesta value más fino, 3 calles de valor con pares medianos si el board no tiene muchos proyectos. FIT-OR-FOLD (foldea demasiado): farolea más, doble y triple barrel, toma la iniciativa y no frenes. MANIAC (apuesta/sube todo): paga más, foldea menos con manos medias, deja que él construya el bote y lo pagues. No presumas de ser GTO contra fish: adapta el juego y toma el dinero.',
+        'en': 'Against a fish (recreational player), GTO goes out the window: EXPLOIT. CALLING STATION (calls everything): stop bluffing, bet thinner for value, 3 streets of value with medium pairs if the board isn\'t too draw-heavy. FIT-OR-FOLD (over-folds): bluff more, double and triple barrel, take initiative and don\'t slow down. MANIAC (bets/raises everything): call more, fold less with medium hands, let them build the pot and pay them off. Don\'t brag about being GTO against fish: adapt your game and take the money.',
+      },
+    ),
+    PuxiTopic(
+      id: 'leakfix',
+      title: 'Leaks comunes y cómo corregirlos',
+      keywords: ['leak', 'fuga', 'error comun', 'corregir errores', 'mejorar juego', 'leak mas comun'],
+      answer: {
+        'es': 'Los leaks más comunes: 1) FOLD TOO MUCH (folding MDF): foldeas de más ante apuestas, el rival te explota con faroles baratos. Fix: calcula MDF antes de foldear. 2) CALL TOO MUCH (calling station): pagas con manos débiles sin equity. Fix: usa el alpha para evaluar tus bluff-catchers. 3) NO C-BET BALANCE: c-beteas igual en todos los boards sin pensar en textura. Fix: pequeño en secos, grande en húmedos. 4) LIMPING: entra limpeando. Fix: abrir o foldear. 5) NO BLUFFING: solo apuestas valor. Fix: añade semi-bluffs y faroles con blockers.',
+        'en': 'Most common leaks: 1) FOLD TOO MUCH (failing MDF): you fold too often, villain exploits you with cheap bluffs. Fix: calculate MDF before folding. 2) CALL TOO MUCH (calling station): you call with weak hands without equity. Fix: use alpha to evaluate your bluff-catchers. 3) NO C-BET BALANCE: you c-bet the same on every board without thinking about texture. Fix: small on dry, big on wet. 4) LIMPING: enter by limping. Fix: open or fold. 5) NO BLUFFING: you only bet for value. Fix: add semi-bluffs and blocker bluffs.',
+      },
+    ),
+    PuxiTopic(
+      id: 'rake',
+      title: 'Rake y su impacto en la estrategia',
+      keywords: ['rake', 'comision', 'rakeback', 'impacto rake', 'efecto rake'],
+      answer: {
+        'es': 'El rake es la comisión que se lleva la casa (normalmente 2-5% del bote, con cap). Impacto real: en rangos fronterizos, el rake convierte jugadas de +EV marginal en -EV. Por eso en spots rakeados aplicas MÁS la estrategia de foldear manos marginales que en un juego sin rake. El rakeback (% del rake devuelto) cambia la ecuación: con 30% rakeback puedes jugar ligeramente más amplio. iPT no tiene rake real, pero en la vida real siempre pregunta cuánto es el rake antes de elegir mesa.',
+        'en': 'Rake is the cut the house takes (typically 2-5% of the pot, with a cap). Real impact: on border-line ranges, rake turns marginally +EV plays into -EV ones. That\'s why in raked games you apply MORE "fold the marginals" strategy than in a rake-free game. Rakeback (% of rake returned) changes the equation: with 30% rakeback you can play slightly wider. iPT has no real rake, but in real life always ask how much the rake is before choosing a table.',
+      },
+    ),
+    PuxiTopic(
+      id: 'aggressionfactor',
+      title: 'Stats: Aggression Factor y VPIP',
+      keywords: ['af', 'aggression factor', 'vpip', 'pfr', 'estadisticas', 'hud', 'stats poker'],
+      answer: {
+        'es': 'VPIP: % de manos donde entras al bote (pagar o subir). PFR: % de manos donde abres o subes preflop. AF (Aggression Factor): (apuestas+subidas) / llamadas. Un reg sólido: VPIP 20-25%, PFR 17-22%, AF > 2.5. Nit: VPIP < 15%. LAG: VPIP 30+%, AF alto. Calling station: VPIP alto, AF bajo (<1). Maniac: PFR > VPIP-5. Estos números te dicen CÓMO adaptar tu juego: contra un nit, foldea marginals vs sus agresiones; contra un LAG, llama más y c/r los buenos spots.',
+        'en': 'VPIP: % of hands you enter the pot (call or raise). PFR: % of hands you open or raise preflop. AF (Aggression Factor): (bets+raises) / calls. A solid reg: VPIP 20-25%, PFR 17-22%, AF > 2.5. Nit: VPIP < 15%. LAG: VPIP 30+%, high AF. Calling station: high VPIP, low AF (<1). Maniac: PFR > VPIP-5. These numbers tell you HOW to adapt: against a nit, fold marginals to their aggression; against a LAG, call more and c/r good spots.',
+      },
+    ),
+    PuxiTopic(
+      id: 'sessionmgmt',
+      title: 'Gestión de sesión y stop-loss',
+      keywords: ['stop loss', 'gestion sesion', 'cuando parar', 'sesion larga', 'cuanto tiempo jugar'],
+      answer: {
+        'es': 'La gestión de sesión es tan importante como la estrategia. Reglas básicas: 1) STOP-LOSS: si pierdes 3 buy-ins en una sesión, párate — no estás tomando buenas decisiones. 2) WIN-STOP (opcional): con algunos pros, fijar un win-stop de 5 buy-ins evita devolver mucho. 3) TIEMPO: la fatiga degrada las decisiones. Sesiones de 2-4 horas son óptimas; después del límite, la calidad baja más que el volumen sube. 4) ENTORNO: no juegues en tilt, cansancio extremo, o con distracciones. Tu mejor edge es mental.',
+        'en': 'Session management is as important as strategy. Basic rules: 1) STOP-LOSS: if you lose 3 buy-ins in a session, stop — you\'re not making good decisions. 2) WIN-STOP (optional): some pros set a 5 buy-in win-stop to avoid giving back big wins. 3) TIME: fatigue degrades decisions. 2-4 hour sessions are optimal; after that, quality drops more than volume rises. 4) ENVIRONMENT: don\'t play on tilt, extreme fatigue, or with distractions. Your biggest edge is mental.',
+      },
+    ),
+    PuxiTopic(
+      id: 'studymethods',
+      title: 'Cómo estudiar póker',
+      keywords: ['estudiar poker', 'como mejorar', 'estudio', 'revisar manos', 'hand history', 'solver'],
+      answer: {
+        'es': 'Para mejorar de verdad: 1) REVISAR MANOS: después de cada sesión, marca las 3-5 manos donde no estuviste seguro y analízalas. 2) SOLVERS: GTO Wizard o PioSolver te dicen la frecuencia exacta por spot — estudia spots concretos, no navega sin dirección. 3) STUDY GROUPS: discutir manos con jugadores similares o mejores comprime el aprendizaje. 4) RANGE TRAINING: usa apps de rango (GTOW free, PokerCruncher) para memorizar rangos preflop. 5) BASE de conocimiento: Puxi te explica conceptos; el Simulador te deja practicar. La práctica sin estudio es ruido; el estudio sin práctica es teoría.',
+        'en': 'To truly improve: 1) REVIEW HANDS: after each session, flag the 3-5 hands where you were unsure and analyze them. 2) SOLVERS: GTO Wizard or PioSolver tell you exact frequencies per spot — study specific spots, don\'t wander aimlessly. 3) STUDY GROUPS: discussing hands with similar or better players compresses learning. 4) RANGE TRAINING: use range apps (GTOW free, PokerCruncher) to memorize preflop ranges. 5) KNOWLEDGE BASE: Puxi explains concepts; the Simulator lets you practice. Practice without study is noise; study without practice is theory.',
+      },
+    ),
+    PuxiTopic(
+      id: 'cbetfrequency',
+      title: 'Frecuencia de c-bet por posición',
+      keywords: ['frecuencia cbet', 'cuanto cbet', 'cuando no cbet', 'cbet ip oop', 'frecuencia apostando'],
+      answer: {
+        'es': 'La frecuencia óptima de c-bet varía: IP en flop (posición): c-betea ~55-65% de tus manos, más en boards secos (A-high, K-high rainbow). OOP: más selectivo, ~40-50%; refuerza con check-raises y check-calls equilibrados. HEADS-UP: puedes c-betear más; MULTIWAY: baja drásticamente a ~25-35% (alguien siempre pega). Señal de que c-beteas demasiado: tus barriles subsiguientes no funcionan porque los rivales saben que c-beteas con aire. Señal de poco: te roban el bote cuando chekeas.',
+        'en': 'Optimal c-bet frequency varies: IP on flop (in position): c-bet ~55-65% of your hands, more on dry boards (A-high, K-high rainbow). OOP: more selective, ~40-50%; support with balanced check-raises and check-calls. HEADS-UP: can c-bet more; MULTIWAY: drops sharply to ~25-35% (someone always connects). Sign you c-bet too much: your subsequent barrels don\'t work because opponents know you c-bet with air. Sign of too little: they steal the pot when you check.',
+      },
+    ),
+    PuxiTopic(
+      id: 'oopplay',
+      title: 'Jugar OOP (fuera de posición)',
+      keywords: ['oop', 'fuera de posicion', 'jugar sin posicion', 'desventaja posicional', 'ciega vs boton'],
+      answer: {
+        'es': 'OOP (Out Of Position) es el handicap más grande del póker. Actúas ANTES de ver lo que hace el rival → menos información, más errores. Estrategia OOP: usa CHECK-RAISE como arma principal (combina protección y presión); check-call con manos de medio valor que pueden bluff-catch; donk bet solo en boards muy específicos que favorecen tu rango; evita el "lead → call raise" que infla el bote sin información. Lo más importante: el rango que defiendes OOP debe ser más estrecho — solo manos con buena playabilidad y realización de equity.',
+        'en': 'OOP (Out Of Position) is the biggest handicap in poker. You act BEFORE seeing what villain does → less information, more mistakes. OOP strategy: use CHECK-RAISE as your main weapon (combines protection and pressure); check-call with medium-value hands that can bluff-catch; donk bet only on very specific boards that favor your range; avoid "lead → call raise" which bloats the pot without information. Most importantly: the range you defend OOP should be narrower — only hands with good playability and equity realization.',
+      },
+    ),
   ];
 
   /// Matches a free-text question to the best topic by keyword overlap.
@@ -403,5 +595,161 @@ class PuxiKnowledge {
       }
     }
     return bestScore > 0 ? best : null;
+  }
+}
+
+// ─── Decision Correction System ──────────────────────────────────────────────
+
+/// Severity levels for a preflop decision error.
+enum ErrorLevel {
+  /// EV loss < 0.08 BB — virtually indistinguishable from optimal.
+  negligible,
+
+  /// EV loss 0.08–0.25 BB — minor leak worth knowing.
+  minor,
+
+  /// EV loss 0.25–0.6 BB — clear mistake that compounds over volume.
+  moderate,
+
+  /// EV loss > 0.6 BB — major error costing serious EV per occurrence.
+  major,
+}
+
+/// Result of analyzing one decision against the GTO strategy.
+class DecisionError {
+  final String hand;
+  final String spotId;
+  final String chosenAction;
+  final String correctAction;
+
+  /// EV of the chosen action (BB). Null if the action isn't in the strategy.
+  final double evChosen;
+
+  /// EV of the GTO-optimal action (BB).
+  final double evCorrect;
+
+  final ErrorLevel level;
+
+  /// Coach-grade explanation of why the correct action is better.
+  final String explanation;
+
+  const DecisionError({
+    required this.hand,
+    required this.spotId,
+    required this.chosenAction,
+    required this.correctAction,
+    required this.evChosen,
+    required this.evCorrect,
+    required this.level,
+    required this.explanation,
+  });
+
+  double get evLost => (evCorrect - evChosen).clamp(0.0, 99.0);
+
+  bool get isNegligible => level == ErrorLevel.negligible;
+
+  /// Short feedback string for the UI ("Tu jugada: fold. GTO: 3bet (+0.45BB)").
+  String get feedbackLine {
+    final diff = evLost.toStringAsFixed(2);
+    return I18n.locale == 'es'
+        ? 'Elegiste: $chosenAction. GTO: $correctAction (−${diff}BB EV)'
+        : 'You played: $chosenAction. GTO: $correctAction (−${diff}BB EV)';
+  }
+
+  String get levelLabel {
+    switch (level) {
+      case ErrorLevel.negligible:
+        return I18n.locale == 'es' ? 'Marginal' : 'Marginal';
+      case ErrorLevel.minor:
+        return I18n.locale == 'es' ? 'Menor' : 'Minor';
+      case ErrorLevel.moderate:
+        return I18n.locale == 'es' ? 'Moderado' : 'Moderate';
+      case ErrorLevel.major:
+        return I18n.locale == 'es' ? 'Error grave' : 'Major error';
+    }
+  }
+}
+
+/// Analyzes preflop decisions against GTO strategies and produces [DecisionError]s.
+class PuxiCorrector {
+  PuxiCorrector._();
+
+  /// Returns null if [chosenAction] is the GTO primary or EV difference is negligible.
+  /// Returns a [DecisionError] otherwise.
+  static DecisionError? analyze({
+    required String hand,
+    required String chosenAction,
+    required HandStrategy gtoStrategy,
+  }) {
+    final correct = gtoStrategy.primary;
+
+    // Find EV of chosen action; default to 0 if the action is folding to nothing.
+    final evChosen = gtoStrategy.evOf(chosenAction) ?? 0.0;
+    final evCorrect = gtoStrategy.bestEv;
+    final lost = (evCorrect - evChosen).clamp(0.0, 99.0);
+
+    if (lost < 0.05) return null; // negligible — no feedback needed
+
+    final level = lost < 0.08
+        ? ErrorLevel.negligible
+        : lost < 0.25
+            ? ErrorLevel.minor
+            : lost < 0.6
+                ? ErrorLevel.moderate
+                : ErrorLevel.major;
+
+    if (level == ErrorLevel.negligible) return null;
+
+    // Prefer the explanation from the correct action record if available.
+    final correctRecord = gtoStrategy.actions
+        .where((a) => a.action == correct)
+        .cast<SpotRecord?>()
+        .firstWhere((_) => true, orElse: () => null);
+
+    final explanation = correctRecord?.explanation ??
+        _fallbackExplanation(hand, chosenAction, correct, lost);
+
+    return DecisionError(
+      hand: hand,
+      spotId: gtoStrategy.spotId,
+      chosenAction: chosenAction,
+      correctAction: correct,
+      evChosen: evChosen,
+      evCorrect: evCorrect,
+      level: level,
+      explanation: explanation,
+    );
+  }
+
+  static String _fallbackExplanation(
+      String hand, String chosen, String correct, double lost) {
+    final diff = lost.toStringAsFixed(2);
+    if (I18n.locale == 'es') {
+      return '$hand: $correct es la jugada GTO. Elegir $chosen cuesta '
+          '≈${diff}BB de EV en este spot. Consulta la base de datos para '
+          'los detalles de frecuencia y rango.';
+    }
+    return '$hand: $correct is the GTO play. Choosing $chosen costs '
+        '≈${diff}BB EV in this spot. Check the database for frequency and range details.';
+  }
+
+  /// Generates a summary of multiple errors (for session review).
+  static String sessionSummary(List<DecisionError> errors) {
+    if (errors.isEmpty) {
+      return I18n.locale == 'es'
+          ? 'Sin errores detectados esta sesión. ¡Juego sólido!'
+          : 'No errors detected this session. Solid play!';
+    }
+    final totalLost = errors.fold(0.0, (s, e) => s + e.evLost);
+    final majors = errors.where((e) => e.level == ErrorLevel.major).length;
+    final mods = errors.where((e) => e.level == ErrorLevel.moderate).length;
+    if (I18n.locale == 'es') {
+      return 'Sesión: ${errors.length} decisión(es) mejorable(s). '
+          'EV perdido total: ≈${totalLost.toStringAsFixed(2)}BB. '
+          'Graves: $majors · Moderados: $mods.';
+    }
+    return 'Session: ${errors.length} improvable decision(s). '
+        'Total EV lost: ≈${totalLost.toStringAsFixed(2)}BB. '
+        'Major: $majors · Moderate: $mods.';
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:math';
+import '../data/gto/open_raise.dart';
 import '../data/models/card_model.dart';
 import '../data/models/player_model.dart';
 import '../data/models/hand_log_model.dart';
@@ -593,12 +594,27 @@ class LegendaryBotEngine {
     // add hands the chart folds; tight ones (Hellmuth, Nit) trim the bottom.
     final looseness = (0.40 - profile.btnOpen).clamp(-0.25, 0.25).toDouble();
     final posThreshold = _openThreshold(profile, position);
+    final stackBBs = stack / bb;
 
     double clampTo(double v) => v.clamp(bb, stack).toDouble();
     final potOdds = GtoMath.potOdds(callAmount, pot);
     final inPosition = position == TablePosition.btn || position == TablePosition.co;
 
-    // ───── Unopened pot: RFI straight from the chart ─────
+    // ── Short-stack adjustment: simplify to push/fold at ≤25BB ──────────────
+    if (stackBBs <= 25 && callAmount > 0) {
+      // Push range tightens more for nits/TAGs, looser for maniacs/LAGs
+      final pushThresh = posThreshold + (looseness < 0 ? 0.08 : -0.04);
+      if (strength >= pushThresh) {
+        return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
+      }
+      return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+    }
+
+    // ── Deep-stack adjustment: implied odds matter more ──────────────────────
+    // At >150BB, small pairs and suited connectors gain value for all profiles.
+    final impliedOddsBoost = stackBBs > 150 ? 0.04 : 0.0;
+
+    // ───── Unopened pot: RFI using GTO frequency + profile drift ─────
     if (raiseCount == 0) {
       if (callAmount <= 0) {
         // BB option: iso-raise the top of range at mixed frequency
@@ -612,22 +628,38 @@ class LegendaryBotEngine {
         return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
       }
 
-      bool opens = rfiPlan != ChartAction.fold;
-      // Loose drift: open some chart-folds with playable hands
-      if (!opens && looseness > 0 &&
-          strength >= posThreshold - 0.06 && rand < looseness * 2.2) {
+      // Use GTO mixed-frequency from OpenRaiseDB as the base probability.
+      final gtoOpenFreq = position != TablePosition.bb
+          ? OpenRaiseDB.openFrequency(position, code)
+          : 0.0;
+      bool opens;
+      if (gtoOpenFreq >= 1.0) {
         opens = true;
-      }
-      // Tight drift: drop the weakest chart opens sometimes
-      if (opens && rfiPlan == ChartAction.orFold && looseness < 0 &&
-          strength < posThreshold + 0.04 && rand < -looseness * 1.8) {
+        // Tight drift: drop weakest pure opens (Hellmuth/Nit)
+        if (rfiPlan == ChartAction.orFold && looseness < -0.08 &&
+            strength < posThreshold + 0.02 && rand < -looseness * 1.5) {
+          opens = false;
+        }
+      } else if (gtoOpenFreq <= 0.0) {
         opens = false;
+        // Loose drift: open some GTO-folds with playable hands
+        if (looseness > 0 &&
+            strength >= posThreshold - 0.06 - impliedOddsBoost &&
+            rand < looseness * 2.2) {
+          opens = true;
+        }
+      } else {
+        // Mixed GTO hand — apply profile bias around the GTO frequency
+        final profileFreq = (gtoOpenFreq + looseness * 0.5).clamp(0.0, 1.0);
+        opens = rand < profileFreq;
       }
 
       if (opens) {
+        // Deep-stack: open bigger to discourage drawing callers
+        final sizeMod = stackBBs > 150 ? 0.3 : 0.0;
         return BotDecision(
           type: ActionType.raise,
-          amount: clampTo(profile.openSizeBB * bb + callers * bb),
+          amount: clampTo((profile.openSizeBB + sizeMod) * bb + callers * bb),
           thinkMs: 0,
         );
       }
@@ -761,10 +793,26 @@ class LegendaryBotEngine {
     final rand = _rng.nextDouble();
     final isRiver = street == 'river';
     final isTurnOrRiver = street == 'turn' || isRiver;
+    final stackBBsPost = stack / bb;
 
     // Villain fold estimate (exploit input for all bluff math)
     double foldEst = isTurnOrRiver ? human.foldVsBarrelRate : human.foldVsBetRate;
     if (human.isCallingStation) foldEst *= 0.55;
+
+    // Profile-specific SPR commitment threshold: the SPR at or below which this
+    // profile will stack-off with the given hand bucket.
+    //   Calling Station: commits much earlier (SPR 4 with medium value)
+    //   Nit / Hellmuth: needs SPR ≤1.8 for strongValue, never commits thin
+    //   Maniac / LAG: commits wide at SPR ≤4 even with medium hands
+    //   TAG / GTO: standard SPR 2.5 for strongValue, 1.5 for medium
+    final commitSprStrong = profile.stationCalling ? 4.5
+        : (profile.fitOrFold || profile.bluffFreq < 0.10) ? 1.8
+        : profile.bluffFreq > 0.48 ? 4.0
+        : 2.8;
+    final commitSprMedium = profile.stationCalling ? 3.0
+        : (profile.fitOrFold || profile.bluffFreq < 0.10) ? 1.0
+        : profile.bluffFreq > 0.48 ? 2.5
+        : 1.5;
 
     double clampBet(double v) => v.clamp(bb, stack).toDouble();
 
@@ -900,24 +948,58 @@ class LegendaryBotEngine {
 
     // ════════════ FACING A BET ════════════
     final potOdds = GtoMath.potOdds(callAmount, pot);
+    final betFraction = callAmount / max(pot - callAmount, 1.0);
+    final isOverbet = betFraction > 1.0;
+    final isSmallBet = betFraction <= 0.40;
+    final isMediumBet = betFraction > 0.40 && betFraction <= 0.85;
+    final facingAllInPrice = callAmount >= stack;
 
-    // Calling station: pays anything with a piece or a draw, hates folding
-    if (profile.stationCalling &&
-        analysis.bucket != HandBucket.air &&
-        equity >= potOdds - 0.08 &&
-        callAmount < stack) {
-      return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
+    // ── Archetype-specific bet-size reactions ────────────────────────────────
+    // Calling station: pays anything with a piece, adjusts marginally vs overbets
+    if (profile.stationCalling) {
+      if (analysis.bucket == HandBucket.air) {
+        return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+      }
+      // Stations fold vs overbets if they only have a weak draw (rare but real)
+      if (isOverbet && analysis.bucket == HandBucket.weakDraw &&
+          equity < potOdds - 0.08) {
+        return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+      }
+      if (equity >= potOdds - 0.10 && callAmount < stack) {
+        return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
+      }
     }
+
+    // Nit / tight profiles: fold marginals to overbets, never gamble
+    if (profile.bluffFreq < 0.10 && isOverbet) {
+      if (analysis.bucket == HandBucket.mediumValue ||
+          analysis.bucket == HandBucket.weakShowdown) {
+        return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+      }
+    }
+
+    // Short-stack facing a large bet: commit or fold logic
+    if (stackBBsPost < 20 && callAmount >= stack * 0.35) {
+      if (analysis.isMadeValue && equity >= 0.30) {
+        return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
+      }
+      return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+    }
+
     // Fit-or-fold: without at least medium value, the hand goes to the muck
     if (profile.fitOrFold &&
         !analysis.isMadeValue &&
         !(analysis.hasStrongDraw && GtoMath.potOdds(callAmount, pot) <= analysis.drawEquity)) {
       return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
     }
-    final betFraction = callAmount / max(pot - callAmount, 1.0);
-    final isOverbet = betFraction > 1.0;
-    final isSmallBet = betFraction <= 0.45;
-    final facingAllInPrice = callAmount >= stack;
+
+    // SPR-based early commitment for value hands
+    if (analysis.bucket == HandBucket.strongValue && spr <= commitSprStrong && !isRiver) {
+      return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
+    }
+    if (analysis.bucket == HandBucket.mediumValue && spr <= commitSprMedium && !isRiver) {
+      return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
+    }
 
     double raiseTo() =>
         (currentBet * 2.8).clamp(currentBet + 2 * bb, stack).toDouble();
@@ -946,13 +1028,20 @@ class LegendaryBotEngine {
         return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
 
       case HandBucket.mediumValue:
-        // Bluff-catcher math: MDF defense vs small bets, tighten vs overbets
+        // Bluff-catcher math: MDF defense vs small bets, tighten vs overbets.
+        // Nits over-fold overbets; LAGs/stations call wider; GTO uses pure MDF.
         double callThreshold = potOdds;
-        if (isSmallBet) callThreshold -= 0.05;           // defend wide per MDF
+        if (isSmallBet) {
+          callThreshold -= profile.stationCalling ? 0.10 : 0.05; // wide vs small
+        }
         if (isOverbet) {
-          callThreshold += blockers.topCardBlocker ? 0.02 : 0.06;
+          // Nit folds to overbets except with good blockers
+          final nit = profile.bluffFreq < 0.12;
+          callThreshold += nit ? 0.10 : (blockers.topCardBlocker ? 0.02 : 0.06);
         }
         if (human.aggressionFactor > 2.0) callThreshold -= 0.03; // they bluff a lot
+        // Board texture: on monotone/paired boards tighten (risk of flush/full)
+        if (texture.wetness > 0.65) callThreshold += 0.04;
         if (equity >= callThreshold) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
@@ -994,18 +1083,22 @@ class LegendaryBotEngine {
         if (isRiver) {
           return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
         }
-        // Float small bets planning to take the pot away later
-        if (street == 'flop' && isSmallBet && rand < profile.floatFreq) {
+        // Float small/medium bets planning to take the pot away later
+        if (street == 'flop' && (isSmallBet || isMediumBet) && rand < profile.floatFreq) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
-        if (isSmallBet &&
+        if ((isSmallBet || isMediumBet) &&
             analysis.drawEquity * profile.impliedOddsWeight >= potOdds) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
         return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
 
       case HandBucket.weakShowdown:
+        // Small bet: defend per MDF; medium bet: tight; overbet: fold
         if (isSmallBet && equity >= potOdds) {
+          return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
+        }
+        if (isMediumBet && equity >= potOdds + 0.03) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
         if (human.aggressionFactor > 2.5 && equity >= potOdds - 0.02 && !isOverbet) {
@@ -1052,9 +1145,15 @@ class LegendaryBotEngine {
     double bluffFreq;
     if (wasAggressor) {
       bluffFreq = _streetCBetFreq(profile, street) * (1 + rangeAdv * 1.4);
-      bluffFreq *= texture.wetness < 0.4 ? 1.15 : 0.75;
+      // Wet boards: reduce bluff freq for tight profiles; LAG maintains pressure
+      bluffFreq *= texture.wetness < 0.4 ? 1.15 : (profile.bluffFreq > 0.40 ? 0.85 : 0.70);
     } else {
-      bluffFreq = profile.floatFreq * (texture.wetness < 0.4 ? 1.0 : 0.6);
+      bluffFreq = profile.floatFreq * (texture.wetness < 0.4 ? 1.0 : 0.55);
+    }
+
+    // Nits never fire air without initiative
+    if (profile.bluffFreq < 0.10 && !wasAggressor) {
+      bluffFreq *= 0.15;
     }
 
     // Ivey/Hansen exploit: vs over-folders barrel turn/river up to 80%
