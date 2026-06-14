@@ -6,6 +6,7 @@ import '../data/repositories/game_repository.dart';
 import '../core/utils/hand_evaluator.dart';
 import '../core/utils/equity_calculator.dart';
 import '../core/utils/poker_concepts.dart';
+import '../core/utils/postflop_context.dart';
 import '../data/models/player_model.dart';
 import 'poker_engine.dart';
 import '../core/i18n/i18n.dart';
@@ -175,6 +176,37 @@ class HandReviewerEngine {
       Map<String, String> finalParams = expParams;
 
       if (boardCount >= 3) {
+        // ── Postflop factors (same model the advisor + bots use) ──
+        const streetIdx = {'preflop': 0, 'flop': 1, 'turn': 2, 'river': 3};
+        final curIdx = streetIdx[street] ?? 1;
+        final preflopRaises = allActions
+            .where((a) =>
+                a.street == 'preflop' &&
+                (a.type == ActionType.raise ||
+                    a.type == ActionType.bet ||
+                    a.type == ActionType.allIn))
+            .length;
+        String? lastAggId;
+        for (final a in allActions) {
+          if ((streetIdx[a.street] ?? 0) > curIdx) break;
+          if (a.type == ActionType.raise ||
+              a.type == ActionType.bet ||
+              a.type == ActionType.allIn) {
+            lastAggId = a.playerId;
+          }
+        }
+        final hasInitiative = lastAggId == 'human';
+        final inPosition = position == TablePosition.btn;
+        final ctx = PostflopContext(
+          position: position,
+          inPosition: inPosition,
+          hasInitiative: hasInitiative,
+          numActive: activePlayers,
+          potType: PostflopContext.potTypeFromRaiseCount(max(1, preflopRaises)),
+          villainBet: callAmt,
+          potSize: potAtStreet,
+        );
+
         final rec = EquityCalculator.recommend(
           heroCards: humanHole,
           communityCards: communityAtStreet,
@@ -182,11 +214,16 @@ class HandReviewerEngine {
           potSize: potAtStreet,
           numOpponents: max(1, activePlayers - 1),
           heroStack: startStack,
+          position: position,
+          inPosition: inPosition,
+          hasInitiative: hasInitiative,
+          numActive: activePlayers,
+          preflopRaises: max(1, preflopRaises),
         );
         // The concise advisor reasoning (head + hand + math + reco) is the
         // top; the hand-by-hand reviewer then APPENDS the deep, card-specific
-        // sections (expanded SPR plan, blockers and bluff spots that read the
-        // actual board/hand instead of repeating boilerplate).
+        // sections (postflop factors, expanded SPR plan, blockers and bluff
+        // spots that read the actual board/hand instead of boilerplate).
         final deep = _deepReview(
           street: street,
           hole: humanHole,
@@ -194,9 +231,11 @@ class HandReviewerEngine {
           pot: potAtStreet,
           spr: spr,
           heroStack: startStack,
+          equity: equity,
           texture: texture!,
           analysis: analysis!,
           blockers: blockers!,
+          ctx: ctx,
         );
         fullExplanation = deep.isEmpty ? rec.reasoning : '${rec.reasoning}\n\n$deep';
         finalKey = '';
@@ -241,13 +280,19 @@ class HandReviewerEngine {
     required double pot,
     required double spr,
     required double heroStack,
+    required double equity,
     required BoardTexture texture,
     required HandStrengthAnalysis analysis,
     required Blockers blockers,
+    required PostflopContext ctx,
   }) {
     final isRiver = board.length == 5;
     final b = StringBuffer();
 
+    b.writeln('━━━ FACTORES POSTFLOP ━━━');
+    b.writeln(_factorsRead(ctx, equity));
+
+    b.writeln();
     b.writeln('━━━ PLAN SPR ${spr.toStringAsFixed(1)} ━━━');
     b.writeln(_sprPlan(spr, street, pot, heroStack, analysis, isRiver));
 
@@ -261,6 +306,43 @@ class HandReviewerEngine {
       b.writeln(_bluffRead(hole, board, texture));
     }
     return b.toString().trim();
+  }
+
+  /// Per-factor postflop read: position/equity realization, multiway, initiative,
+  /// pot type and (when known) the villain tendency, each with its effect.
+  String _factorsRead(PostflopContext ctx, double equity) {
+    final lines = <String>[];
+    final realization = PostflopContext.equityRealization(
+      inPosition: ctx.inPosition,
+      hasInitiative: ctx.hasInitiative,
+      numActive: ctx.numActive,
+    );
+    final realized = (equity * realization * 100).clamp(0, 100);
+
+    lines.add(ctx.inPosition
+        ? '· Posición: EN POSICIÓN → realizas más equity (~${realized.toStringAsFixed(0)}% de tu ${(equity * 100).toStringAsFixed(0)}%): ves cartas gratis, controlas el bote y puedes farolear/valorar más fino.'
+        : '· Posición: FUERA DE POSICIÓN → realizas menos (~${realized.toStringAsFixed(0)}% de tu ${(equity * 100).toStringAsFixed(0)}%): te apuestan y te sacan de manos marginales; sé más selectivo y usa check-call/check-raise.');
+
+    if (ctx.isMultiway) {
+      lines.add('· Jugadores: MULTIWAY (${ctx.numActive}) → baja MUCHO la frecuencia de farol (alguien conecta casi siempre) y sube el umbral de valor: apuesta más fuerte y con manos más reales, casi nada de faroles puros.');
+    } else {
+      lines.add('· Jugadores: heads-up → guerra de rangos 1v1; faroles y value fino son rentables, aplica MDF y bloqueadores con normalidad.');
+    }
+
+    lines.add(ctx.hasInitiative
+        ? '· Iniciativa: LA TIENES (fuiste el último agresor) → tu rango representa más fuerza; c-bet/barrel con buena frecuencia, sobre todo con ventaja de rango.'
+        : '· Iniciativa: NO la tienes → no auto-apuestes; check-call, check-raise y floats (en posición) son mejores que farolear contra el agresor.');
+
+    lines.add('· Tipo de bote: ${PostflopContext.potTypeLabel(ctx.potType)} → '
+        '${ctx.potType == PotType.srp ? 'rangos amplios, SPR alto: juega varias calles, pot control con manos medias.' : ctx.potType == PotType.threeBet ? 'rangos más fuertes y SPR más bajo: te comprometes antes; overpairs y top pairs valen más.' : 'rangos muy fuertes y SPR bajo: casi todo es commit-or-fold; cuidado sin una mano premium.'}');
+
+    if (!ctx.read.isNeutral) {
+      lines.add(ctx.read.callingStation
+          ? '· Rival: CALLING STATION → paga de más; valora MUCHO más fino y deja de farolear, no suelta una pareja.'
+          : '· Rival: OVER-FOLDER → suelta de más; farolea sin descanso y no le pagues sus pocas apuestas grandes (rara vez farolea).');
+    }
+
+    return lines.join('\n');
   }
 
   /// Expanded SPR plan: explains what the ratio means here, how many bets to

@@ -1,7 +1,9 @@
 import 'dart:math';
 import '../../data/models/card_model.dart';
+import '../../data/models/player_model.dart';
 import 'hand_evaluator.dart';
 import 'poker_concepts.dart';
+import 'postflop_context.dart';
 
 class GTORecommendation {
   final String action;
@@ -295,6 +297,15 @@ class EquityCalculator {
     required double potSize,
     required int numOpponents,
     double heroStack = 100.0,
+    // ── Extra postflop factors (optional; default to a neutral HU SRP spot so
+    //    existing callers keep working). They shift BOTH the decision and the
+    //    explanation, mirroring how the legend bots read the spot. ──
+    TablePosition? position,
+    bool inPosition = false,
+    bool hasInitiative = false,
+    int numActive = 0,
+    int preflopRaises = 1,
+    VillainRead villainRead = VillainRead.neutral,
   }) {
     final isPostflop = communityCards.length >= 3;
     final isRiver = communityCards.length == 5;
@@ -309,8 +320,6 @@ class EquityCalculator {
 
     final odds = potOddsRequired(callAmount, potSize);
     final ev = equity - odds;
-    final eqPct = (equity * 100).toStringAsFixed(1);
-    final oddsPct = (odds * 100).toStringAsFixed(1);
 
     final analysis = isPostflop ? HandStrengthAnalysis.analyze(heroCards, communityCards) : null;
     final blockers = isPostflop ? Blockers.analyze(heroCards, communityCards) : null;
@@ -319,43 +328,81 @@ class EquityCalculator {
     final mdf = callAmount > 0 ? GtoMath.mdf(potSize - callAmount, callAmount) : 0.0;
     final alpha = callAmount > 0 ? GtoMath.alpha(potSize - callAmount, callAmount) : 0.0;
 
-    // ── Determine primary action ─────────────────────────────────────────────
+    // ── Postflop context: position, multiway, initiative, pot type, read ────
+    final nActive = numActive > 0 ? numActive : max(2, numOpponents + 1);
+    final ctx = PostflopContext(
+      position: position,
+      inPosition: inPosition,
+      hasInitiative: hasInitiative,
+      numActive: nActive,
+      potType: PostflopContext.potTypeFromRaiseCount(preflopRaises),
+      villainBet: callAmount,
+      potSize: potSize,
+      read: villainRead,
+    );
+    final realization = PostflopContext.equityRealization(
+      inPosition: inPosition,
+      hasInitiative: hasInitiative,
+      numActive: nActive,
+    );
+    final realizedEq = (equity * realization).clamp(0.0, 1.0).toDouble();
+    final vShift = PostflopContext.multiwayValueShift(nActive);
+    final canBluff = ctx.canPureBluff;
+    final callPenalty = ctx.callEvPenalty;
+    final isMultiway = ctx.isMultiway;
+
+    // ── Determine primary action (now factor-aware) ─────────────────────────
     String action;
     double amount;
     double evFinal;
 
     if (callAmount <= 0) {
-      if (equity > 0.64 || analysis?.bucket == HandBucket.nuts || analysis?.bucket == HandBucket.strongValue) {
-        final bet = _snapToBetSize(potSize * (texture != null && texture.wetness > 0.5 ? 0.75 : 0.66));
+      if (equity > 0.64 + vShift ||
+          analysis?.bucket == HandBucket.nuts ||
+          analysis?.bucket == HandBucket.strongValue) {
+        // Multiway → bet bigger (more protection, fewer bluffs to balance).
+        final wet = texture != null && texture.wetness > 0.5;
+        final frac = isMultiway ? (wet ? 0.85 : 0.72) : (wet ? 0.75 : 0.66);
+        final bet = _snapToBetSize(potSize * frac);
         action = 'Bet'; amount = bet; evFinal = equity - 0.5;
-      } else if ((analysis?.bucket == HandBucket.comboDraw || analysis?.bucket == HandBucket.strongDraw) && !isRiver) {
+      } else if ((analysis?.bucket == HandBucket.comboDraw ||
+              analysis?.bucket == HandBucket.strongDraw) &&
+          !isRiver &&
+          (canBluff || realizedEq > 0.45)) {
         final bet = _snapToBetSize(potSize * 0.66);
         action = 'Bet'; amount = bet; evFinal = equity - 0.35;
-      } else if (equity > 0.52) {
+      } else if (realizedEq > 0.52 + vShift) {
         final bet = _snapToBetSize(potSize * 0.40);
         action = 'Bet'; amount = bet; evFinal = equity - 0.45;
-      } else if (equity > 0.28 && potSize > 15 && (blockers?.goodBluffBlockers ?? false) && !isRiver) {
+      } else if (equity > 0.28 &&
+          potSize > 15 &&
+          (blockers?.goodBluffBlockers ?? false) &&
+          !isRiver &&
+          canBluff &&
+          hasInitiative) {
         final bet = _snapToBetSize(potSize * 0.50);
         action = 'Bet'; amount = bet; evFinal = 0.08;
       } else {
         action = 'Check'; amount = 0; evFinal = 0;
       }
     } else {
-      if (equity > 0.62 && ev > 0.12) {
+      if (equity > 0.62 + vShift && ev > 0.12 + callPenalty) {
         final raise = _snapToBetSize(callAmount * 2.8);
         action = 'Raise'; amount = raise; evFinal = ev;
       } else if (analysis != null &&
           (analysis.bucket == HandBucket.comboDraw || analysis.bucket == HandBucket.strongDraw) &&
-          !isRiver) {
+          !isRiver &&
+          canBluff) {
         final raise = _snapToBetSize(callAmount * 2.8);
         action = 'Raise'; amount = raise; evFinal = ev + 0.10;
       } else if (analysis != null && blockers != null && texture != null &&
           !isRiver && ev < -0.03 &&
           (analysis.bucket == HandBucket.air || analysis.bucket == HandBucket.weakShowdown) &&
-          blockers.goodBluffBlockers && texture.wetness < 0.45) {
+          blockers.goodBluffBlockers && texture.wetness < 0.45 &&
+          canBluff && !isMultiway) {
         final raise = _snapToBetSize(callAmount * 2.8);
         action = 'Raise'; amount = raise; evFinal = 0.05;
-      } else if (ev >= -0.03) {
+      } else if (ev >= -0.03 + callPenalty) {
         action = 'Call'; amount = callAmount; evFinal = ev;
       } else {
         action = 'Fold'; amount = 0; evFinal = ev;
@@ -366,6 +413,7 @@ class EquityCalculator {
       heroCards: heroCards,
       communityCards: communityCards,
       equity: equity,
+      realizedEq: realizedEq,
       callAmount: callAmount,
       potSize: potSize,
       heroStack: heroStack,
@@ -375,6 +423,7 @@ class EquityCalculator {
       analysis: analysis,
       blockers: blockers,
       texture: texture,
+      ctx: ctx,
       primaryAction: action,
       primaryAmount: amount,
       isRiver: isRiver,
@@ -394,6 +443,7 @@ class EquityCalculator {
     required List<CardModel> heroCards,
     required List<CardModel> communityCards,
     required double equity,
+    required double realizedEq,
     required double callAmount,
     required double potSize,
     required double heroStack,
@@ -403,6 +453,7 @@ class EquityCalculator {
     HandStrengthAnalysis? analysis,
     Blockers? blockers,
     BoardTexture? texture,
+    required PostflopContext ctx,
     required String primaryAction,
     required double primaryAmount,
     required bool isRiver,
@@ -455,6 +506,7 @@ class EquityCalculator {
     } else {
       b.writeln('📐 Equity $eqPct% · SPR ${spr.toStringAsFixed(1)} (${_sprLabel(spr)})');
     }
+    b.writeln(_factorLine(ctx, equity, realizedEq));
     b.writeln();
 
     // ── 4. RECOMENDACIÓN ────────────────────────────────────────────────────
@@ -499,6 +551,24 @@ class EquityCalculator {
     if (wetness > 0.55) return 'HÚMEDO';
     if (wetness < 0.35) return 'SECO';
     return 'TEXTURA MEDIA';
+  }
+
+  /// One-line summary of the postflop factors that shaped the recommendation.
+  static String _factorLine(
+      PostflopContext ctx, double equity, double realizedEq) {
+    final parts = <String>[
+      ctx.inPosition ? 'IP (en posición)' : 'OOP (fuera de posición)',
+      ctx.isMultiway ? 'MULTIWAY ${ctx.numActive} jug. (farol↓, valor↑)' : 'heads-up',
+      ctx.hasInitiative ? 'con iniciativa' : 'sin iniciativa',
+      PostflopContext.potTypeLabel(ctx.potType),
+      if (!ctx.read.isNeutral) 'rival ${ctx.read.label}',
+    ];
+    final realDelta = (realizedEq - equity) * 100;
+    final realNote = realDelta.abs() >= 3
+        ? ' · equity realizada ≈${(realizedEq * 100).toStringAsFixed(0)}% '
+            '(${realDelta >= 0 ? '+' : ''}${realDelta.toStringAsFixed(0)} pts por posición/multiway)'
+        : '';
+    return '🎯 ${parts.join(' · ')}$realNote';
   }
 
   /// Flop read: names the defining features from the actual cards and who the

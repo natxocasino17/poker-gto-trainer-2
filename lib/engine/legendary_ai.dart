@@ -5,6 +5,7 @@ import '../data/models/player_model.dart';
 import '../data/models/hand_log_model.dart';
 import '../core/utils/equity_calculator.dart';
 import '../core/utils/poker_concepts.dart';
+import '../core/utils/postflop_context.dart';
 import '../core/utils/preflop_charts.dart';
 
 class BotDecision {
@@ -692,6 +693,18 @@ class LegendaryBotEngine {
 
   static LegendProfile profileByName(String name) =>
       allSelectable.firstWhere((p) => p.name == name, orElse: () => _allLegends[0]);
+
+  /// Coarse villain read derived from a legend's style, so the GTO advisor can
+  /// exploit a known opponent the same way the bots exploit the human.
+  static VillainRead villainReadFor(LegendProfile p) {
+    if (p.stationCalling) {
+      return const VillainRead(foldToBet: 0.18, callingStation: true);
+    }
+    if (p.fitOrFold) {
+      return const VillainRead(foldToBet: 0.66, overFolds: true);
+    }
+    return VillainRead.neutral;
+  }
 
   /// When a bot busts it leaves the table; a fresh legend (not currently
   /// seated) takes the empty seat with a new stack.

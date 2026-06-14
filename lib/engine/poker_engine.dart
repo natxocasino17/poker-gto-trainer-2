@@ -7,6 +7,7 @@ import '../data/models/hand_log_model.dart';
 import '../core/utils/hand_evaluator.dart';
 import '../core/utils/equity_calculator.dart';
 import '../core/utils/poker_concepts.dart';
+import '../core/utils/postflop_context.dart';
 import '../core/utils/preflop_charts.dart';
 import 'legendary_ai.dart';
 import '../core/i18n/i18n.dart';
@@ -867,7 +868,57 @@ class PokerEngine extends ChangeNotifier {
       return _preflopGTOAdvice(human);
     }
 
-    // ── Postflop: dynamic equity-based calculation ────────────────────────────
+    // ── Postflop: factor-aware recommendation (same reads the bots use) ──────
+    final preflopRaises = _state.currentHandActions
+        .where((a) =>
+            a.street == 'preflop' &&
+            (a.type == ActionType.raise ||
+                a.type == ActionType.bet ||
+                (a.type == ActionType.allIn && a.amount > bigBlind)))
+        .length;
+
+    // Initiative: the last aggressor of the hand is the human.
+    String? lastAggressorId;
+    for (final a in _state.currentHandActions) {
+      final isRaise = a.type == ActionType.raise ||
+          a.type == ActionType.bet ||
+          (a.type == ActionType.allIn && a.amount > bigBlind);
+      if (isRaise) {
+        lastAggressorId = _state.players
+            .firstWhere((p) => p.name == a.playerName,
+                orElse: () => _state.players[0])
+            .id;
+      }
+    }
+    final hasInitiative = lastAggressorId == human.id;
+
+    // Position: postflop the button acts last (SB→BB→…→BTN).
+    const postflopOrder = {
+      TablePosition.sb: 0,
+      TablePosition.bb: 1,
+      TablePosition.utg: 2,
+      TablePosition.mp: 3,
+      TablePosition.co: 4,
+      TablePosition.btn: 5,
+    };
+    final myOrder = postflopOrder[human.position] ?? 0;
+    final inPosition = !_state.players.any((p) =>
+        !p.isFolded &&
+        p.id != human.id &&
+        (postflopOrder[p.position] ?? 0) > myOrder);
+
+    // Villain read: heads-up → exploit the single opponent's legend style.
+    var read = VillainRead.neutral;
+    if (_state.activeCount == 2) {
+      final villain = _state.players.firstWhere(
+          (p) => !p.isFolded && p.id != human.id,
+          orElse: () => _state.players[0]);
+      if (!villain.isHuman) {
+        read = LegendaryBotEngine.villainReadFor(
+            LegendaryBotEngine.profileByName(villain.legendName ?? ''));
+      }
+    }
+
     return EquityCalculator.recommend(
       heroCards: human.holeCards,
       communityCards: _state.communityCards,
@@ -875,6 +926,12 @@ class PokerEngine extends ChangeNotifier {
       potSize: _state.pot,
       numOpponents: max(1, _state.activeCount - 1),
       heroStack: human.stack,
+      position: human.position,
+      inPosition: inPosition,
+      hasInitiative: hasInitiative,
+      numActive: _state.activeCount,
+      preflopRaises: max(1, preflopRaises),
+      villainRead: read,
     );
   }
 
