@@ -1407,6 +1407,27 @@ class LegendaryBotEngine {
       return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
     }
 
+    // ── Facing an ALL-IN at a deep stack: NO loose hero-calls. A shove gives no
+    // implied odds and its range is strong/polarised, so a mediocre hand (Tx,
+    // third pair, ace-high) that only beats bluffs must FOLD unless it holds a
+    // genuinely strong made hand, a priced-in draw, or a real blocker that turns
+    // a decent made hand into a credible bluff-catcher. Calling stations exempt.
+    if (facingAllInPrice && !profile.stationCalling) {
+      final strongMade = analysis.bucket == HandBucket.nuts ||
+          analysis.bucket == HandBucket.strongValue;
+      final pricedDraw = !isRiver &&
+          (analysis.bucket == HandBucket.comboDraw ||
+              (analysis.hasStrongDraw &&
+                  analysis.drawEquity * eqReal >= potOdds));
+      // Bluff-catch a shove only with a real made hand AND a blocker to value.
+      final blockerCatch = analysis.bucket == HandBucket.mediumValue &&
+          blockers.goodBluffBlockers &&
+          equity >= potOdds;
+      if (!strongMade && !pricedDraw && !blockerCatch) {
+        return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+      }
+    }
+
     // Fit-or-fold: without at least medium value, the hand goes to the muck
     if (profile.fitOrFold &&
         !analysis.isMadeValue &&

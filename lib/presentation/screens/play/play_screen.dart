@@ -573,23 +573,45 @@ class _CenterDisplay extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (gs.mainPot > 0)
+        // Two pots, on purpose:
+        //  · "BOTE" = total pot (closed pot + all bets in front of players) →
+        //    the number you use for MDF and the full-pot reasoning.
+        //  · "ronda" = chips wagered in the CURRENT betting round → the part
+        //    that drives pot odds when you're facing a bet.
+        // The closed/center pot is simply BOTE − ronda.
+        if (gs.pot > 0)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
             margin: const EdgeInsets.only(bottom: 5),
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.5),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              transitionBuilder: (child, anim) =>
-                  FadeTransition(opacity: anim, child: child),
-              child: Text(
-                I18n.t('pot_lbl', {'v': gp.money(gs.mainPot)}),
-                key: ValueKey(gs.mainPot),
-                style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w800),
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  transitionBuilder: (child, anim) =>
+                      FadeTransition(opacity: anim, child: child),
+                  child: Text(
+                    I18n.t('pot_lbl', {'v': gp.money(gs.pot)}),
+                    key: ValueKey(gs.pot),
+                    style: const TextStyle(
+                        color: AppColors.gold,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800),
+                  ),
+                ),
+                if (gs.pot - gs.mainPot > 0.01)
+                  Text(
+                    'ronda ${gp.money(gs.pot - gs.mainPot)}',
+                    style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600),
+                  ),
+              ],
             ),
           ),
         Row(
