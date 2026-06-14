@@ -371,12 +371,17 @@ class LegendaryBotEngine {
       // only as frequency reads build — never shows the villain he's adjusting.
       readsOpponent: true,
     ),
-    // 11. Gus Hansen — Classic LAG: opens marginal hands from any seat,
-    // grinds solid ranges down with extreme postflop aggression.
+    // 11. Gus Hansen — "The Madman of High Stakes": hyper-aggressive,
+    // unpredictable, risk-loving. Plays the opponent's pressure, not his cards,
+    // forcing tough all-stack decisions every hand. "Rango infinito": plays junk
+    // nobody can range him on. "Apuesta de creación": any connection (or none)
+    // → he bets. "No te rindes": huge risk tolerance, rarely folds before
+    // showdown. Attacks passive players until they break.
     LegendProfile(
       name: 'Gus',
-      style: 'Classic Loose-Aggressive',
+      style: 'The Madman — Max-Variance LAG',
       emoji: '🔥',
+      avatarAsset: 'assets/avatars/gus.png',
       utgOpen: 0.49, mpOpen: 0.40, coOpen: 0.30, btnOpen: 0.20, sbOpen: 0.32, bbDefend: 0.18,
       threeBetThreshold: 0.62, fourBetThreshold: 0.78,
       cBetFreq: 0.82, doubleBarrelFreq: 0.68, tripleBarrelFreq: 0.52, checkRaiseFreq: 0.35,
@@ -385,7 +390,14 @@ class LegendaryBotEngine {
       riverOverbetThreshold: 0.68,
       openSizeBB: 2.6, threeBetBluffFreq: 0.20, bluffRaiseFreq: 0.20,
       probeBetFreq: 0.38, donkBetFreq: 0.16,
+      // "Explora la debilidad": hammers over-folders/passive players
       exploitsHighFolders: true,
+      // "Apuesta de creación" + enigmatic: chaotic sizing, conviction bluffs
+      freestyleAggressor: true,
+      // "Máxima varianza": jams draws, forces all-stack decisions
+      highVarianceDraws: true,
+      // "No te rindes": sticky, commits wide and rarely folds before showdown
+      stationCalling: true,
     ),
     // 12. Antonio Esfandiari — Pot Control Specialist: keeps pots small with
     // medium hands, extracts surgical thin value on rivers.
