@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/hand_export.dart';
 import '../../providers/game_provider.dart';
 import '../heatmap/range_heatmap_screen.dart';
+import '../progress/progress_screen.dart';
 import 'about_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -96,6 +97,16 @@ class SettingsScreen extends StatelessWidget {
                   context, 'Monto de rebuy (\$)', gp.rebuyAmount);
               if (v != null) gp.setRebuyAmount(v);
             },
+          ),
+
+          _section('PROGRESO'),
+          _valueTile(
+            title: 'Objetivos, racha y logros',
+            value: '',
+            icon: Icons.emoji_events_outlined,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ProgressScreen()),
+            ),
           ),
 
           _section('ESTUDIO'),

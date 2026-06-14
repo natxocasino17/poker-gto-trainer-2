@@ -7,6 +7,7 @@ import '../../engine/legendary_ai.dart';
 import '../../engine/poker_engine.dart';
 import '../../engine/ai_analyst.dart';
 import '../../core/utils/equity_calculator.dart';
+import '../../core/utils/progress_service.dart';
 import '../../core/i18n/i18n.dart';
 
 /// Session economy model:
@@ -187,6 +188,65 @@ class GameProvider extends ChangeNotifier {
 
   Future<void> markTutorialSeen() => _repo.saveTutorialSeen(true);
 
+  // ── Progreso: racha, objetivos diarios y logros ──
+  int get streakCount => _repo.getStreakCount();
+
+  ProgressFacts progressFacts() {
+    final archive = _repo.getSessionArchive();
+    final cur = _sessionActive ? sessionStats : null;
+    final lifetimeHands =
+        archive.fold<int>(0, (a, s) => a + s.hands) + _handHistory.length;
+    final sessionsPlayed =
+        archive.length + ((cur != null && cur.handsPlayed > 0) ? 1 : 0);
+    var totalProfit = archive.fold<double>(0, (a, s) => a + s.netProfit);
+    if (cur != null) totalProfit += cur.netProfit;
+    var bestProfit =
+        archive.fold<double>(0, (a, s) => s.netProfit > a ? s.netProfit : a);
+    if (cur != null && cur.netProfit > bestProfit) bestProfit = cur.netProfit;
+    final flawless = archive.any((s) => s.hands >= 5 && s.blunders == 0) ||
+        (cur != null && cur.handsPlayed >= 5 && cur.blunders == 0);
+    var bestScore =
+        archive.fold<double>(0, (a, s) => s.decisionScore > a ? s.decisionScore : a);
+    if (cur != null && cur.decisionScore > bestScore) {
+      bestScore = cur.decisionScore;
+    }
+    return ProgressFacts(
+      lifetimeHands: lifetimeHands,
+      sessionsPlayed: sessionsPlayed,
+      totalProfit: totalProfit,
+      bestSessionProfit: bestProfit,
+      bestDecisionScore: bestScore,
+      hadFlawlessSession: flawless,
+      streak: _repo.getStreakCount(),
+    );
+  }
+
+  List<DailyGoal> dailyGoals() {
+    final now = DateTime.now();
+    bool sameDay(DateTime d) =>
+        d.year == now.year && d.month == now.month && d.day == now.day;
+    final todays = _handHistory.where((h) => sameDay(h.timestamp)).toList();
+    var blunders = 0;
+    for (final h in todays) {
+      for (final s in h.streetAnalyses) {
+        if (s.quality == DecisionQuality.blunder) blunders++;
+      }
+    }
+    return ProgressService.daily(
+      todayHands: todays.length,
+      todayProfit: todays.fold<double>(0, (a, h) => a + h.humanProfit),
+      todayBlunders: blunders,
+    );
+  }
+
+  /// Currently unlocked achievement ids (persisted union — never re-lock).
+  Set<String> achievements() {
+    final unlocked = ProgressService.evaluate(progressFacts());
+    final merged = _repo.getAchievements().union(unlocked);
+    _repo.saveAchievements(merged);
+    return merged;
+  }
+
   /// The player decides when to sit down. Everyone — human included —
   /// enters with exactly $200, never more.
   Future<void> startSession() async {
@@ -196,6 +256,7 @@ class GameProvider extends ChangeNotifier {
     await _repo.resetSession();
     _handHistory = [];
     _statsCache = null;
+    await _repo.touchStreak(); // counts a play day for the streak
     _applyEngineSettings(); // blinds + difficulty in effect for this session
 
     _bankroll -= _startingStack;

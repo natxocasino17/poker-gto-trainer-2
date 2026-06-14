@@ -208,4 +208,34 @@ class GameRepository {
 
   bool getTrainerMode() => _prefs.getBool(_trainerModeKey) ?? false;
   Future<void> saveTrainerMode(bool v) => _prefs.setBool(_trainerModeKey, v);
+
+  // ── Daily streak + achievements ───────────────────────────────────────────
+  static const _streakCountKey = 'streak_count';
+  static const _streakLastKey = 'streak_last';
+  static const _achievementsKey = 'achievements_unlocked';
+
+  static String _dayStamp(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  int getStreakCount() => _prefs.getInt(_streakCountKey) ?? 0;
+
+  /// Registers activity for today and returns the resulting day-streak:
+  /// +1 if the last active day was yesterday, reset to 1 if there was a gap,
+  /// unchanged if already counted today.
+  Future<int> touchStreak() async {
+    final today = _dayStamp(DateTime.now());
+    final last = _prefs.getString(_streakLastKey);
+    if (last == today) return getStreakCount();
+    final yesterday = _dayStamp(DateTime.now().subtract(const Duration(days: 1)));
+    final count = (last == yesterday) ? getStreakCount() + 1 : 1;
+    await _prefs.setInt(_streakCountKey, count);
+    await _prefs.setString(_streakLastKey, today);
+    return count;
+  }
+
+  Set<String> getAchievements() =>
+      (_prefs.getStringList(_achievementsKey) ?? const []).toSet();
+
+  Future<void> saveAchievements(Set<String> ids) =>
+      _prefs.setStringList(_achievementsKey, ids.toList());
 }
