@@ -107,6 +107,12 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> addFreeBankroll([double amount = 1000.0]) async {
+    await _repo.addBankroll(amount);
+    _bankroll = _repo.getBankroll();
+    notifyListeners();
+  }
+
   Future<void> rebuyFromBankroll(double amount) async {
     await _repo.rebuy(amount);
     _engine.updateTableStack(amount);

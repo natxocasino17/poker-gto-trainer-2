@@ -87,6 +87,28 @@ class _Header extends StatelessWidget {
                 '\$${gp.bankroll.toStringAsFixed(2)}',
                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700),
               ),
+              const SizedBox(height: 4),
+              GestureDetector(
+                onTap: () => gp.addFreeBankroll(1000.0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.winning,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add, color: Colors.white, size: 12),
+                      SizedBox(width: 2),
+                      Text(
+                        '\$1000 FREE',
+                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
           const Spacer(),

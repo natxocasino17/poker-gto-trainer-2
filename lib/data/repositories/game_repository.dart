@@ -83,6 +83,10 @@ class GameRepository {
     await saveTableStack(newTableStack);
   }
 
+  Future<void> addBankroll(double amount) async {
+    await saveBankroll(getBankroll() + amount);
+  }
+
   Future<void> rebuy(double amount) async {
     final bankroll = getBankroll();
     if (amount > bankroll) return;
