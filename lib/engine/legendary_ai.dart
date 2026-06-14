@@ -295,12 +295,17 @@ class LegendaryBotEngine {
       // ramps exploitation only as frequency reads on a weak villain build up.
       readsOpponent: true,
     ),
-    // 8. Chris Moneymaker — Explosive Variance: wide preflop, jams
-    // combo draws on the flop to force variance.
+    // 8. Chris Moneymaker — "The Giant Killer": intuitive, fearless and
+    // unpredictable. Pros underestimate him and he uses it. "Fearless Poker":
+    // jams on a read without hesitation. "Factor Sorpresa": breaks solver logic
+    // with moves that rattle GTO players. "Hero Calls": senses intimidation and
+    // pays off bluffs with marginal hands. "Volatilidad positiva": double up or
+    // bust — never survives blindly. Instinct over math.
     LegendProfile(
       name: 'Chris',
-      style: 'Explosive High Variance',
+      style: 'The Giant Killer — Fearless Intuition',
       emoji: '💣',
+      avatarAsset: 'assets/avatars/chris.png',
       utgOpen: 0.56, mpOpen: 0.48, coOpen: 0.38, btnOpen: 0.28, sbOpen: 0.40, bbDefend: 0.25,
       threeBetThreshold: 0.66, fourBetThreshold: 0.80,
       cBetFreq: 0.76, doubleBarrelFreq: 0.60, tripleBarrelFreq: 0.44, checkRaiseFreq: 0.22,
@@ -309,14 +314,26 @@ class LegendaryBotEngine {
       riverOverbetThreshold: 0.65,
       threeBetBluffFreq: 0.12,
       probeBetFreq: 0.34, donkBetFreq: 0.14,
+      // "Fearless / volatilidad positiva": jams combo draws, doubles up, and
+      // hero-calls aggression without ducking the variance (see call logic).
+      highVarianceDraws: true,
+      // "Factor Sorpresa": unpredictable sizing & moves that break solver reads,
+      // attacks players who look weak or standard.
+      freestyleAggressor: true,
       highVarianceDraws: true,
     ),
-    // 9. Justin Bonomo — Computational Frequencies: strict equity-vs-range
-    // balancing.
+    // 9. Justin Bonomo — "The GTO Master": a surgeon of numbers playing pure
+    // mathematical frequencies, aiming for zero exploitable error.
+    // "Equilibrio total": bet & check ranges balanced so he can't be exploited.
+    // "La verdad en los datos": never deviates from theory even vs weak players
+    // (no exploit flags by design) unless the edge were astronomical.
+    // "EV-loss minimisation": prefers a solid small edge over a risky big pot.
+    // Emotionless, predictable-by-design wall of ice; impeccable on the river.
     LegendProfile(
       name: 'Justin',
-      style: 'Computational GTO',
+      style: 'The GTO Master — Wall of Ice',
       emoji: '📊',
+      avatarAsset: 'assets/avatars/justin.png',
       utgOpen: 0.67, mpOpen: 0.61, coOpen: 0.53, btnOpen: 0.44, sbOpen: 0.56, bbDefend: 0.41,
       threeBetThreshold: 0.69, fourBetThreshold: 0.85,
       cBetFreq: 0.70, doubleBarrelFreq: 0.57, tripleBarrelFreq: 0.42, checkRaiseFreq: 0.31,
@@ -324,6 +341,9 @@ class LegendaryBotEngine {
       preferredSizings: [0.33, 0.5, 0.75, 1.0],
       riverOverbetThreshold: 0.78,
       probeBetFreq: 0.26, donkBetFreq: 0.08,
+      // "EV-loss minimisation": disciplined draw odds, no speculative gambles.
+      // Intentionally carries NO exploit/read/variance flags — he never deviates.
+      impliedOddsWeight: 0.9,
     ),
     // 10. Stephen Chidwick — Blind Defense Elite: wide blind defense and
     // relentless technical check-raises.
@@ -1362,16 +1382,19 @@ class LegendaryBotEngine {
             equity >= potOdds - (inPosition ? 0.07 : 0.03)) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
-        // Hellmuth "White Magic": trusts the read over the math. vs an aggressive
-        // human he hero-calls lighter; but "Defensa del Stack" makes him fold
-        // marginal spots when an overbet threatens his survival.
-        if (profile.whiteMagicReader) {
+        // Read-driven hero-calls: trusting the read over the math. Hellmuth
+        // "White Magic" and Moneymaker's fearless intuition both pay off an
+        // aggressive villain lighter when they sense a bluff.
+        if (profile.whiteMagicReader || profile.highVarianceDraws) {
           if (human.aggressionFactor > 1.5 && human.confidence >= 0.30 && !isOverbet) {
             callThreshold -= 0.07; // reads the bluff, pays off
           }
-          if (isOverbet && !blockers.topCardBlocker) {
-            callThreshold += 0.08; // survival first: don't risk stack on a guess
-          }
+        }
+        // "Defensa del Stack": only Hellmuth ducks the variance, folding marginal
+        // overbets for survival. Fearless gamblers (Moneymaker) never do.
+        if (profile.whiteMagicReader && !profile.highVarianceDraws &&
+            isOverbet && !blockers.topCardBlocker) {
+          callThreshold += 0.08; // survival first: don't risk stack on a guess
         }
         if (equity >= callThreshold) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
