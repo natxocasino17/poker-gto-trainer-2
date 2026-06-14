@@ -183,7 +183,22 @@ class HandReviewerEngine {
           numOpponents: max(1, activePlayers - 1),
           heroStack: startStack,
         );
-        fullExplanation = rec.reasoning;
+        // The concise advisor reasoning (head + hand + math + reco) is the
+        // top; the hand-by-hand reviewer then APPENDS the deep, card-specific
+        // sections (expanded SPR plan, blockers and bluff spots that read the
+        // actual board/hand instead of repeating boilerplate).
+        final deep = _deepReview(
+          street: street,
+          hole: humanHole,
+          board: communityAtStreet,
+          pot: potAtStreet,
+          spr: spr,
+          heroStack: startStack,
+          texture: texture!,
+          analysis: analysis!,
+          blockers: blockers!,
+        );
+        fullExplanation = deep.isEmpty ? rec.reasoning : '${rec.reasoning}\n\n$deep';
         finalKey = '';
         finalParams = {};
       }
@@ -212,6 +227,329 @@ class HandReviewerEngine {
       case 'river': return community;
       default: return community;
     }
+  }
+
+  // ── Deep, card-specific review sections for the hand-by-hand analyzer ──────
+  // Appended below the concise advisor reasoning. Every line reads the real
+  // board / hole cards so the text varies hand to hand instead of repeating
+  // generic boilerplate.
+
+  String _deepReview({
+    required String street,
+    required List<CardModel> hole,
+    required List<CardModel> board,
+    required double pot,
+    required double spr,
+    required double heroStack,
+    required BoardTexture texture,
+    required HandStrengthAnalysis analysis,
+    required Blockers blockers,
+  }) {
+    final isRiver = board.length == 5;
+    final b = StringBuffer();
+
+    b.writeln('━━━ PLAN SPR ${spr.toStringAsFixed(1)} ━━━');
+    b.writeln(_sprPlan(spr, street, pot, heroStack, analysis, isRiver));
+
+    b.writeln();
+    b.writeln('━━━ BLOQUEADORES ━━━');
+    b.writeln(_blockerRead(hole, board, blockers));
+
+    if (!isRiver) {
+      b.writeln();
+      b.writeln('━━━ SPOTS DE BLUFF EN ESTE BOARD ━━━');
+      b.writeln(_bluffRead(hole, board, texture));
+    }
+    return b.toString().trim();
+  }
+
+  /// Expanded SPR plan: explains what the ratio means here, how many bets to
+  /// the all-in, recommended sizings, which hands to stack off, and the SPR
+  /// the chosen line sets up for the next street.
+  String _sprPlan(double spr, String street, double pot, double stack,
+      HandStrengthAnalysis a, bool isRiver) {
+    final b = StringBuffer();
+    final streetsLeft = isRiver ? 0 : (street == 'flop' ? 2 : 1);
+    final isStrong =
+        a.bucket == HandBucket.nuts || a.bucket == HandBucket.strongValue;
+    final isMed = a.bucket == HandBucket.mediumValue ||
+        a.bucket == HandBucket.weakShowdown;
+    final isDraw = a.bucket == HandBucket.comboDraw ||
+        a.bucket == HandBucket.strongDraw;
+
+    b.writeln('SPR = stack ÷ bote = ${stack.toStringAsFixed(0)} ÷ '
+        '${pot.toStringAsFixed(0)} = ${spr.toStringAsFixed(1)}. Mide tu '
+        'compromiso: cuanto más bajo, más casado estás con el bote.');
+
+    if (spr <= 1.5) {
+      b.writeln('MUY BAJO: estás prácticamente comprometido. Con top pair+ o un '
+          'draw de muchos outs el dinero entra sí o sí; foldear aquí regala el '
+          'bote. El precio que te dan ya justifica llegar al showdown.');
+      b.writeln('Plan: una apuesta más = all-in. Apuesta por valor/protección, '
+          'no para generar folds (apenas hay fold equity con stacks tan cortos).');
+    } else if (spr <= 3.0) {
+      b.writeln('BAJO: te comprometes con top pair buen kicker, overpairs, sets y '
+          'draws de 12+ outs. Quedan $streetsLeft calle(s): una c-bet de 50-66% '
+          'ya mete ~medio stack, así que el river es casi automático.');
+      if (isStrong) {
+        b.writeln('Tu mano entra de lleno en el rango de stack-off: construye el '
+            'bote sin miedo, busca meter las fichas en 2 movimientos.');
+      }
+      if (isDraw) {
+        b.writeln('Con tu draw, SPR bajo = semi-bluff/all-in ideal: equity + fold '
+            'equity hacen el push +EV.');
+      }
+      if (isMed) {
+        b.writeln('Con showdown medio, cuidado: a este SPR una guerra de apuestas '
+            'te compromete; valora check para controlar el bote.');
+      }
+    } else if (spr <= 6.0) {
+      b.writeln('MEDIO (estándar de cash): necesitas 2 apuestas para el all-in. '
+          'Plan típico: flop 33-50% → turn 60-75% → river jam. Reserva el '
+          'stack-off para two pair+, sets y draws que ligan.');
+      b.writeln('Top pair de kicker flojo NO quiere un bote de 3 apuestas: si solo '
+          'tienes showdown medio, controla el tamaño (check-call) en vez de inflar.');
+      if (isDraw && !isRiver) {
+        b.writeln('Con draw puedes barrelear 2 calles; si no ligas el river, decide '
+            'el farol según tus bloqueadores.');
+      }
+    } else if (spr <= 12.0) {
+      b.writeln('PROFUNDO: hacen falta las 3 calles para stackear. No te cases con '
+          'manos mediocres. Usa sizings menores (33-50%) en flop para no inflar el '
+          'bote con top pair.');
+      b.writeln('Apunta a stack-off SOLO con manos que aguantan 3 barrels: '
+          'overpairs altas, sets, two pair fuertes y nut draws. El resto → pot '
+          'control para llegar barato al showdown.');
+    } else {
+      b.writeln('MUY PROFUNDO (${spr.toStringAsFixed(0)}x): juego de implícitas y '
+          'posición. Solo metes todo con las nueces o casi. Sets y nut draws ganan '
+          'mucho por implícitas (puedes stackear a un rival con top pair). Con '
+          'showdown medio, bote pequeño.');
+    }
+
+    if (!isRiver) {
+      final projSpr = ((spr - 0.66) / 2.33).clamp(0.0, spr);
+      b.writeln('Si apuestas ~2/3 del bote y te pagan, el SPR de la próxima calle '
+          'cae a ~${projSpr.toStringAsFixed(1)}: decide YA el tamaño del river '
+          'antes de apostar, para no quedarte con un stack incómodo.');
+    }
+    return b.toString().trim();
+  }
+
+  /// Blocker read that NAMES the actual cards the hero holds and the combos
+  /// they remove on THIS board — or, when there are none, teaches which
+  /// blockers were missing here.
+  String _blockerRead(
+      List<CardModel> hole, List<CardModel> board, Blockers blk) {
+    final lines = <String>[];
+
+    final suitCount = <Suit, int>{};
+    for (final c in board) {
+      suitCount[c.suit] = (suitCount[c.suit] ?? 0) + 1;
+    }
+    Suit? flushSuit;
+    int flushSuitN = 0;
+    suitCount.forEach((s, n) {
+      if (n >= 2 && n > flushSuitN) {
+        flushSuit = s;
+        flushSuitN = n;
+      }
+    });
+    final flushSym = flushSuit == null
+        ? ''
+        : board.firstWhere((c) => c.suit == flushSuit).suitSymbol;
+
+    if (blk.nutFlushBlocker) {
+      final ace = hole.firstWhere(
+          (c) => c.rank == 14 && c.suit == flushSuit,
+          orElse: () => hole.first);
+      lines.add('$ace → bloqueas el COLOR DE NUECES ($flushSym): el rival no '
+          'puede tener el nut flush, así que sus colores fuertes para pagar caen '
+          'en picado. Carta ideal para farolear representando ese color.');
+    } else if (flushSuit != null && flushSuitN >= 3) {
+      final mine = hole.where((c) => c.suit == flushSuit).toList();
+      if (mine.isNotEmpty) {
+        lines.add('${mine.first} → bloqueas ALGÚN color rival, pero no el de '
+            'nueces. Vale para value medio, no como bloqueador de farol top.');
+      } else {
+        lines.add('No tienes cartas de $flushSym → NO bloqueas el color en un '
+            'board de 3 del palo. Farolear aquí es caro: el rival paga con '
+            'cualquier color hecho.');
+      }
+    }
+
+    if (blk.straightBlocker) {
+      final sc = _straightBlockerCard(hole, board);
+      lines.add('${sc ?? 'una carta clave'} → bloqueas la ESCALERA principal: '
+          'reduces los combos de valor que te pagarían, lo que mejora la '
+          'rentabilidad de un farol.');
+    }
+
+    if (blk.topCardBlocker) {
+      final top = board.map((c) => c.rank).reduce(max);
+      final tc = hole.firstWhere((c) => c.rank == top, orElse: () => hole.first);
+      lines.add('$tc → emparejas el tope del board: el rival tiene menos top pair '
+          'fuerte. Bueno para value betting fino y reduce su rango de continuación.');
+    }
+
+    if (blk.hasAce && !blk.nutFlushBlocker) {
+      final ace = hole.firstWhere((c) => c.rank == 14, orElse: () => hole.first);
+      lines.add('$ace → bloqueas parte de los AX de valor del rival (AA y top '
+          'pairs con As). Útil sobre todo en boards con As o para representar el '
+          'As tú mismo.');
+    }
+
+    if (lines.isEmpty) {
+      final b = StringBuffer();
+      b.writeln('Tu mano NO aporta bloqueadores relevantes en este board, así que '
+          'tus faroles son más caros: cuando apuestas/subes en farol, el rival '
+          'tiene el rango entero para pagarte.');
+      final ideal = <String>[];
+      if (flushSuit != null && flushSuitN >= 2) {
+        ideal.add('el A$flushSym (bloquea el color)');
+      }
+      final sb = _wouldBlockStraightRank(board);
+      if (sb != null) ideal.add('un $sb (bloquea la escalera)');
+      if (ideal.isNotEmpty) {
+        b.writeln('Aquí los buenos bloqueadores serían ${ideal.join(' o ')}. Sin '
+            'ellos, apuesta por valor o semi-bluffs con outs reales, no faroles '
+            'puros.');
+      }
+      return b.toString().trim();
+    }
+    return lines.map((l) => '· $l').join('\n');
+  }
+
+  /// Bluff/representation read driven by the real board texture: names the
+  /// hands you can credibly represent and the best scare cards to keep barreling.
+  String _bluffRead(
+      List<CardModel> hole, List<CardModel> board, BoardTexture t) {
+    final b = StringBuffer();
+    final ra = RangeModel.aggressorRangeAdvantage(t);
+
+    if (t.wetness < 0.35) {
+      b.writeln('Board SECO: tu rango de farol respira. El rival liga pocas veces, '
+          'así que c-bets y barrels a alta frecuencia (≈55-65% en flop) rinden '
+          'mucho${ra > 0.10 ? ', y como agresor tienes ventaja de rango para farolear amplio' : ''}.');
+    } else if (t.wetness > 0.60) {
+      b.writeln('Board HÚMEDO y coordinado: el rango del rival conecta a menudo. '
+          'Farolea SELECTIVO y con respaldo (outs); los faroles puros se pagan, '
+          'así que prioriza semi-bluffs y baja el tamaño de tus faroles.');
+    } else {
+      b.writeln('Textura MEDIA: faroles selectivos. Apóyate en posición, '
+          'iniciativa y bloqueadores para elegir tus mejores combos.');
+    }
+
+    final suitCount = <Suit, int>{};
+    for (final c in board) {
+      suitCount[c.suit] = (suitCount[c.suit] ?? 0) + 1;
+    }
+    Suit? fsuit;
+    int fn = 0;
+    suitCount.forEach((s, n) {
+      if (n >= 2 && n > fn) {
+        fsuit = s;
+        fn = n;
+      }
+    });
+    final fsym =
+        fsuit == null ? '' : board.firstWhere((c) => c.suit == fsuit).suitSymbol;
+
+    final reps = <String>[];
+    if (t.paired) {
+      reps.add('TRIPS/FULL: el par de ${_pairedRankSym(board)} en la mesa hace '
+          'creíble que tengas el trío. Polariza: apuestas grandes representan el '
+          'full y el rival foldea pares sueltos.');
+    }
+    if (t.monotone) {
+      final hasSuit = hole.any((c) => c.suit == fsuit);
+      reps.add('COLOR: con 3 $fsym en el board, representar el color es potente'
+          '${hasSuit ? ' y tú tienes una carta de $fsym que lo refuerza' : ', pero NO tienes carta de $fsym, así que el farol es más arriesgado'}.');
+    } else if (t.twoTone) {
+      reps.add('PROYECTO DE COLOR ($fsym): puedes barrelear los turns que '
+          'completan el palo como si lo hubieras ligado — el rival te cree.');
+    }
+    if (t.aceHigh) {
+      reps.add('AX: en board con As, como abridor preflop tienes muchos AX '
+          'creíbles; representa el As y el rival suelta sus pares medios.');
+    } else if (t.broadwayHeavy) {
+      reps.add('BROADWAYS: board de figuras → representa AK/AQ/KQ; tus barrels en '
+          'cartas altas son creíbles.');
+    }
+    if (t.connected && !t.monotone) {
+      reps.add('ESCALERAS: board conectado → el check-raise como farol con tus '
+          'draws (semi-bluff) ejerce máxima presión.');
+    }
+    if (t.low && ra < -0.10) {
+      reps.add('OJO: board bajo favorece al defensor (BB). Su rango de calls '
+          'conecta bien aquí; farolea menos y elige bien los runouts.');
+    }
+
+    for (final r in reps) {
+      b.writeln('· $r');
+    }
+
+    if (board.length < 5) {
+      final scare = <String>[];
+      if (t.twoTone && fsym.isNotEmpty) scare.add('un 3.º $fsym (completa color)');
+      final top = board.map((c) => c.rank).reduce(max);
+      if (top < 14) {
+        scare.add('un As (sobrecarta que representas mejor que el rival)');
+      }
+      if (!t.connected) {
+        scare.add('cartas altas/conectoras que mejoran tu rango percibido');
+      }
+      if (scare.isNotEmpty) {
+        b.writeln('Mejores cartas para seguir farolando en la próxima calle: '
+            '${scare.join(', ')}.');
+      }
+    }
+    return b.toString().trim();
+  }
+
+  /// Hero hole card that blocks the made straight on this board, or null.
+  CardModel? _straightBlockerCard(List<CardModel> hole, List<CardModel> board) {
+    final boardRanks = board.map((c) => c.rank).toSet();
+    for (final h in hole) {
+      if (boardRanks.contains(h.rank)) continue;
+      for (int low = 1; low <= 10; low++) {
+        final window = List.generate(5, (i) => low + i);
+        final boardIn = window.where(boardRanks.contains).length;
+        final hr = (h.rank == 14 && low == 1) ? 1 : h.rank;
+        if (boardIn >= 3 && window.contains(hr)) return h;
+      }
+    }
+    return null;
+  }
+
+  /// Symbol of a rank that would block the most-likely straight on this board.
+  String? _wouldBlockStraightRank(List<CardModel> board) {
+    final boardRanks = board.map((c) => c.rank).toSet();
+    for (int low = 1; low <= 10; low++) {
+      final window = List.generate(5, (i) => low + i);
+      final boardIn = window.where(boardRanks.contains).length;
+      if (boardIn >= 3) {
+        final missing =
+            window.where((r) => !boardRanks.contains(r) && r >= 2 && r <= 14).toList();
+        if (missing.isNotEmpty) {
+          final r = missing.reduce(max);
+          return CardModel(rank: r, suit: Suit.spades).rankSymbol;
+        }
+      }
+    }
+    return null;
+  }
+
+  String _pairedRankSym(List<CardModel> board) {
+    final counts = <int, int>{};
+    for (final c in board) {
+      counts[c.rank] = (counts[c.rank] ?? 0) + 1;
+    }
+    int pr = board.first.rank;
+    counts.forEach((r, n) {
+      if (n >= 2) pr = r;
+    });
+    return CardModel(rank: pr, suit: Suit.spades).rankSymbol;
   }
 
   /// Quality evaluation with full context: a good fold is always a good
