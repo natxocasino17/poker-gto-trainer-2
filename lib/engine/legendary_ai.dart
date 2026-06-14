@@ -747,6 +747,7 @@ class LegendaryBotEngine {
     required int raiseCount,
     required int callersThisStreet,
     required double bigBlind,
+    TablePosition? openerPosition,
     bool inPosition = false,
     bool villainCheckedBack = false,
     List<CardModel> prevBoard = const [],
@@ -769,6 +770,7 @@ class LegendaryBotEngine {
         raiseCount: raiseCount,
         callers: callersThisStreet,
         bb: bigBlind,
+        openerPosition: openerPosition,
       );
     } else {
       final equity = EquityCalculator.calculate(
@@ -818,6 +820,7 @@ class LegendaryBotEngine {
     required int raiseCount,
     required int callers,
     required double bb,
+    TablePosition? openerPosition,
   }) {
     final code = PreflopCharts.handCode(hole);
     final rfiPlan = PreflopCharts.rfi(position, code);
@@ -942,6 +945,8 @@ class LegendaryBotEngine {
     // ───── Facing an open raise: defense chart ─────
     if (raiseCount == 1) {
       final isSqueezeSpot = callers > 0;
+      // Opener-position awareness: tighten vs early opens, widen vs late/blind.
+      final openerTight = _openerTightness(openerPosition);
       switch (defensePlan) {
         case DefenseAction.threeBetFiveBet:
           final mult = (inPosition ? 3.0 : 3.8) + callers * 1.0;
@@ -955,14 +960,18 @@ class LegendaryBotEngine {
           return BotDecision(
             type: ActionType.raise, amount: clampTo(currentBet * mult), thinkMs: 0);
         case DefenseAction.threeBetFold:
-          // Polar bluff 3-bet at the profile's light 3-bet frequency
-          if (rand < profile.threeBetBluffFreq * 2.2 && !profile.stationCalling) {
+          // Polar bluff 3-bet at the profile's light 3-bet frequency, fired less
+          // vs early openers (stronger continuing range), more vs late opens.
+          final bluffFreq =
+              (profile.threeBetBluffFreq * 2.2 * (1 - openerTight * 3.0))
+                  .clamp(0.0, 1.0);
+          if (rand < bluffFreq && !profile.stationCalling) {
             final mult = (inPosition ? 3.0 : 4.0) + callers * 1.0;
             return BotDecision(
               type: ActionType.raise, amount: clampTo(currentBet * mult), thinkMs: 0);
           }
           // Otherwise these hands play fine as calls when cheap
-          if (callAmount <= 3 * bb && strength >= potOdds + 0.12) {
+          if (callAmount <= 3 * bb && strength >= potOdds + 0.12 + openerTight) {
             return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
           }
           return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
@@ -973,11 +982,18 @@ class LegendaryBotEngine {
               stack / max(callAmount, bb) < 12 / profile.impliedOddsWeight) {
             return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
           }
+          // vs an early-position opener the weakest non-pair flats are folds
+          // (their range dominates ours); vs late opens we keep flatting.
+          if (openerTight >= 0.07 && !isPocketPair &&
+              strength < potOdds + 0.10 + openerTight && rand < 0.6) {
+            return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
+          }
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         case DefenseAction.fold:
-          // Loose drift: stations and LAGs peel a bit wider
-          if ((profile.stationCalling || looseness > 0.10) &&
-              callAmount <= 3 * bb && strength >= potOdds + 0.15 &&
+          // Loose drift: stations and LAGs peel wider — and everyone defends a
+          // bit wider vs a late/blind opener (openerTight negative).
+          if ((profile.stationCalling || looseness > 0.10 || openerTight < -0.04) &&
+              callAmount <= 3 * bb && strength >= potOdds + 0.15 + openerTight &&
               rand < 0.5) {
             return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
           }
@@ -1751,6 +1767,23 @@ class LegendaryBotEngine {
       case TablePosition.btn: return p.btnOpen;
       case TablePosition.sb: return p.sbOpen;
       case TablePosition.bb: return p.bbDefend;
+    }
+  }
+
+  /// Range-strength offset for defending vs an opener in a given seat.
+  /// Positive = the opener's range is stronger → defend tighter (need more
+  /// strength, bluff-3bet less). Negative = wide opener → defend wider.
+  /// This is what makes BB-vs-UTG play tight while BB-vs-BTN plays loose.
+  static double _openerTightness(TablePosition? opener) {
+    switch (opener) {
+      case TablePosition.utg: return 0.10;
+      case TablePosition.mp: return 0.07;
+      case TablePosition.co: return 0.02;
+      case TablePosition.btn: return -0.04;
+      case TablePosition.sb: return -0.08;
+      case TablePosition.bb:
+      case null:
+        return 0.0;
     }
   }
 

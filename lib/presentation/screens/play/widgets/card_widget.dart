@@ -58,7 +58,7 @@ class CardWidget extends StatelessWidget {
       style: TextStyle(
         color: ink,
         fontSize: width * 0.36,
-        fontWeight: FontWeight.w900,
+        fontWeight: FontWeight.w600,
         height: 1.0,
       ),
     );

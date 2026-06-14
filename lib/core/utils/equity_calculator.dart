@@ -73,6 +73,41 @@ class EquityCalculator {
       if (handPool!.isEmpty) handPool = null; // fallback to random
     }
 
+    // ── EXACT RIVER EQUITY (board complete) vs a single opponent ──────────────
+    // With no cards to come, equity is not a simulation — it is the exact
+    // fraction of the villain's remaining combos that hero beats. Enumerate
+    // every combo (within range) the way real solvers (GTO Wizard) do, so the
+    // river number is precise and noise-free instead of Monte-Carlo jittered.
+    if (boardNeeded == 0 && numOpponents == 1) {
+      final heroScore =
+          HandEvaluator.evaluateBest([...heroCards, ...communityCards]);
+      int w = 0, t = 0, n = 0;
+      void tally(CardModel a, CardModel b) {
+        final opScore = HandEvaluator.evaluateBest([a, b, ...communityCards]);
+        final cmp = heroScore.compareTo(opScore);
+        if (cmp > 0) {
+          w++;
+        } else if (cmp == 0) {
+          t++;
+        }
+        n++;
+      }
+
+      if (handPool != null) {
+        for (final h in handPool) {
+          tally(h[0], h[1]);
+        }
+      } else {
+        for (int i = 0; i < deck.length - 1; i++) {
+          for (int j = i + 1; j < deck.length; j++) {
+            tally(deck[i], deck[j]);
+          }
+        }
+      }
+      if (n == 0) return 0.5;
+      return (w + t * 0.5) / n;
+    }
+
     for (int sim = 0; sim < simulations; sim++) {
       deck.shuffle(rng);
       int idx = 0;

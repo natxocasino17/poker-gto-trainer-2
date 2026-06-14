@@ -404,6 +404,22 @@ class PokerEngine extends ChangeNotifier {
             ? _state.communityCards.sublist(0, 4)
             : <CardModel>[];
 
+    // ── PREFLOP OPENER: the first player to open-raise this hand. Defending
+    // ranges depend heavily on WHO opened (tight vs UTG, wide vs BTN/blinds).
+    TablePosition? openerPosition;
+    for (final a in _state.currentHandActions
+        .where((a) => a.street == 'preflop')) {
+      final isRaise = a.type == ActionType.raise ||
+          (a.type == ActionType.allIn && a.amount > bigBlind);
+      if (isRaise) {
+        openerPosition = _state.players
+            .firstWhere((p) => p.name == a.playerName,
+                orElse: () => _state.players[0])
+            .position;
+        break;
+      }
+    }
+
     BotDecision decision;
     try {
       decision = await LegendaryBotEngine.decide(
@@ -425,6 +441,7 @@ class PokerEngine extends ChangeNotifier {
         raiseCount: raiseCount,
         callersThisStreet: callersThisStreet,
         bigBlind: bigBlind,
+        openerPosition: openerPosition,
         villainCheckedBack: villainCheckedBack,
         prevBoard: prevBoard,
       );
