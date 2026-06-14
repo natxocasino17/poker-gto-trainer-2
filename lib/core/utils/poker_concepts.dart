@@ -64,28 +64,49 @@ class BoardTexture {
     final paired = ranks.toSet().length < ranks.length;
     final highest = ranks.last;
 
-    // Connectivity: any 3 distinct ranks inside a 4-rank window
+    // Connectivity measured over every 5-rank straight window, ace counted
+    // both high (14) and low (1) so wheel draws register.
     final unique = ranks.toSet().toList()..sort();
-    bool connected = false;
-    for (int i = 0; i + 2 < unique.length; i++) {
-      if (unique[i + 2] - unique[i] <= 4) connected = true;
+    final wheelRanks = <int>{...unique, if (unique.contains(14)) 1};
+    final sortedWheel = wheelRanks.toList()..sort();
+
+    //   threeRun = 3+ board ranks share a 5-window → heavy straight coverage.
+    //   twoRun   = at least one pair of ranks within 2 of each other (a single
+    //              pair of connectors / one-gappers, e.g. JT or J9). This is the
+    //              case the old "3 cards in a window" test missed, which is why
+    //              most boards were mislabelled dry.
+    bool threeRun = false;
+    for (int low = 1; low <= 10; low++) {
+      final inWindow = sortedWheel.where((r) => r >= low && r <= low + 4).length;
+      if (inWindow >= 3) threeRun = true;
     }
-    // Wheel-style connectivity with the ace
-    if (unique.contains(14)) {
-      final wheel = unique.map((r) => r == 14 ? 1 : r).toList()..sort();
-      for (int i = 0; i + 2 < wheel.length; i++) {
-        if (wheel[i + 2] - wheel[i] <= 4) connected = true;
-      }
+    bool twoRun = false;
+    for (int i = 0; i + 1 < sortedWheel.length; i++) {
+      if (sortedWheel[i + 1] - sortedWheel[i] <= 2) twoRun = true;
     }
+    // `connected` keeps its public meaning: a true 3-card straight texture.
+    final connected = threeRun;
 
     final broadwayCount = ranks.where((r) => r >= 10).length;
+    final allLow = ranks.every((r) => r <= 9);
 
+    // Wetness 0..1 — how many draws the board makes live. Recalibrated so a
+    // flush draw, a 3-straight run, OR even a single pair of connectors each
+    // move the needle. Genuinely dry boards (high rainbow disconnected, or a
+    // paired board with no connectors) are the only ones that stay near 0.
     double wetness = 0.0;
-    if (monotone) wetness += 0.40;
-    if (twoTone) wetness += 0.22;
-    if (connected) wetness += 0.30;
-    if (paired) wetness -= 0.12;
-    if (ranks.every((r) => r <= 9)) wetness += 0.12;
+    if (monotone) {
+      wetness += 0.50; // flush already possible
+    } else if (twoTone) {
+      wetness += 0.26; // flush draw live
+    }
+    if (threeRun) {
+      wetness += 0.40; // tons of straight draws
+    } else if (twoRun) {
+      wetness += 0.20; // some straight draws
+    }
+    if (paired) wetness -= 0.15; // a board pair removes draw combos
+    if (allLow && (twoRun || threeRun)) wetness += 0.05; // low+sticky
     wetness = wetness.clamp(0.0, 1.0).toDouble();
 
     return BoardTexture(
