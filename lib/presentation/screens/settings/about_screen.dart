@@ -8,11 +8,12 @@ import '../../widgets/zeros_avatar.dart';
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
-  // TODO(owner): replace with the real values you send me.
   static const String appName = 'EL PUXI · GTO Poker Trainer';
-  static const String version = '1.0';
-  static const String author = 'natxocasino17';
-  static const String contact = '';
+  // Injected by CI at build time (flutter build --dart-define=APP_VERSION=...).
+  static const String version =
+      String.fromEnvironment('APP_VERSION', defaultValue: '1.0');
+  static const String author = 'nakasino77';
+  static const String contact = 'icardsscompany@gmail.com';
   static const List<(String, String)> links = [];
 
   @override
