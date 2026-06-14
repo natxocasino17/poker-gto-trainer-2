@@ -11,6 +11,8 @@ import 'widgets/card_widget.dart';
 import 'widgets/player_seat_widget.dart';
 import 'widgets/action_buttons_widget.dart';
 import 'widgets/gto_advisor_widget.dart';
+import 'widgets/trainer_feedback_banner.dart';
+import 'widgets/puxi_tutorial_overlay.dart';
 import '../simulator/simulator_screen.dart';
 import '../puxi/puxi_chat_screen.dart';
 import '../../../core/i18n/i18n.dart';
@@ -39,32 +41,47 @@ class PlayScreen extends StatelessWidget {
     }
 
     // The session is opened and closed by the player, whenever they want.
-    if (!gp.sessionActive) {
-      return _LobbyView(gp: gp);
-    }
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              _Header(gp: gp),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (ctx, constraints) => _PokerTable(
-                    width: constraints.maxWidth,
-                    height: constraints.maxHeight,
-                    gp: gp,
-                  ),
+    final Widget content = !gp.sessionActive
+        ? _LobbyView(gp: gp)
+        : Scaffold(
+            backgroundColor: AppColors.background,
+            body: Stack(
+              children: [
+                Column(
+                  children: [
+                    _Header(gp: gp),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (ctx, constraints) => _PokerTable(
+                          width: constraints.maxWidth,
+                          height: constraints.maxHeight,
+                          gp: gp,
+                        ),
+                      ),
+                    ),
+                    _BottomPanel(gp: gp),
+                  ],
                 ),
-              ),
-              _BottomPanel(gp: gp),
-            ],
-          ),
-          if (gp.showGTOOverlay) const GTOAdvisorOverlay(),
-        ],
-      ),
+                if (gp.trainerFeedback != null)
+                  TrainerFeedbackBanner(
+                    feedback: gp.trainerFeedback!,
+                    onDismiss: gp.dismissTrainerFeedback,
+                  ),
+                if (gp.showGTOOverlay) const GTOAdvisorOverlay(),
+              ],
+            ),
+          );
+
+    // First-launch tutorial by EL PUXI (skippable) overlays everything.
+    if (gp.tutorialSeen) return content;
+    return Stack(
+      textDirection: TextDirection.ltr,
+      children: [
+        Positioned.fill(child: content),
+        Positioned.fill(
+          child: PuxiTutorialOverlay(onDone: gp.completeTutorial),
+        ),
+      ],
     );
   }
 }

@@ -8,6 +8,7 @@ import '../../engine/poker_engine.dart';
 import '../../engine/ai_analyst.dart';
 import '../../core/utils/equity_calculator.dart';
 import '../../core/utils/progress_service.dart';
+import '../../core/utils/trainer_feedback.dart';
 import '../../core/i18n/i18n.dart';
 
 /// Session economy model:
@@ -349,8 +350,29 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  TrainerFeedback? _trainerFeedback;
+  TrainerFeedback? get trainerFeedback => _trainerFeedback;
+  void dismissTrainerFeedback() {
+    _trainerFeedback = null;
+    notifyListeners();
+  }
+
   void humanAction(ActionType type, double amount) {
-    _engine?.humanAction(type, amount);
+    final engine = _engine;
+    if (engine == null) return;
+    // Trainer mode: grade the decision against GTO BEFORE applying it (so the
+    // recommendation reflects the spot at decision time).
+    if (_trainerMode && engine.state.awaitingHumanAction) {
+      _trainerFeedback = TrainerGrader.grade(type, amount, engine.getGTOAdvice());
+    } else {
+      _trainerFeedback = null;
+    }
+    engine.humanAction(type, amount);
+  }
+
+  Future<void> completeTutorial() async {
+    await _repo.saveTutorialSeen(true);
+    notifyListeners();
   }
 
   void requestGTOAdvice() {
