@@ -171,20 +171,34 @@ class LegendaryBotEngine {
       // GTO-first: polarized overbets, no pot control
       polarizedBetting: true,
     ),
-    // 3. Daniel Negreanu — Small Ball Trapper: 2x opens, high check-call
-    // to induce bluffs, slowplays monsters.
+    // 3. Daniel Negreanu — "Kid Poker / The Hybrid": Small Ball strategist.
+    // Keeps pots small pre-flop (2x opens) to reach post-flop, where his edge
+    // lives. "The Talker": reads opponents through bet-sizing. "Adaptabilidad
+    // Híbrida": GTO base adjusted to the villain — lets aggressive players
+    // bluff and traps them. Pot control with medium hands; positional, friendly
+    // but lethal.
     LegendProfile(
       name: 'Daniel',
-      style: 'Small Ball Trapper',
+      style: 'Small Ball Hybrid — Kid Poker',
       emoji: '🎯',
+      avatarAsset: 'assets/avatars/daniel.png',
+      // Small Ball: tight-ish, loosens in position (BTN), controlled pots OOP
       utgOpen: 0.60, mpOpen: 0.53, coOpen: 0.44, btnOpen: 0.34, sbOpen: 0.46, bbDefend: 0.32,
       threeBetThreshold: 0.76, fourBetThreshold: 0.90,
       cBetFreq: 0.55, doubleBarrelFreq: 0.40, tripleBarrelFreq: 0.28, checkRaiseFreq: 0.22,
+      // Friendly but lethal: low bluff volume, heavy slowplay to trap
       bluffFreq: 0.18, slowplayFreq: 0.45,
+      // Small Ball sizing: small controlled bets, big only with the nuts
       preferredSizings: [0.25, 0.33, 0.5],
       riverOverbetThreshold: 0.90,
       openSizeBB: 2.0, floatFreq: 0.28, blockerBetFreq: 0.20,
       probeBetFreq: 0.28, donkBetFreq: 0.14,
+      // "Pot Control" + "Adaptabilidad Híbrida": controlled sizing, level-based
+      // value/bluff adjustment to the villain (station/over-folder/aggressor).
+      potControl: true,
+      // "The Talker": bet-sizing reads → traps aggressive players, induces
+      // bluffs with strong hands, ramps exploitation as confidence builds.
+      readsOpponent: true,
     ),
     // 4. Phil Hellmuth — The Poker Brat / White Magic: legendary patience,
     // small-ball survival, hero-calls on reads over GTO, pure-value raises.
