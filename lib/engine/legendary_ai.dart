@@ -239,27 +239,49 @@ class LegendaryBotEngine {
       probeBetFreq: 0.42, donkBetFreq: 0.18,
       polarizedBetting: true,
     ),
-    // 6. Doyle Brunson — Old School Aggressive: heavy implied-odds weighting
-    // on draws, ramps pressure when villain hesitates.
+    // 6. Doyle Brunson — "The Godfather of Poker": fearless old-school
+    // aggression built on willpower & psychological dominance, not math.
+    // "Jugar al jugador": attacks any sign of weakness. "Dominancia del bote":
+    // keeps the initiative and bets constantly so villains never know value
+    // from bluff. "Factor 10-2": intimidation plays with marginal hands; never
+    // fears variance for a massive pot. Decades of experience → folds when a
+    // villain shows undeniable strength.
     LegendProfile(
       name: 'Doyle',
-      style: 'Old School Aggressive',
+      style: 'The Godfather — Old School Aggression',
       emoji: '🤠',
+      avatarAsset: 'assets/avatars/doyle.png',
       utgOpen: 0.58, mpOpen: 0.50, coOpen: 0.41, btnOpen: 0.31, sbOpen: 0.43, bbDefend: 0.28,
       threeBetThreshold: 0.70, fourBetThreshold: 0.86,
-      cBetFreq: 0.70, doubleBarrelFreq: 0.56, tripleBarrelFreq: 0.40, checkRaiseFreq: 0.25,
-      bluffFreq: 0.30, slowplayFreq: 0.22,
+      // "Dominancia del bote": relentless betting across streets
+      cBetFreq: 0.78, doubleBarrelFreq: 0.62, tripleBarrelFreq: 0.44, checkRaiseFreq: 0.25,
+      bluffFreq: 0.38, slowplayFreq: 0.18,
+      // Old-school sizing: bets everything, no modern polarization
       preferredSizings: [0.5, 0.75, 1.0, 1.25],
       riverOverbetThreshold: 0.80,
       openSizeBB: 2.5, impliedOddsWeight: 1.5,
-      probeBetFreq: 0.28, donkBetFreq: 0.12,
+      probeBetFreq: 0.34, donkBetFreq: 0.12,
+      // "Castiga pasivos / nunca cartas gratis": barrels vs over-folders
+      exploitsHighFolders: true,
+      // "Factor 10-2 / jugar al jugador": attacks weakness, conviction bluffs,
+      // unpredictable sizing so villains can't read value vs bluff
+      freestyleAggressor: true,
+      // "La fortuna favorece a los audaces": fearless with draws/marginal hands
+      highVarianceDraws: true,
+      // "Dominancia del bote": sizes up to keep the pressure on
+      stackPressure: true,
     ),
-    // 7. Fedor Holz — GTO Strict: perfectly balanced solver trees,
-    // standardized sizings.
+    // 7. Fedor Holz — "The High Roller Phenom": cutting-edge GTO base + total
+    // mental control (zen, never tilts). Maximises EV over results.
+    // "Adaptabilidad GTO": balanced & unexploitable vs strong pros, deviates to
+    // punish weak players. "Precisión quirúrgica": every bet has a purpose, no
+    // bluffs "porque sí". "Gestión de la información": reads sizing/frequencies
+    // as data. Deep-stack specialist who minimises variance in unknown spots.
     LegendProfile(
       name: 'Fedor',
-      style: 'GTO Strict',
+      style: 'GTO Phenom — Surgical Optimizer',
       emoji: '🤖',
+      avatarAsset: 'assets/avatars/fedor.png',
       utgOpen: 0.66, mpOpen: 0.60, coOpen: 0.52, btnOpen: 0.43, sbOpen: 0.55, bbDefend: 0.40,
       threeBetThreshold: 0.70, fourBetThreshold: 0.86,
       cBetFreq: 0.68, doubleBarrelFreq: 0.55, tripleBarrelFreq: 0.40, checkRaiseFreq: 0.30,
@@ -267,6 +289,11 @@ class LegendaryBotEngine {
       preferredSizings: [0.33, 0.5, 0.75, 1.0],
       riverOverbetThreshold: 0.80,
       probeBetFreq: 0.26, donkBetFreq: 0.08,
+      // "Minimiza la varianza": disciplined draw calls, no speculative gambles
+      impliedOddsWeight: 0.9,
+      // "Adaptabilidad GTO" + "sizing as data": plays solid GTO vs strong reads,
+      // ramps exploitation only as frequency reads on a weak villain build up.
+      readsOpponent: true,
     ),
     // 8. Chris Moneymaker — Explosive Variance: wide preflop, jams
     // combo draws on the flop to force variance.
