@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/hand_export.dart';
 import '../../providers/game_provider.dart';
+import '../heatmap/range_heatmap_screen.dart';
 import 'about_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -95,6 +96,16 @@ class SettingsScreen extends StatelessWidget {
                   context, 'Monto de rebuy (\$)', gp.rebuyAmount);
               if (v != null) gp.setRebuyAmount(v);
             },
+          ),
+
+          _section('ESTUDIO'),
+          _valueTile(
+            title: 'Rangos GTO (heatmap RFI)',
+            value: '13×13',
+            icon: Icons.grid_on,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const RangeHeatmapScreen()),
+            ),
           ),
 
           _section('DATOS'),
