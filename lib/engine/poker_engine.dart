@@ -392,23 +392,11 @@ class PokerEngine extends ChangeNotifier {
     final callersThisStreet =
         streetActions.where((a) => a.type == ActionType.call).length;
 
-    // ── INITIATIVE: the last player to make an aggressive action in the whole
-    // hand (preflop raiser, or whoever bet/raised on a prior street) carries
-    // initiative. First to act on a fresh street with no bet yet → if this is
-    // them, they c-bet/barrel; otherwise they check to the aggressor.
-    String? lastAggressorId;
-    for (final a in _state.currentHandActions) {
-      final isRaise = a.type == ActionType.raise ||
-          a.type == ActionType.bet ||
-          (a.type == ActionType.allIn && a.amount > bigBlind);
-      if (isRaise) {
-        lastAggressorId = _state.players
-            .firstWhere((p) => p.name == a.playerName,
-                orElse: () => _state.players[0])
-            .id;
-      }
-    }
-    final hasInitiative = lastAggressorId == player.id;
+    // ── INITIATIVE: the last player to make an aggressive action (bet/raise/
+    // all-in) in the WHOLE hand carries it. A call NEVER takes initiative, so
+    // calling a 4-bet leaves it with the 4-bettor; a later bet/raise (even
+    // postflop) transfers it to whoever made it.
+    final hasInitiative = _lastAggressorId() == player.id;
 
     // ── POSITION: postflop, action runs SB→BB→UTG→MP→CO→BTN (button last).
     // This bot is IN POSITION if no still-active opponent acts after it.
@@ -910,6 +898,21 @@ class PokerEngine extends ChangeNotifier {
     });
   }
 
+  /// Player id of the last aggressive action (bet / raise / all-in over a
+  /// blind) in the whole hand = who holds the initiative right now. Returns
+  /// null if only checks/calls have happened. Matched by stable [playerId]
+  /// (never by name), and a CALL never confers initiative.
+  String? _lastAggressorId() {
+    String? id;
+    for (final a in _state.currentHandActions) {
+      final aggressive = a.type == ActionType.raise ||
+          a.type == ActionType.bet ||
+          (a.type == ActionType.allIn && a.amount > bigBlind);
+      if (aggressive) id = a.playerId;
+    }
+    return id;
+  }
+
   GTORecommendation getGTOAdvice() {
     final human = _state.humanPlayer;
 
@@ -927,20 +930,10 @@ class PokerEngine extends ChangeNotifier {
                 (a.type == ActionType.allIn && a.amount > bigBlind)))
         .length;
 
-    // Initiative: the last aggressor of the hand is the human.
-    String? lastAggressorId;
-    for (final a in _state.currentHandActions) {
-      final isRaise = a.type == ActionType.raise ||
-          a.type == ActionType.bet ||
-          (a.type == ActionType.allIn && a.amount > bigBlind);
-      if (isRaise) {
-        lastAggressorId = _state.players
-            .firstWhere((p) => p.name == a.playerName,
-                orElse: () => _state.players[0])
-            .id;
-      }
-    }
-    final hasInitiative = lastAggressorId == human.id;
+    // Initiative: the last aggressor (bet/raise/all-in) of the hand. A call —
+    // e.g. calling a 4-bet — never confers it, so it stays with the aggressor
+    // until someone bets/raises again (even postflop).
+    final hasInitiative = _lastAggressorId() == human.id;
 
     // Position: postflop the button acts last (SB→BB→…→BTN).
     const postflopOrder = {
