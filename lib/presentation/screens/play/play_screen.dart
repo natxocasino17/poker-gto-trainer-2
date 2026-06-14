@@ -101,7 +101,7 @@ class _Header extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   GestureDetector(
-                    onTap: () => _confirmReload(context, gp),
+                    onTap: () => gp.reloadBankroll(),
                     child: Container(
                       padding: const EdgeInsets.all(2.5),
                       decoration: BoxDecoration(
@@ -209,33 +209,6 @@ class _Header extends StatelessWidget {
     );
   }
 
-  void _confirmReload(BuildContext context, GameProvider gp) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceElevated,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(I18n.t('reload_title'), style: const TextStyle(color: AppColors.textPrimary, fontSize: 17)),
-        content: Text(
-          I18n.t('reload_body'),
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(I18n.t('cancel'), style: const TextStyle(color: AppColors.textMuted)),
-          ),
-          TextButton(
-            onPressed: () {
-              gp.reloadBankroll();
-              Navigator.pop(ctx);
-            },
-            child: Text(I18n.t('reload_btn'), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _PokerTable extends StatelessWidget {
