@@ -1473,8 +1473,14 @@ class LegendaryBotEngine {
         callThreshold += inPosition ? -0.05 : 0.025;
         // Anti-overfold floor: bluff-catchers must defend enough vs normal bets
         // to not be exploitable. Only true overbets get the disciplined fold.
+        // On the river the bettor's range is polarised (value + bluffs), so the
+        // generic equity (vs a 40% range) overstates a medium hand — no MDF
+        // discount there: require real equity instead of hero-calling light.
+        final floorDiscount = (isRiver && !isSmallBet)
+            ? 0.0
+            : (inPosition ? 0.07 : 0.03);
         if (!isOverbet && human.aggressionFactor >= 1.0 &&
-            equity >= potOdds - (inPosition ? 0.07 : 0.03)) {
+            equity >= potOdds - floorDiscount) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
         // Read-driven hero-calls: trusting the read over the math. Hellmuth
@@ -1551,9 +1557,17 @@ class LegendaryBotEngine {
         if (isSmallBet && equity >= potOdds - (inPosition ? 0.04 : 0.0)) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
-        // In position we defend weak showdown vs medium bets too (MDF) — this is
-        // what stops the bots being run over by relentless aggression.
-        if (isMediumBet && equity >= potOdds + (inPosition ? -0.01 : 0.03)) {
+        // In position we defend weak showdown vs medium bets too (MDF) — but
+        // only preflop/flop/turn, where equity can still be realised. On the
+        // river a weak pair (third pair, Tx, ace-high) only beats bluffs and the
+        // betting range is polarised, so hero-calling a real medium bet is a
+        // spew. Fold it there unless we hold a blocker to the villain's value.
+        if (isMediumBet && !isRiver &&
+            equity >= potOdds + (inPosition ? -0.01 : 0.03)) {
+          return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
+        }
+        if (isMediumBet && isRiver && blockers.goodBluffBlockers &&
+            equity >= potOdds + 0.02) {
           return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
         }
         // Hellmuth "White Magic": picks off aggressive bluffers with weak showdown,

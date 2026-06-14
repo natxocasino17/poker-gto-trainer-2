@@ -29,6 +29,8 @@ class HandDetailScreen extends StatelessWidget {
           const SizedBox(height: 16),
           _AIAssistantHeader(),
           const SizedBox(height: 10),
+          _PuxiSummaryCard(log: log),
+          const SizedBox(height: 10),
           for (final sa in log.streetAnalyses)
             _StreetAnalysisCard(sa: sa),
           const SizedBox(height: 16),
@@ -186,6 +188,169 @@ class _AIAssistantHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// El Puxi's overall read of the hand: a short narrative in his voice plus a
+/// concrete "what you could have done better" list, derived from the per-street
+/// decision quality. Purely presentational — no stored data is changed.
+class _PuxiSummaryCard extends StatelessWidget {
+  final HandLog log;
+  const _PuxiSummaryCard({required this.log});
+
+  ActionType _typeOf(String label) {
+    if (label.startsWith('Fold')) return ActionType.fold;
+    if (label.startsWith('Check')) return ActionType.check;
+    if (label.startsWith('Call')) return ActionType.call;
+    if (label.startsWith('Bet')) return ActionType.bet;
+    if (label.startsWith('Raise')) return ActionType.raise;
+    return ActionType.allIn;
+  }
+
+  /// A concrete improvement line for a sub-optimal street, or null if the
+  /// decision was fine.
+  String? _improve(StreetAnalysis sa) {
+    if (sa.quality == DecisionQuality.optimal ||
+        sa.quality == DecisionQuality.correct) {
+      return null;
+    }
+    final eq = (sa.heroEquity * 100).toStringAsFixed(0);
+    final odds = (sa.potOdds * 100).toStringAsFixed(0);
+    final st = sa.street.toUpperCase();
+    switch (_typeOf(sa.heroAction)) {
+      case ActionType.fold:
+        return '$st · Foldeaste con $eq% de equity. Con esa fuerza la jugada era continuar (call o raise), no soltar la mano.';
+      case ActionType.call:
+        if (sa.heroEquity < sa.potOdds) {
+          return '$st · Pagaste con $eq% de equity frente a pot odds del $odds%. Sin precio, esto es fold.';
+        }
+        return '$st · Te limitaste a pagar una mano que pedía subir por valor. Un raise construye el bote y niega equity al rival.';
+      case ActionType.check:
+        return '$st · Check con $eq% de equity. Tenías para apostar por valor; dar cartas gratis es regalar EV.';
+      case ActionType.bet:
+      case ActionType.raise:
+        return '$st · Agrediste con solo $eq% de equity. Sin bloqueadores ni proyecto, el farol es −EV; aquí check/fold rinde más.';
+      case ActionType.allIn:
+        return '$st · Te jugaste el stack con $eq% de equity. Demasiada varianza sin una ventaja clara.';
+    }
+  }
+
+  String _narrative() {
+    final blunders = log.streetAnalyses
+        .where((s) => s.quality == DecisionQuality.blunder)
+        .length;
+    final margs = log.streetAnalyses
+        .where((s) => s.quality == DecisionQuality.marginal)
+        .length;
+    final b = StringBuffer();
+    if (log.isCleanFold) {
+      b.write('Fold limpio y disciplinado: dinero ahorrado, que también es ganar. ');
+    } else if (log.humanWon) {
+      b.write('Te llevaste el bote (${log.resultLabel}). ');
+    } else {
+      b.write('Mano perdida (${log.resultLabel}). ');
+    }
+    if (log.humanHandDescription.isNotEmpty &&
+        log.humanHandDescription != 'Fold') {
+      b.write('Terminaste con ${log.humanHandDescription}. ');
+    }
+    if (blunders > 0) {
+      b.write('Pero hubo $blunders error${blunders > 1 ? "es" : ""} grave${blunders > 1 ? "s" : ""} que te costó EV — y eso no lo perdona ni tu madre. ');
+    } else if (margs > 0) {
+      b.write('Jugaste decente, con $margs decisión${margs > 1 ? "es" : ""} mejorable${margs > 1 ? "s" : ""}. ');
+    } else {
+      b.write('Línea sólida de principio a fin. Poco que reprocharte, por una vez. ');
+    }
+    return b.toString().trim();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tips = log.streetAnalyses
+        .map(_improve)
+        .whereType<String>()
+        .toList();
+    final worst = log.streetAnalyses.fold<DecisionQuality>(
+      DecisionQuality.optimal,
+      (w, s) => s.quality.index > w.index ? s.quality : w,
+    );
+    final accent = switch (worst) {
+      DecisionQuality.blunder => AppColors.gtoBlunder,
+      DecisionQuality.marginal => AppColors.gtoMarginal,
+      _ => AppColors.gtoCorrect,
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [accent.withOpacity(0.14), accent.withOpacity(0.03)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const ZerosAvatar(size: 24),
+              const SizedBox(width: 8),
+              const Text('RESUMEN DE EL PUXI',
+                  style: TextStyle(
+                      color: AppColors.accent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _narrative(),
+            style: const TextStyle(
+                color: AppColors.textPrimary, fontSize: 13, height: 1.5),
+          ),
+          if (tips.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('QUÉ PUDISTE HACER MEJOR',
+                style: TextStyle(
+                    color: accent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8)),
+            const SizedBox(height: 6),
+            ...tips.map((t) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('•',
+                          style: TextStyle(
+                              color: accent,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(t,
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                                height: 1.45)),
+                      ),
+                    ],
+                  ),
+                )),
+          ] else ...[
+            const SizedBox(height: 8),
+            const Text('✅ Nada que reprochar — así se juega.',
+                style: TextStyle(
+                    color: AppColors.winning,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600)),
+          ],
+        ],
+      ),
     );
   }
 }

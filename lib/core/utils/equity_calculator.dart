@@ -197,6 +197,75 @@ class EquityCalculator {
     return (wins + ties * 0.5) / simulations;
   }
 
+  /// Multiway equity for several KNOWN hands at showdown over [communityCards].
+  /// Index 0 is the hero; the rest are villains. Split pots are shared, so the
+  /// returned equities sum to 1.0. Exact enumeration of the remaining board when
+  /// ≤2 cards are to come (river/turn/flop); Monte Carlo for preflop multiway.
+  static List<double> equityMultiway({
+    required List<List<CardModel>> hands,
+    required List<CardModel> communityCards,
+    int simulations = 3000,
+  }) {
+    final n = hands.length;
+    if (n == 0) return const [];
+    if (n == 1) return const [1.0];
+
+    final wins = List<double>.filled(n, 0.0);
+    final known = <CardModel>{
+      for (final h in hands) ...h,
+      ...communityCards,
+    };
+    final deck = CardModel.freshDeck().where((c) => !_has(known, c)).toList();
+    final need = 5 - communityCards.length;
+
+    void settle(List<CardModel> board) {
+      var bestScore = HandEvaluator.evaluateBest([...hands[0], ...board]);
+      var winners = <int>[0];
+      for (int i = 1; i < n; i++) {
+        final s = HandEvaluator.evaluateBest([...hands[i], ...board]);
+        final cmp = s.compareTo(bestScore);
+        if (cmp > 0) {
+          bestScore = s;
+          winners = [i];
+        } else if (cmp == 0) {
+          winners.add(i);
+        }
+      }
+      final share = 1.0 / winners.length;
+      for (final i in winners) {
+        wins[i] += share;
+      }
+    }
+
+    int total = 0;
+    if (need <= 0) {
+      settle(communityCards);
+      total = 1;
+    } else if (need == 1) {
+      for (final c in deck) {
+        settle([...communityCards, c]);
+        total++;
+      }
+    } else if (need == 2) {
+      for (int i = 0; i < deck.length - 1; i++) {
+        for (int j = i + 1; j < deck.length; j++) {
+          settle([...communityCards, deck[i], deck[j]]);
+          total++;
+        }
+      }
+    } else {
+      // Preflop (5 cards to come): exact enumeration is too large — Monte Carlo.
+      for (int s = 0; s < simulations; s++) {
+        deck.shuffle(_rng);
+        settle([...communityCards, ...deck.take(need)]);
+        total++;
+      }
+    }
+
+    if (total == 0) return List<double>.filled(n, 1.0 / n);
+    return [for (final w in wins) w / total];
+  }
+
   static bool _has(Set<CardModel> set, CardModel c) =>
       set.any((x) => x.rank == c.rank && x.suit == c.suit);
 

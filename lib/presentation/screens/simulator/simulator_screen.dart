@@ -16,20 +16,44 @@ class SimulatorScreen extends StatefulWidget {
 
 class _SimulatorScreenState extends State<SimulatorScreen> {
   final List<CardModel?> _hero    = [null, null];
-  final List<CardModel?> _villain = [null, null];
+  // Up to 5 villains for a full 6-handed multiway pot.
+  final List<List<CardModel?>> _villains = [ [null, null] ];
   final List<CardModel?> _board   = [null, null, null, null, null];
 
   TablePosition? _heroPos;
-  TablePosition? _villainPos;
+  final List<TablePosition?> _villainPos = [null];
+
+  static const int _maxVillains = 5;
 
   List<CardModel> get _usedCards => [
         ..._hero.whereType<CardModel>(),
-        ..._villain.whereType<CardModel>(),
+        for (final v in _villains) ...v.whereType<CardModel>(),
         ..._board.whereType<CardModel>(),
       ];
 
-  bool get _heroReady    => _hero.every((c) => c != null);
-  bool get _villainReady => _villain.every((c) => c != null);
+  bool get _heroReady => _hero.every((c) => c != null);
+
+  // Villains that have both cards picked (the ones included in the showdown).
+  List<List<CardModel>> get _readyVillains => [
+        for (final v in _villains)
+          if (v.every((c) => c != null)) v.cast<CardModel>(),
+      ];
+
+  void _addVillain() {
+    if (_villains.length >= _maxVillains) return;
+    setState(() {
+      _villains.add([null, null]);
+      _villainPos.add(null);
+    });
+  }
+
+  void _removeVillain(int idx) {
+    if (_villains.length <= 1) return;
+    setState(() {
+      _villains.removeAt(idx);
+      _villainPos.removeAt(idx);
+    });
+  }
 
   List<CardModel> get _knownBoard {
     final flop = _board.take(3).toList();
@@ -64,10 +88,11 @@ class _SimulatorScreenState extends State<SimulatorScreen> {
 
   // BTN is IP vs everyone except blinds; SB is IP vs BB only
   bool _isHeroIP() {
-    if (_heroPos == null || _villainPos == null) return false;
+    final vp = _villainPos.isNotEmpty ? _villainPos[0] : null;
+    if (_heroPos == null || vp == null) return false;
     const ipOrder = [TablePosition.bb, TablePosition.sb, TablePosition.utg,
                      TablePosition.mp, TablePosition.co, TablePosition.btn];
-    return ipOrder.indexOf(_heroPos!) > ipOrder.indexOf(_villainPos!);
+    return ipOrder.indexOf(_heroPos!) > ipOrder.indexOf(vp);
   }
 
   @override
@@ -85,36 +110,40 @@ class _SimulatorScreenState extends State<SimulatorScreen> {
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [
-          // ── Hero vs Villain side by side ──────────────────────────────
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _handPanel(
-                label: 'TU MANO',
-                cards: _hero,
-                position: _heroPos,
-                color: AppColors.accent,
-                onPickCard: (idx) => _pick((c) => setState(() => _hero[idx] = c)),
-                onClearCard: (idx) => setState(() => _hero[idx] = null),
-                onPickPos: (p) => setState(() => _heroPos = p),
-              )),
-              const SizedBox(width: 10),
-              Expanded(child: _handPanel(
-                label: 'RIVAL',
-                cards: _villain,
-                position: _villainPos,
-                color: AppColors.losing,
-                onPickCard: (idx) => _pick((c) => setState(() => _villain[idx] = c)),
-                onClearCard: (idx) => setState(() => _villain[idx] = null),
-                onPickPos: (p) => setState(() => _villainPos = p),
-              )),
-            ],
-          ),
+          // ── Hero + villains (multiway) ────────────────────────────────
+          LayoutBuilder(builder: (ctx, cons) {
+            final w = (cons.maxWidth - 10) / 2;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                SizedBox(
+                  width: w,
+                  child: _handPanel(
+                    label: 'TU MANO',
+                    cards: _hero,
+                    position: _heroPos,
+                    color: AppColors.accent,
+                    onPickCard: (idx) => _pick((c) => setState(() => _hero[idx] = c)),
+                    onClearCard: (idx) => setState(() => _hero[idx] = null),
+                    onPickPos: (p) => setState(() => _heroPos = p),
+                  ),
+                ),
+                for (int i = 0; i < _villains.length; i++)
+                  SizedBox(width: w, child: _villainPanel(i)),
+                if (_villains.length < _maxVillains)
+                  SizedBox(width: w, child: _addVillainTile()),
+              ],
+            );
+          }),
 
           const SizedBox(height: 12),
 
-          // ── Position advantage badge ──────────────────────────────────
-          if (_heroPos != null && _villainPos != null && _heroPos != _villainPos) ...[
+          // ── Position advantage badge (heads-up only) ──────────────────
+          if (_villains.length == 1 &&
+              _heroPos != null &&
+              _villainPos[0] != null &&
+              _heroPos != _villainPos[0]) ...[
             Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
@@ -148,19 +177,25 @@ class _SimulatorScreenState extends State<SimulatorScreen> {
           const SizedBox(height: 14),
 
           // ── Results ───────────────────────────────────────────────────
-          if (_heroReady)
-            _villainReady
-                ? _EquityVsVillain(
-                    hero: _hero.cast<CardModel>(),
-                    villain: _villain.cast<CardModel>(),
-                    board: _knownBoard,
-                    heroPos: _heroPos,
-                    villainPos: _villainPos,
-                  )
-                : _EquityVsRange(
-                    hero: _hero.cast<CardModel>(),
-                    board: _knownBoard,
-                  )
+          if (_heroReady && _readyVillains.length == 1)
+            _EquityVsVillain(
+              hero: _hero.cast<CardModel>(),
+              villain: _readyVillains[0],
+              board: _knownBoard,
+              heroPos: _heroPos,
+              villainPos: _villainPos[0],
+            )
+          else if (_heroReady && _readyVillains.length >= 2)
+            _EquityMultiway(
+              hero: _hero.cast<CardModel>(),
+              villains: _readyVillains,
+              board: _knownBoard,
+            )
+          else if (_heroReady)
+            _EquityVsRange(
+              hero: _hero.cast<CardModel>(),
+              board: _knownBoard,
+            )
           else
             Center(
               child: Padding(
@@ -244,6 +279,72 @@ class _SimulatorScreenState extends State<SimulatorScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Villain panel (one of N) with a remove button ──────────────────────
+  Widget _villainPanel(int i) {
+    return Stack(
+      children: [
+        _handPanel(
+          label: _villains.length > 1 ? 'RIVAL ${i + 1}' : 'RIVAL',
+          cards: _villains[i],
+          position: _villainPos[i],
+          color: AppColors.losing,
+          onPickCard: (idx) =>
+              _pick((c) => setState(() => _villains[i][idx] = c)),
+          onClearCard: (idx) => setState(() => _villains[i][idx] = null),
+          onPickPos: (p) => setState(() => _villainPos[i] = p),
+        ),
+        if (_villains.length > 1)
+          Positioned(
+            right: 4,
+            top: 4,
+            child: GestureDetector(
+              onTap: () => _removeVillain(i),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: AppColors.losing.withOpacity(0.85),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.remove, size: 12, color: Colors.white),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── "Add villain" tile ──────────────────────────────────────────────────
+  Widget _addVillainTile() {
+    return GestureDetector(
+      onTap: _addVillain,
+      child: Container(
+        height: 140,
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+              color: AppColors.accent.withOpacity(0.4),
+              width: 1.2,
+              style: BorderStyle.solid),
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.person_add_alt_1, color: AppColors.accent, size: 26),
+            SizedBox(height: 6),
+            Text('Añadir rival',
+                style: TextStyle(
+                    color: AppColors.accent,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700)),
+            Text('(bote multiway)',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 9)),
+          ],
+        ),
       ),
     );
   }
@@ -756,6 +857,141 @@ class _EquityVsRangeState extends State<_EquityVsRange> {
   }
 
   Widget _tag(String text, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.4)),
+        ),
+        child: Text(text,
+            style: TextStyle(
+                color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+      );
+
+  String _bucketLabel(HandBucket b) {
+    switch (b) {
+      case HandBucket.nuts:        return 'Nuts / casi nuts';
+      case HandBucket.strongValue: return 'Valor fuerte';
+      case HandBucket.mediumValue: return 'Valor medio';
+      case HandBucket.weakShowdown:return 'Showdown débil';
+      case HandBucket.comboDraw:   return 'Combo draw';
+      case HandBucket.strongDraw:  return 'Proyecto fuerte';
+      case HandBucket.weakDraw:    return 'Proyecto débil';
+      case HandBucket.air:         return 'Aire';
+    }
+  }
+}
+
+// ── Multiway equity: hero vs 2+ known villain hands ─────────────────────────
+class _EquityMultiway extends StatelessWidget {
+  final List<CardModel> hero;
+  final List<List<CardModel>> villains;
+  final List<CardModel> board;
+
+  const _EquityMultiway({
+    required this.hero,
+    required this.villains,
+    required this.board,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hands = <List<CardModel>>[hero, ...villains];
+    final eqs = EquityCalculator.equityMultiway(
+      hands: hands,
+      communityCards: board,
+    );
+    final streetLabel = switch (board.length) {
+      0 => 'PREFLOP',
+      3 => 'FLOP',
+      4 => 'TURN',
+      _ => 'RIVER',
+    };
+    final analysis =
+        board.length >= 3 ? HandStrengthAnalysis.analyze(hero, board) : null;
+
+    final heroEq = eqs.isNotEmpty ? eqs[0] : 0.0;
+    final heroColor = heroEq > 0.45
+        ? AppColors.winning
+        : heroEq < 0.20
+            ? AppColors.losing
+            : AppColors.gold;
+
+    Widget bar(String label, double eq, Color color) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 64,
+                child: Text(label,
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700)),
+              ),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: eq,
+                    minHeight: 16,
+                    backgroundColor: AppColors.surfaceElevated,
+                    valueColor: AlwaysStoppedAnimation(color),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 48,
+                child: Text('${(eq * 100).toStringAsFixed(1)}%',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: heroColor.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('EQUIDAD MULTIWAY — $streetLabel · ${hands.length} manos',
+              style: const TextStyle(
+                  color: AppColors.textMuted, fontSize: 10, letterSpacing: 1)),
+          const SizedBox(height: 12),
+          bar('TÚ', heroEq, AppColors.accent),
+          for (int i = 1; i < eqs.length; i++)
+            bar('RIVAL $i', eqs[i], AppColors.losing),
+          if (analysis != null) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _miniTag('Tu mano: ${_bucketLabel(analysis.bucket)}',
+                    AppColors.accent),
+                if (analysis.outs > 0)
+                  _miniTag(
+                      '${analysis.outs} outs (~${(analysis.drawEquity * 100).toStringAsFixed(0)}%)',
+                      AppColors.textSecondary),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _miniTag(String text, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: color.withOpacity(0.12),
