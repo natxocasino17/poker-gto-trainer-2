@@ -399,21 +399,32 @@ class LegendaryBotEngine {
       // "No te rindes": sticky, commits wide and rarely folds before showdown
       stationCalling: true,
     ),
-    // 12. Antonio Esfandiari — Pot Control Specialist: keeps pots small with
-    // medium hands, extracts surgical thin value on rivers.
+    // 12. Antonio Esfandiari — "The Magician": a showman who plays misdirection.
+    // Builds a table image and then plays the opposite to exploit expectations.
+    // "Misdirection": weak-looking bets with strong hands to induce calls, and
+    // theatrical big bets with air to generate fear. "Lectura de tilt": hunts
+    // frustrated players. Charismatic and intuitive over an elite technical base
+    // — the opposite of Bonomo's robotic wall.
     LegendProfile(
       name: 'Antonio',
-      style: 'Pot Control Specialist',
+      style: 'The Magician — Misdirection',
       emoji: '🎪',
+      avatarAsset: 'assets/avatars/antonio.png',
       utgOpen: 0.62, mpOpen: 0.55, coOpen: 0.46, btnOpen: 0.36, sbOpen: 0.48, bbDefend: 0.33,
       threeBetThreshold: 0.74, fourBetThreshold: 0.88,
       cBetFreq: 0.58, doubleBarrelFreq: 0.42, tripleBarrelFreq: 0.25, checkRaiseFreq: 0.20,
-      bluffFreq: 0.22, slowplayFreq: 0.35,
+      bluffFreq: 0.26, slowplayFreq: 0.35,
       preferredSizings: [0.25, 0.33, 0.5],
-      riverOverbetThreshold: 0.92,
+      // Lower overbet bar → willing to fire theatrical big river bets (fear/value)
+      riverOverbetThreshold: 0.75,
+      // High blocker-bet freq = weak-looking bets that induce the call
       openSizeBB: 2.2, blockerBetFreq: 0.35,
       probeBetFreq: 0.22, donkBetFreq: 0.08,
+      // Controlled pots + image-adaptive value/bluff (plays against perception)
       potControl: true,
+      // "Misdirection" + "lectura de tilt": traps with checked nuts, induces
+      // bluffs with strong value, ramps exploitation on the frustrated villain.
+      readsOpponent: true,
     ),
     // 13. Michael Addamo — Overbet Terror: 2-3x pot bombs from the flop
     // forcing stack-commitment decisions.
