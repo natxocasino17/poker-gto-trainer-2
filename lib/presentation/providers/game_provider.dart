@@ -107,13 +107,15 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  SessionStats get sessionStats =>
-      SessionStats.fromHandLogs(_handHistory, _repo.getSessionId(), _repo.getSessionStart());
+  SessionStats? _statsCache;
+  SessionStats get sessionStats => _statsCache ??= SessionStats.fromHandLogs(
+      _handHistory, _repo.getSessionId(), _repo.getSessionStart());
 
   Future<void> initialize() async {
     _bankroll = _repo.getBankroll();
     _displayInBB = _repo.getDisplayInBB();
     _handHistory = _repo.getHandLogs();
+    _statsCache = null;
     _tableSlots = _repo.getTableConfig();
     _localeCode = _repo.getLocale();
     I18n.locale = _localeCode;
@@ -193,6 +195,7 @@ class GameProvider extends ChangeNotifier {
     // New session: fresh stats/history and a fresh random legend lineup
     await _repo.resetSession();
     _handHistory = [];
+    _statsCache = null;
     _applyEngineSettings(); // blinds + difficulty in effect for this session
 
     _bankroll -= _startingStack;
@@ -267,6 +270,7 @@ class GameProvider extends ChangeNotifier {
     );
 
     _handHistory = _repo.getHandLogs();
+    _statsCache = null;
 
     // Busted (or below one blind): automatic re-entry for the configured
     // rebuy amount while the bankroll can cover it — but only if auto-rebuy

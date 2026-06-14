@@ -78,18 +78,24 @@ class GameRepository {
     return DateTime.fromMillisecondsSinceEpoch(ms);
   }
 
+  // In-memory mirror of the persisted hand list so we don't re-decode the
+  // whole JSON blob on every read/append (was O(n²) over a session).
+  List<HandLog>? _logsCache;
+
   List<HandLog> getHandLogs() {
+    if (_logsCache != null) return _logsCache!;
     final raw = _prefs.getString(_handLogsKey);
-    if (raw == null || raw.isEmpty) return [];
+    if (raw == null || raw.isEmpty) return _logsCache = [];
     try {
-      return HandLog.decodeList(raw);
+      return _logsCache = HandLog.decodeList(raw);
     } catch (_) {
-      return [];
+      return _logsCache = [];
     }
   }
 
   Future<void> saveHandLog(HandLog log) async {
     final logs = getHandLogs()..add(log);
+    _logsCache = logs;
     await _prefs.setString(_handLogsKey, HandLog.encodeList(logs));
     await incrementHandCount();
   }
@@ -111,6 +117,7 @@ class GameRepository {
   }
 
   Future<void> resetSession() async {
+    _logsCache = null;
     await _prefs.remove(_handLogsKey);
     await _prefs.remove(_handCountKey);
     await _prefs.remove(_sessionIdKey);

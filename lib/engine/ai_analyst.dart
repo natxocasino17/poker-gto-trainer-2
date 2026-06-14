@@ -20,13 +20,16 @@ class HandReviewerEngine {
 
   HandReviewerEngine(this._repo);
 
-  Future<void> recordHand({
+  /// Records the completed hand and returns the persisted [HandLog] (or null
+  /// when there's nothing to log), so callers can append it in memory instead
+  /// of re-reading the whole history from disk.
+  Future<HandLog?> recordHand({
     required GameState completedState,
     required double humanProfit,
     required int handNumber,
   }) async {
     final humanPlayer = completedState.humanPlayer;
-    if (humanPlayer.holeCards.isEmpty) return;
+    if (humanPlayer.holeCards.isEmpty) return null;
 
     final humanActions = completedState.currentHandActions
         .where((a) => a.playerId == 'human')
@@ -84,6 +87,7 @@ class HandReviewerEngine {
     );
 
     await _repo.saveHandLog(log);
+    return log;
   }
 
   List<StreetAnalysis> _analyzeStreets({
