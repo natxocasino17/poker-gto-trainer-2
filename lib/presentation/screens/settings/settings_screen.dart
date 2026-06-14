@@ -64,6 +64,12 @@ class SettingsScreen extends StatelessWidget {
             value: gp.displayInBB,
             onChanged: (_) => gp.toggleDisplayUnits(),
           ),
+          _switchTile(
+            title: 'Sonido',
+            subtitle: 'Efectos de fichas, cartas y avisos en la mesa',
+            value: gp.soundEnabled,
+            onChanged: gp.setSoundEnabled,
+          ),
 
           _section('MESA  (se aplica al empezar una nueva sesión)'),
           _valueTile(

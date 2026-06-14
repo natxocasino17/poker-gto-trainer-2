@@ -147,23 +147,6 @@ class _Header extends StatelessWidget {
             ],
           ),
           const Spacer(),
-          // Replay the current hand from preflop with the same cards
-          GestureDetector(
-            onTap: gp.canReplay ? gp.replayHand : null,
-            child: Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppColors.accent.withOpacity(gp.canReplay ? 0.14 : 0.05),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: AppColors.accent.withOpacity(gp.canReplay ? 0.5 : 0.2)),
-              ),
-              child: Icon(Icons.replay,
-                  color: AppColors.accent.withOpacity(gp.canReplay ? 1 : 0.4),
-                  size: 15),
-            ),
-          ),
           // Leave the table: cash the stack back into the bankroll
           GestureDetector(
             onTap: () => _confirmLeave(context, gp),
@@ -437,6 +420,30 @@ class _PokerTable extends StatelessWidget {
           ),
         // GTO FAB
         const Positioned(right: 12, bottom: 12, child: GTOAdvisorFAB()),
+        // Replay the current hand from preflop with the same cards
+        Positioned(
+          right: 14,
+          bottom: 74,
+          child: GestureDetector(
+            onTap: gp.canReplay ? gp.replayHand : null,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.surfaceElevated
+                    .withOpacity(gp.canReplay ? 1 : 0.5),
+                border: Border.all(
+                    color: AppColors.accent
+                        .withOpacity(gp.canReplay ? 0.6 : 0.25),
+                    width: 1.5),
+              ),
+              child: Icon(Icons.replay,
+                  color: AppColors.accent.withOpacity(gp.canReplay ? 1 : 0.4),
+                  size: 19),
+            ),
+          ),
+        ),
         // Street label
         Positioned(
           top: 6,

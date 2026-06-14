@@ -43,7 +43,10 @@ class _MainScaffoldState extends State<MainScaffold> {
         ),
         child: BottomNavigationBar(
           currentIndex: _selectedIndex,
-          onTap: (i) => setState(() => _selectedIndex = i),
+          onTap: (i) {
+            context.read<GameProvider>().sfx.tap();
+            setState(() => _selectedIndex = i);
+          },
           backgroundColor: AppColors.surface,
           selectedItemColor: AppColors.accent,
           unselectedItemColor: AppColors.textMuted,

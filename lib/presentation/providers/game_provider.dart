@@ -9,6 +9,8 @@ import '../../engine/ai_analyst.dart';
 import '../../core/utils/equity_calculator.dart';
 import '../../core/utils/progress_service.dart';
 import '../../core/utils/trainer_feedback.dart';
+import '../../core/audio/sound_service.dart';
+import '../../core/audio/sound_controller.dart';
 import '../../core/i18n/i18n.dart';
 
 /// Session economy model:
@@ -40,8 +42,14 @@ class GameProvider extends ChangeNotifier {
   double _bigBlind = 2.0;
   double _startingStack = GameRepository.defaultBuyIn;
   bool _trainerMode = false;
+  bool _soundEnabled = true;
+
+  final SoundController _sfx = SoundController(SoundService());
 
   GameProvider(this._repo);
+
+  bool get soundEnabled => _soundEnabled;
+  SoundController get sfx => _sfx;
 
   int get difficulty => _difficulty;
   bool get autoRebuy => _autoRebuy;
@@ -136,7 +144,16 @@ class GameProvider extends ChangeNotifier {
     _bigBlind = _repo.getBigBlind();
     _startingStack = _repo.getStartingStack();
     _trainerMode = _repo.getTrainerMode();
+    _soundEnabled = _repo.getSoundEnabled();
+    _sfx.enabled = _soundEnabled;
     _applyEngineSettings();
+  }
+
+  Future<void> setSoundEnabled(bool v) async {
+    _soundEnabled = v;
+    _sfx.enabled = v;
+    await _repo.saveSoundEnabled(v);
+    notifyListeners();
   }
 
   void _applyEngineSettings() {
@@ -257,7 +274,8 @@ class GameProvider extends ChangeNotifier {
     await _repo.resetSession();
     _handHistory = [];
     _statsCache = null;
-    await _repo.touchStreak(); // counts a play day for the streak
+    final streakBefore = _repo.getStreakCount();
+    final streakNow = await _repo.touchStreak(); // counts a play day
     _applyEngineSettings(); // blinds + difficulty in effect for this session
 
     _bankroll -= _startingStack;
@@ -276,6 +294,12 @@ class GameProvider extends ChangeNotifier {
     engine.addListener(_onEngineChanged);
     _engine = engine;
     _sessionActive = true;
+    _sfx.seed(engine.state); // so the first deal still shuffles
+    if (streakNow > streakBefore) {
+      _sfx.streak();
+    } else {
+      _sfx.sitDown();
+    }
     notifyListeners();
 
     await Future.delayed(const Duration(milliseconds: 400));
@@ -308,7 +332,11 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _onEngineChanged() => notifyListeners();
+  void _onEngineChanged() {
+    final e = _engine;
+    if (e != null) _sfx.onState(e.state);
+    notifyListeners();
+  }
 
   Future<void> _onHandComplete(GameState state) async {
     final engine = _engine;
@@ -333,6 +361,12 @@ class GameProvider extends ChangeNotifier {
 
     _handHistory = _repo.getHandLogs();
     _statsCache = null;
+
+    // Achievement unlocked this hand → jingle.
+    final achievedBefore = _repo.getAchievements();
+    if (achievements().length > achievedBefore.length) {
+      _sfx.achievement();
+    }
 
     // Busted (or below one blind): automatic re-entry for the configured
     // rebuy amount while the bankroll can cover it — but only if auto-rebuy
@@ -364,6 +398,7 @@ class GameProvider extends ChangeNotifier {
     // recommendation reflects the spot at decision time).
     if (_trainerMode && engine.state.awaitingHumanAction) {
       _trainerFeedback = TrainerGrader.grade(type, amount, engine.getGTOAdvice());
+      _sfx.trainerResult(_trainerFeedback!.quality);
     } else {
       _trainerFeedback = null;
     }
@@ -390,6 +425,7 @@ class GameProvider extends ChangeNotifier {
     if (engine == null || !engine.state.awaitingHumanAction) return;
     _lastGTOAdvice = engine.getGTOAdvice();
     _showGTOOverlay = true;
+    _sfx.puxi();
     notifyListeners();
   }
 
@@ -456,6 +492,7 @@ class GameProvider extends ChangeNotifier {
   void dispose() {
     _engine?.removeListener(_onEngineChanged);
     _engine?.dispose();
+    _sfx.dispose();
     super.dispose();
   }
 }
