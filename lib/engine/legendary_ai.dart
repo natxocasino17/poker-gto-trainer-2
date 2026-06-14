@@ -456,20 +456,37 @@ class LegendaryBotEngine {
       // "Presión del overbet": sizes up to threaten the whole stack
       stackPressure: true,
     ),
-    // 14. Linus Loeliger — High Roller Cash GTO: mathematically perfect
-    // preflop, immune to tilt, zero psychological exploitation.
+    // 14. Linus Loeliger — "The Online Legend": the culmination of the solver
+    // era. No theatre, no ego — relentless GTO execution that forces the villain
+    // into lose-lose spots. "La Máquina de Explotación": balanced by default, but
+    // detects any opponent error instantly and shifts frequency to punish it.
+    // "Consistencia de acero": no bias, no tilt. Deep-stack master who builds the
+    // perfect bet on every street, choking the villain on the river. Theoretically
+    // perfect blind defense (never gives away pots) and constant positional
+    // pressure from the button — a silent mathematical strangulation, not Papo's
+    // loud aggression.
     LegendProfile(
       name: 'Linus',
-      style: 'High Roller Cash GTO',
+      style: 'The Online Legend — GTO Strangler',
       emoji: '💎',
-      utgOpen: 0.68, mpOpen: 0.62, coOpen: 0.54, btnOpen: 0.45, sbOpen: 0.57, bbDefend: 0.42,
+      avatarAsset: 'assets/avatars/linus.png',
+      // "Agresividad en la posición" + "Defensa de ciegos perfecta": loose BTN,
+      // very wide blind defense (low bbDefend = defends widest, never folds pots)
+      utgOpen: 0.68, mpOpen: 0.62, coOpen: 0.48, btnOpen: 0.32, sbOpen: 0.54, bbDefend: 0.26,
       threeBetThreshold: 0.71, fourBetThreshold: 0.87,
       cBetFreq: 0.69, doubleBarrelFreq: 0.56, tripleBarrelFreq: 0.42, checkRaiseFreq: 0.30,
       bluffFreq: 0.27, slowplayFreq: 0.17,
       preferredSizings: [0.33, 0.5, 0.75, 1.0],
       riverOverbetThreshold: 0.80,
       threeBetBluffFreq: 0.14,
+      // "Presión técnica constante": stabs/floats relentlessly in position
+      floatFreq: 0.30,
       probeBetFreq: 0.26, donkBetFreq: 0.08,
+      // "La Máquina de Explotación": GTO baseline that ramps exploitation the
+      // instant a read on the villain's mistake builds.
+      readsOpponent: true,
+      // "Nunca regalas botes": punishes over-folders in late streets
+      exploitsHighFolders: true,
     ),
     // 15. Bryn Kenney — Stack Pressure: sizes bets to punish survival
     // ranges, maximizing chip leverage.
