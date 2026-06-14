@@ -244,8 +244,12 @@ class _PuxiSummaryCard extends StatelessWidget {
         .where((s) => s.quality == DecisionQuality.marginal)
         .length;
     final b = StringBuffer();
-    if (log.isCleanFold) {
+    final hadLeak = blunders > 0 || margs > 0;
+    if (log.isCleanFold && !hadLeak) {
       b.write('Fold limpio y disciplinado: dinero ahorrado, que también es ganar. ');
+    } else if (log.isCleanFold) {
+      // Folded without showdown, but the fold itself was the leak — don't praise it.
+      b.write('Foldeaste sin ver el showdown, pero este no era spot de soltar. ');
     } else if (log.humanWon) {
       b.write('Te llevaste el bote (${log.resultLabel}). ');
     } else {

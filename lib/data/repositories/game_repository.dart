@@ -13,9 +13,7 @@ class GameRepository {
   static const _sessionStartKey = 'session_start';
   static const _displayInBBKey = 'display_in_bb';
   static const _sessionArchiveKey = 'session_archive';
-  static const _coinsKey = 'coins';
   static const _tableConfigKey = 'table_config';
-  static const _fourColorDeckKey = 'four_color_deck';
   static const _localeKey = 'app_locale';
   static const _humanProfileKey = 'human_profile';
 
@@ -123,21 +121,10 @@ class GameRepository {
         _sessionArchiveKey, SessionSummary.encodeList(archive));
   }
 
-  // ── Coins: free in-game currency earned by playing ──
-  int getCoins() => _prefs.getInt(_coinsKey) ?? 0;
-
-  Future<void> addCoins(int amount) =>
-      _prefs.setInt(_coinsKey, getCoins() + amount);
-
   String getLocale() => _prefs.getString(_localeKey) ?? 'es';
 
   Future<void> saveLocale(String code) =>
       _prefs.setString(_localeKey, code);
-
-  bool getFourColorDeck() => _prefs.getBool(_fourColorDeckKey) ?? true;
-
-  Future<void> saveFourColorDeck(bool v) =>
-      _prefs.setBool(_fourColorDeckKey, v);
 
   /// Cross-session model of how the human plays (EMA-blended). The bots
   /// seed their reads from this so they exploit you from hand 1, and the

@@ -7,7 +7,6 @@ import '../../engine/legendary_ai.dart';
 import '../../engine/poker_engine.dart';
 import '../../engine/ai_analyst.dart';
 import '../../core/utils/equity_calculator.dart';
-import '../screens/play/widgets/card_widget.dart';
 import '../../core/i18n/i18n.dart';
 
 /// Session economy model:
@@ -29,8 +28,6 @@ class GameProvider extends ChangeNotifier {
   double _bankroll = 1000.0;
   bool _displayInBB = false;
   List<String?> _tableSlots = List<String?>.filled(5, null);
-  int _coins = 0;
-  bool _fourColorDeck = true;
   String _localeCode = 'es';
 
   GameProvider(this._repo);
@@ -46,9 +43,7 @@ class GameProvider extends ChangeNotifier {
   bool get displayInBB => _displayInBB;
   bool get canAffordBuyIn => _bankroll >= GameRepository.defaultBuyIn;
   List<String?> get tableSlots => List.unmodifiable(_tableSlots);
-  int get coins => _coins;
   List<SessionSummary> get sessionArchive => _repo.getSessionArchive();
-  bool get fourColorDeck => _fourColorDeck;
   String get localeCode => _localeCode;
 
   void setLocale(String code) {
@@ -56,13 +51,6 @@ class GameProvider extends ChangeNotifier {
     _localeCode = code;
     I18n.locale = code;
     _repo.saveLocale(code);
-    notifyListeners();
-  }
-
-  void toggleFourColorDeck() {
-    _fourColorDeck = !_fourColorDeck;
-    CardWidget.fourColorDeck = _fourColorDeck;
-    _repo.saveFourColorDeck(_fourColorDeck);
     notifyListeners();
   }
 
@@ -109,9 +97,6 @@ class GameProvider extends ChangeNotifier {
     _displayInBB = _repo.getDisplayInBB();
     _handHistory = _repo.getHandLogs();
     _tableSlots = _repo.getTableConfig();
-    _coins = _repo.getCoins();
-    _fourColorDeck = _repo.getFourColorDeck();
-    CardWidget.fourColorDeck = _fourColorDeck;
     _localeCode = _repo.getLocale();
     I18n.locale = _localeCode;
     _analyst = HandReviewerEngine(_repo);
@@ -160,15 +145,10 @@ class GameProvider extends ChangeNotifier {
     await _repo.saveBankroll(_bankroll);
     await _repo.saveTableStack(0);
 
-    // Archive the session for the yearly review and pay out coins:
-    // 1 coin per hand played + 5 per hand won.
+    // Archive the session for the yearly review.
     final stats = sessionStats;
     if (stats.handsPlayed > 0) {
       await _repo.archiveSession(SessionSummary.fromStats(stats));
-      final wins = _handHistory.where((h) => h.humanProfit > 0).length;
-      final earned = stats.handsPlayed + wins * 5;
-      await _repo.addCoins(earned);
-      _coins = _repo.getCoins();
       await _updateHumanProfile(stats);
     }
 

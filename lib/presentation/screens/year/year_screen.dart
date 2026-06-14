@@ -25,8 +25,6 @@ class YearScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [
-          _CoinsCard(coins: gp.coins),
-          const SizedBox(height: 14),
           if (sessions.isEmpty)
             Padding(
               padding: const EdgeInsets.all(30),
@@ -55,47 +53,6 @@ class YearScreen extends StatelessWidget {
             const SizedBox(height: 8),
             _SessionsTable(sessions: sessions, gp: gp),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Free in-game currency earned by playing. No real money involved.
-class _CoinsCard extends StatelessWidget {
-  final int coins;
-  const _CoinsCard({required this.coins});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.gold.withOpacity(0.15), AppColors.card],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.gold.withOpacity(0.4)),
-      ),
-      child: Row(
-        children: [
-          const Text('🪙', style: TextStyle(fontSize: 34)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  I18n.t('coins_amount', {'n': '$coins'}),
-                  style: const TextStyle(color: AppColors.gold, fontSize: 20, fontWeight: FontWeight.w900),
-                ),
-                Text(
-                  I18n.t('coins_free'),
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );

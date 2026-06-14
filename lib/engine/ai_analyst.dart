@@ -404,7 +404,9 @@ class HandReviewerEngine {
       case DecisionQuality.marginal:
         switch (action.type) {
           case ActionType.fold:
-            return fmt(['mar_fold_a', 'mar_fold_b'][_rng.nextInt(2)]);
+            // mar_fold_b references a board texture; preflop has none, so it
+            // would render "...en ." — use the street-based line preflop.
+            return fmt(preflop ? 'mar_fold_a' : ['mar_fold_a', 'mar_fold_b'][_rng.nextInt(2)]);
           case ActionType.call:
             if (bucket == HandBucket.nuts || bucket == HandBucket.strongValue) {
               return fmt('mar_call_monster');

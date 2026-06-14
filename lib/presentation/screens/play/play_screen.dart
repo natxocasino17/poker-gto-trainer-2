@@ -814,27 +814,6 @@ class _LobbyView extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 10),
-
-                  // Coins chip
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: _VintageColors.gold.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: _VintageColors.gold, width: 1.5),
-                    ),
-                    child: Text(
-                      I18n.t('coins_chip', {'n': gp.coins.toString()}),
-                      style: const TextStyle(
-                        color: _VintageColors.gold,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ),
-
                   const SizedBox(height: 22),
 
                   // Bankroll box
@@ -1323,37 +1302,6 @@ void _openSettings(BuildContext context, GameProvider gp) {
                     ),
                   );
                 }).toList(),
-              ),
-              const SizedBox(height: 18),
-              Text(I18n.t('deck_label'),
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11, letterSpacing: 1.5)),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: () {
-                  gp.toggleFourColorDeck();
-                  setSheetState(() {});
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.card,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(gp.fourColorDeck ? Icons.check_box : Icons.check_box_outline_blank,
-                          color: AppColors.accent, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          gp.fourColorDeck ? I18n.t('deck_4c') : I18n.t('deck_classic'),
-                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ),
             ],
           ),
