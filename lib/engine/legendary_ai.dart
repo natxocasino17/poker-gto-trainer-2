@@ -345,20 +345,31 @@ class LegendaryBotEngine {
       // Intentionally carries NO exploit/read/variance flags — he never deviates.
       impliedOddsWeight: 0.9,
     ),
-    // 10. Stephen Chidwick — Blind Defense Elite: wide blind defense and
-    // relentless technical check-raises.
+    // 10. Stephen Chidwick — "The Technician": modern gold standard. Sublime
+    // GTO base + nearly invisible exploitative adaptation. Wins by taking the
+    // mathematically superior decision, not theatre. "Disciplina inquebrantable":
+    // linear, constant, no emotional swings. "Perfección en el margen": grinds
+    // tiny edges in marginal pots. "Adaptabilidad silenciosa": detects frequency
+    // shifts and adjusts subtly. River specialist who makes thin calls/bluffs
+    // that look impossible but are perfectly founded. No unnecessary hero plays —
+    // waits for the villain to err.
     LegendProfile(
       name: 'Stephen',
-      style: 'Blind Defense Elite',
+      style: 'The Technician — Silent Adapter',
       emoji: '🛡️',
+      avatarAsset: 'assets/avatars/stephen.png',
       utgOpen: 0.65, mpOpen: 0.58, coOpen: 0.50, btnOpen: 0.40, sbOpen: 0.50, bbDefend: 0.30,
       threeBetThreshold: 0.68, fourBetThreshold: 0.84,
+      // High check-raise + wide blind defense = relentless technical range play
       cBetFreq: 0.66, doubleBarrelFreq: 0.53, tripleBarrelFreq: 0.38, checkRaiseFreq: 0.42,
       bluffFreq: 0.28, slowplayFreq: 0.14,
       preferredSizings: [0.5, 0.75, 1.0],
       riverOverbetThreshold: 0.82,
       squeezeFreq: 0.18,
       probeBetFreq: 0.32, donkBetFreq: 0.10,
+      // "Adaptabilidad silenciosa": GTO baseline that quietly ramps exploitation
+      // only as frequency reads build — never shows the villain he's adjusting.
+      readsOpponent: true,
     ),
     // 11. Gus Hansen — Classic LAG: opens marginal hands from any seat,
     // grinds solid ranges down with extreme postflop aggression.
