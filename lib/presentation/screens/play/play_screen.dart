@@ -1154,8 +1154,18 @@ void _openTableEditor(BuildContext context, GameProvider gp) {
                                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600));
                             }
                             final prof = LegendaryBotEngine.profileByName(name);
-                            return Text('${prof.emoji} ${prof.name}',
-                                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700));
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _legendAvatar(prof, size: 24),
+                                const SizedBox(width: 6),
+                                Text(prof.name,
+                                    style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700)),
+                              ],
+                            );
                           }),
                           const SizedBox(width: 6),
                           const Icon(Icons.chevron_right, color: AppColors.accent, size: 18),
@@ -1181,6 +1191,31 @@ void _openTableEditor(BuildContext context, GameProvider gp) {
           ),
         ),
       ),
+    ),
+  );
+}
+
+// Avatar (illustrated portrait) for a legend, falling back to the emoji for
+// archetypes / legends without an avatar asset.
+Widget _legendAvatar(LegendProfile p, {double size = 38}) {
+  final asset = p.avatarAsset;
+  if (asset != null) {
+    return ClipOval(
+      child: Image.asset(
+        asset,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            Text(p.emoji, style: TextStyle(fontSize: size * 0.6)),
+      ),
+    );
+  }
+  return SizedBox(
+    width: size,
+    height: size,
+    child: Center(
+      child: Text(p.emoji, style: TextStyle(fontSize: size * 0.6)),
     ),
   );
 }
@@ -1213,7 +1248,7 @@ Future<String?> _pickOpponent(BuildContext context, GameProvider gp) {
             for (final p in LegendaryBotEngine.legends)
               ListTile(
                 dense: true,
-                leading: Text(p.emoji, style: const TextStyle(fontSize: 22)),
+                leading: _legendAvatar(p, size: 40),
                 title: Text(p.name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
                 subtitle: Text(p.style, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
                 onTap: () => Navigator.pop(ctx, p.name),
@@ -1225,7 +1260,7 @@ Future<String?> _pickOpponent(BuildContext context, GameProvider gp) {
             for (final p in LegendaryBotEngine.archetypes)
               ListTile(
                 dense: true,
-                leading: Text(p.emoji, style: const TextStyle(fontSize: 22)),
+                leading: _legendAvatar(p, size: 40),
                 title: Text(p.name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
                 subtitle: Text(p.style, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
                 onTap: () => Navigator.pop(ctx, p.name),

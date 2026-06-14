@@ -1623,7 +1623,11 @@ class LegendaryBotEngine {
         final blockerGate = profile.freestyleAggressor
             ? (blockers.goodBluffBlockers || rand < 0.30)
             : blockers.goodBluffBlockers;
+        // A pure-air bluff-raise must stay a RAISE, never a stack-off. If 2.8x
+        // the bet would commit most of our stack, jamming air (e.g. 79o, KJo)
+        // is never a credible line — give up the bluff instead of shoving.
         if (blockerGate && !facingAllInPrice &&
+            raiseTo() < stack * 0.60 &&
             rand < bluffRaiseFreq && foldEst >= alphaNeeded * papoLooseGate) {
           return BotDecision(type: ActionType.raise, amount: raiseTo(), thinkMs: 0);
         }
