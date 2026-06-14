@@ -488,21 +488,36 @@ class LegendaryBotEngine {
       // "Nunca regalas botes": punishes over-folders in late streets
       exploitsHighFolders: true,
     ),
-    // 15. Bryn Kenney — Stack Pressure: sizes bets to punish survival
-    // ranges, maximizing chip leverage.
+    // 15. Bryn Kenney — "High-Stakes Aggressor": incessant pressure over theory.
+    // "Volumen sobre perfección": plays a far wider range than other pros to keep
+    // villains in constant doubt. "Explotación psicológica": doesn't care if a
+    // play is GTO-correct, only if it's profitable vs THIS player — destroys rigid
+    // players with constant bets. "Presión post-flop": never lets off the gas,
+    // multi-barrels mediocre hands into winners. "Lectura de debilidad": smells a
+    // passive player waiting for cards and preys on their blinds/pots. Total
+    // conviction on every all-in, fearless of variance.
     LegendProfile(
       name: 'Bryn',
-      style: 'Stack Pressure Expert',
+      style: 'High-Stakes Aggressor — Relentless Pressure',
       emoji: '⚖️',
-      utgOpen: 0.61, mpOpen: 0.54, coOpen: 0.45, btnOpen: 0.35, sbOpen: 0.47, bbDefend: 0.32,
+      avatarAsset: 'assets/avatars/bryn.png',
+      // "Agresividad pre-flop": opens far wider than average, attacks blinds wide
+      utgOpen: 0.52, mpOpen: 0.44, coOpen: 0.34, btnOpen: 0.24, sbOpen: 0.36, bbDefend: 0.24,
       threeBetThreshold: 0.69, fourBetThreshold: 0.84,
-      cBetFreq: 0.73, doubleBarrelFreq: 0.60, tripleBarrelFreq: 0.46, checkRaiseFreq: 0.26,
-      bluffFreq: 0.32, slowplayFreq: 0.18,
+      // "Presión post-flop": relentless multi-barrels
+      cBetFreq: 0.73, doubleBarrelFreq: 0.66, tripleBarrelFreq: 0.52, checkRaiseFreq: 0.26,
+      bluffFreq: 0.40, slowplayFreq: 0.18,
       preferredSizings: [0.75, 1.0, 1.25],
       riverOverbetThreshold: 0.72,
       openSizeBB: 2.5,
       probeBetFreq: 0.30, donkBetFreq: 0.12,
+      // "Presión incesante": sizes up to leverage the whole stack
       stackPressure: true,
+      // "Lectura de debilidad / ataca pasivos": multi-barrels over-folders
+      exploitsHighFolders: true,
+      // "Explotación psicológica" + "convicción total": profitable-not-GTO
+      // conviction, attacks weak players, all-ins regardless of his cards
+      freestyleAggressor: true,
     ),
     // 16. Raúl Mestre — The Professor / Strategic Analyst: plays RANGES not cards.
     // Minimises errors, pots control with medium hands, max value with nuts.
