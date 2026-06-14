@@ -375,6 +375,16 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool get canReplay => _engine?.canReplay ?? false;
+
+  /// Replays the current hand from preflop with the same cards.
+  void replayHand() {
+    _trainerFeedback = null;
+    _showGTOOverlay = false;
+    _engine?.replayHand();
+    notifyListeners();
+  }
+
   void requestGTOAdvice() {
     final engine = _engine;
     if (engine == null || !engine.state.awaitingHumanAction) return;

@@ -141,6 +141,13 @@ class PokerEngine extends ChangeNotifier {
   bool _disposed = false;
   final HumanReadModel _humanModel = HumanReadModel();
 
+  // Snapshot of the current hand's deal so it can be replayed from preflop
+  // with the identical cards ("deshacer / repetir mano").
+  List<CardModel>? _replayDeck;
+  int? _replayDealer;
+  int? _replayHandNum;
+  List<PlayerModel>? _replayRoster;
+
   Function(GameState)? onHandComplete;
 
   PokerEngine({
@@ -211,8 +218,22 @@ class PokerEngine extends ChangeNotifier {
     final deck = CardModel.shuffledDeck();
     final handNum = _state.handNumber + 1;
     final dealerIdx = handNum == 1 ? 0 : (_state.dealerIndex + 1) % 6;
+    final positioned = _positionedRoster(dealerIdx);
 
-    final positions = [
+    // Snapshot the deal so the player can replay this exact hand (same cards)
+    // from preflop.
+    _replayDeck = List<CardModel>.from(deck);
+    _replayDealer = dealerIdx;
+    _replayHandNum = handNum;
+    _replayRoster = positioned.map((p) => p.copyWith()).toList();
+
+    _dealPreflop(
+        deck: deck, dealerIdx: dealerIdx, handNum: handNum, positioned: positioned);
+  }
+
+  /// Builds the cleared, positioned roster for a new deal.
+  List<PlayerModel> _positionedRoster(int dealerIdx) {
+    const positions = [
       TablePosition.btn,
       TablePosition.sb,
       TablePosition.bb,
@@ -220,8 +241,7 @@ class PokerEngine extends ChangeNotifier {
       TablePosition.mp,
       TablePosition.co,
     ];
-
-    var players = _state.players.asMap().entries.map((e) {
+    return _state.players.asMap().entries.map((e) {
       final seatOffset = (e.key - dealerIdx + 6) % 6;
       return e.value.copyWith(
         holeCards: [],
@@ -235,6 +255,17 @@ class PokerEngine extends ChangeNotifier {
         isWinner: false,
       );
     }).toList();
+  }
+
+  /// Deals hole cards + posts blinds from a given (possibly replayed) deck and
+  /// roster, then starts preflop action.
+  void _dealPreflop({
+    required List<CardModel> deck,
+    required int dealerIdx,
+    required int handNum,
+    required List<PlayerModel> positioned,
+  }) {
+    var players = positioned;
 
     // Deal 2 hole cards
     int deckIdx = 0;
@@ -291,6 +322,20 @@ class PokerEngine extends ChangeNotifier {
 
     notifyListeners();
     _advanceTurn();
+  }
+
+  bool get canReplay => _replayDeck != null;
+
+  /// Replays the current hand from preflop with the identical deck (same hole
+  /// cards and board), restoring the pre-hand stacks.
+  void replayHand() {
+    if (_disposed || _replayDeck == null) return;
+    _dealPreflop(
+      deck: List<CardModel>.from(_replayDeck!),
+      dealerIdx: _replayDealer!,
+      handNum: _replayHandNum!,
+      positioned: _replayRoster!.map((p) => p.copyWith()).toList(),
+    );
   }
 
   void _advanceTurn() {

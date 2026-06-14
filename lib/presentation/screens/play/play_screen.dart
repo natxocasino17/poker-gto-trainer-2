@@ -147,6 +147,23 @@ class _Header extends StatelessWidget {
             ],
           ),
           const Spacer(),
+          // Replay the current hand from preflop with the same cards
+          GestureDetector(
+            onTap: gp.canReplay ? gp.replayHand : null,
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withOpacity(gp.canReplay ? 0.14 : 0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: AppColors.accent.withOpacity(gp.canReplay ? 0.5 : 0.2)),
+              ),
+              child: Icon(Icons.replay,
+                  color: AppColors.accent.withOpacity(gp.canReplay ? 1 : 0.4),
+                  size: 15),
+            ),
+          ),
           // Leave the table: cash the stack back into the bankroll
           GestureDetector(
             onTap: () => _confirmLeave(context, gp),
