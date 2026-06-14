@@ -320,7 +320,6 @@ class LegendaryBotEngine {
       // "Factor Sorpresa": unpredictable sizing & moves that break solver reads,
       // attacks players who look weak or standard.
       freestyleAggressor: true,
-      highVarianceDraws: true,
     ),
     // 9. Justin Bonomo — "The GTO Master": a surgeon of numbers playing pure
     // mathematical frequencies, aiming for zero exploitable error.
