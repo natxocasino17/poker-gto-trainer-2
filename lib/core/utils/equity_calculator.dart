@@ -39,6 +39,17 @@ class EquityCalculator {
   }) {
     if (heroCards.length != 2 || numOpponents <= 0) return 0.5;
 
+    // Deterministic spots (advisor + analyzer) are pure functions of their
+    // inputs, so memoize them: the same board is evaluated by the bot, the
+    // live advisor AND the hand reviewer per street. Cache key is precise
+    // (exact cards + opps + sims + range), never a lossy hash.
+    String? cacheKey;
+    if (deterministic) {
+      cacheKey = _equityKey(heroCards, communityCards, numOpponents, simulations, rangeWidth);
+      final hit = _equityCache[cacheKey];
+      if (hit != null) return hit;
+    }
+
     final known = <CardModel>{...heroCards, ...communityCards};
     final deck = CardModel.freshDeck().where((c) => !_has(known, c)).toList();
 
@@ -107,7 +118,7 @@ class EquityCalculator {
         }
       }
       if (n == 0) return 0.5;
-      return (w + t * 0.5) / n;
+      return _cacheStore(cacheKey, (w + t * 0.5) / n);
     }
 
     for (int sim = 0; sim < simulations; sim++) {
@@ -172,7 +183,26 @@ class EquityCalculator {
       else if (isTie) ties++;
     }
 
-    return (wins + ties * 0.5) / simulations;
+    return _cacheStore(cacheKey, (wins + ties * 0.5) / simulations);
+  }
+
+  // ── Deterministic-equity memoization (bounded) ──────────────────────────
+  static final Map<String, double> _equityCache = {};
+  static const int _equityCacheCap = 4000;
+
+  static String _equityKey(List<CardModel> hero, List<CardModel> board,
+      int opps, int sims, double rangeWidth) {
+    final h = (hero.map((c) => c.rank * 4 + c.suit.index).toList()..sort()).join(',');
+    final b = (board.map((c) => c.rank * 4 + c.suit.index).toList()..sort()).join(',');
+    return '$h|$b|$opps|$sims|${rangeWidth.toStringAsFixed(2)}';
+  }
+
+  static double _cacheStore(String? key, double value) {
+    if (key != null) {
+      if (_equityCache.length >= _equityCacheCap) _equityCache.clear();
+      _equityCache[key] = value;
+    }
+    return value;
   }
 
   /// Exact equity vs a known villain hand (runs out remaining board cards).
@@ -268,8 +298,10 @@ class EquityCalculator {
     return [for (final w in wins) w / total];
   }
 
-  static bool _has(Set<CardModel> set, CardModel c) =>
-      set.any((x) => x.rank == c.rank && x.suit == c.suit);
+  // CardModel has value `==`/`hashCode` (collision-free: rank*4+suit), so a
+  // Set lookup is O(1) — far cheaper than the old linear `.any` scan, which
+  // ran inside the hot Monte-Carlo loop for every dealt card.
+  static bool _has(Set<CardModel> set, CardModel c) => set.contains(c);
 
   /// Stable seed derived purely from the situation (hero + board + #opps),
   /// order-independent for hole/board cards. Identical spots → identical seed.
