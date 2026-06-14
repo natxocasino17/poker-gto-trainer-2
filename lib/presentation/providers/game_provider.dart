@@ -30,7 +30,25 @@ class GameProvider extends ChangeNotifier {
   List<String?> _tableSlots = List<String?>.filled(5, null);
   String _localeCode = 'es';
 
+  // ── User settings (mirrored from the repository) ──
+  int _difficulty = 1; // 0 easy, 1 medium, 2 hard
+  bool _autoRebuy = true;
+  double _rebuyAmount = GameRepository.defaultBuyIn;
+  double _smallBlind = 1.0;
+  double _bigBlind = 2.0;
+  double _startingStack = GameRepository.defaultBuyIn;
+  bool _trainerMode = false;
+
   GameProvider(this._repo);
+
+  int get difficulty => _difficulty;
+  bool get autoRebuy => _autoRebuy;
+  double get rebuyAmount => _rebuyAmount;
+  double get smallBlind => _smallBlind;
+  double get bigBlind => _bigBlind;
+  double get startingStack => _startingStack;
+  bool get trainerMode => _trainerMode;
+  bool get tutorialSeen => _repo.getTutorialSeen();
 
   bool get initialized => _initialized;
   bool get sessionActive => _sessionActive && _engine != null;
@@ -41,7 +59,7 @@ class GameProvider extends ChangeNotifier {
   GTORecommendation? get lastGTOAdvice => _lastGTOAdvice;
   double get bankroll => _bankroll;
   bool get displayInBB => _displayInBB;
-  bool get canAffordBuyIn => _bankroll >= GameRepository.defaultBuyIn;
+  bool get canAffordBuyIn => _bankroll >= _startingStack;
   List<String?> get tableSlots => List.unmodifiable(_tableSlots);
   List<SessionSummary> get sessionArchive => _repo.getSessionArchive();
   String get localeCode => _localeCode;
@@ -99,10 +117,73 @@ class GameProvider extends ChangeNotifier {
     _tableSlots = _repo.getTableConfig();
     _localeCode = _repo.getLocale();
     I18n.locale = _localeCode;
+    _loadSettings();
     _analyst = HandReviewerEngine(_repo);
     _initialized = true;
     notifyListeners();
   }
+
+  /// Loads user settings and applies the engine-global ones (blinds, difficulty).
+  void _loadSettings() {
+    _difficulty = _repo.getDifficulty();
+    _autoRebuy = _repo.getAutoRebuy();
+    _rebuyAmount = _repo.getRebuyAmount();
+    _smallBlind = _repo.getSmallBlind();
+    _bigBlind = _repo.getBigBlind();
+    _startingStack = _repo.getStartingStack();
+    _trainerMode = _repo.getTrainerMode();
+    _applyEngineSettings();
+  }
+
+  void _applyEngineSettings() {
+    PokerEngine.smallBlind = _smallBlind;
+    PokerEngine.bigBlind = _bigBlind;
+    LegendaryBotEngine.difficulty =
+        _difficulty == 0 ? 0.0 : (_difficulty == 2 ? 1.0 : 0.5);
+  }
+
+  // ── Settings mutators (persist + apply + notify) ──
+  Future<void> setDifficulty(int d) async {
+    _difficulty = d.clamp(0, 2);
+    await _repo.saveDifficulty(_difficulty);
+    _applyEngineSettings();
+    notifyListeners();
+  }
+
+  Future<void> setAutoRebuy(bool v) async {
+    _autoRebuy = v;
+    await _repo.saveAutoRebuy(v);
+    notifyListeners();
+  }
+
+  Future<void> setRebuyAmount(double v) async {
+    _rebuyAmount = v.clamp(20.0, 100000.0);
+    await _repo.saveRebuyAmount(_rebuyAmount);
+    notifyListeners();
+  }
+
+  Future<void> setBlinds(double sb, double bb) async {
+    _smallBlind = sb;
+    _bigBlind = bb < sb * 2 ? sb * 2 : bb;
+    await _repo.saveSmallBlind(_smallBlind);
+    await _repo.saveBigBlind(_bigBlind);
+    _applyEngineSettings();
+    notifyListeners();
+  }
+
+  Future<void> setStartingStack(double v) async {
+    _startingStack = v.clamp(20.0, 1000000.0);
+    await _repo.saveStartingStack(_startingStack);
+    notifyListeners();
+  }
+
+  Future<void> setTrainerMode(bool v) async {
+    _trainerMode = v;
+    await _repo.saveTrainerMode(v);
+    notifyListeners();
+  }
+
+  Future<void> markTutorialSeen() => _repo.saveTutorialSeen(true);
 
   /// The player decides when to sit down. Everyone — human included —
   /// enters with exactly $200, never more.
@@ -112,16 +193,18 @@ class GameProvider extends ChangeNotifier {
     // New session: fresh stats/history and a fresh random legend lineup
     await _repo.resetSession();
     _handHistory = [];
+    _applyEngineSettings(); // blinds + difficulty in effect for this session
 
-    _bankroll -= GameRepository.defaultBuyIn;
+    _bankroll -= _startingStack;
     await _repo.saveBankroll(_bankroll);
-    await _repo.saveTableStack(GameRepository.defaultBuyIn);
+    await _repo.saveTableStack(_startingStack);
 
     _activeLegends = LegendaryBotEngine.buildLineup(_tableSlots);
     final engine = PokerEngine(
-      tableStack: GameRepository.defaultBuyIn,
+      tableStack: _startingStack,
       bankroll: _bankroll,
       legends: _activeLegends,
+      botBuyIn: _startingStack,
     );
     engine.seedHumanModel(_repo.getHumanProfile());
     engine.onHandComplete = _onHandComplete;
@@ -185,14 +268,17 @@ class GameProvider extends ChangeNotifier {
 
     _handHistory = _repo.getHandLogs();
 
-    // Busted (or below one blind): automatic re-entry for another exact
-    // $200 while the bankroll can cover it. Leftover cents are swept back.
-    if (human.stack < PokerEngine.bigBlind && canAffordBuyIn) {
+    // Busted (or below one blind): automatic re-entry for the configured
+    // rebuy amount while the bankroll can cover it — but only if auto-rebuy
+    // is enabled. Leftover cents are swept back to the bankroll.
+    if (_autoRebuy &&
+        human.stack < PokerEngine.bigBlind &&
+        _bankroll >= _rebuyAmount) {
       _bankroll += human.stack;
-      _bankroll -= GameRepository.defaultBuyIn;
+      _bankroll -= _rebuyAmount;
       await _repo.saveBankroll(_bankroll);
-      await _repo.saveTableStack(GameRepository.defaultBuyIn);
-      engine.updateTableStack(GameRepository.defaultBuyIn);
+      await _repo.saveTableStack(_rebuyAmount);
+      engine.updateTableStack(_rebuyAmount);
     }
 
     notifyListeners();

@@ -4,6 +4,7 @@ import 'screens/play/play_screen.dart';
 import 'screens/analyze/analyze_screen.dart';
 import 'screens/stats/stats_screen.dart';
 import 'screens/year/year_screen.dart';
+import 'screens/settings/settings_screen.dart';
 import '../core/i18n/i18n.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
@@ -23,6 +24,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     AnalyzeScreen(),
     StatsScreen(),
     YearScreen(),
+    SettingsScreen(),
   ];
 
   @override
@@ -69,6 +71,11 @@ class _MainScaffoldState extends State<MainScaffold> {
               icon: _NavIcon(icon: Icons.timeline_outlined, selected: _selectedIndex == 3),
               activeIcon: _NavIcon(icon: Icons.timeline, selected: true),
               label: I18n.t('nav_year'),
+            ),
+            BottomNavigationBarItem(
+              icon: _NavIcon(icon: Icons.tune_outlined, selected: _selectedIndex == 4),
+              activeIcon: _NavIcon(icon: Icons.tune, selected: true),
+              label: 'Ajustes',
             ),
           ],
         ),

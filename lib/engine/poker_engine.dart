@@ -130,8 +130,12 @@ class GameState {
 }
 
 class PokerEngine extends ChangeNotifier {
-  static const double smallBlind = 1.0;
-  static const double bigBlind = 2.0;
+  // Configurable blinds (set from user settings before a session starts).
+  static double smallBlind = 1.0;
+  static double bigBlind = 2.0;
+
+  /// Buy-in a busted bot reloads with (matches the table stack by default).
+  final double botBuyIn;
 
   GameState _state;
   bool _disposed = false;
@@ -143,7 +147,8 @@ class PokerEngine extends ChangeNotifier {
     required double tableStack,
     required double bankroll,
     required List<LegendProfile> legends,
-  })  : _state = _buildInitialState(tableStack, legends);
+    this.botBuyIn = 200.0,
+  })  : _state = _buildInitialState(tableStack, legends, botBuyIn);
 
   GameState get state => _state;
 
@@ -151,8 +156,8 @@ class PokerEngine extends ChangeNotifier {
   /// they exploit known tendencies from the first hand (cross-session learning).
   void seedHumanModel(Map<String, double> profile) => _humanModel.seedFrom(profile);
 
-  static GameState _buildInitialState(double tableStack, List<LegendProfile> legends) {
-    const botStack = 200.0;
+  static GameState _buildInitialState(
+      double tableStack, List<LegendProfile> legends, double botStack) {
     final players = [
       PlayerModel(id: 'human', name: 'You', isHuman: true, stack: tableStack),
       PlayerModel(id: 'bot0', name: legends[0].name, isHuman: false, stack: botStack, legendName: legends[0].name),
@@ -193,7 +198,7 @@ class PokerEngine extends ChangeNotifier {
           id: p.id,
           name: fresh.name,
           isHuman: false,
-          stack: 200.0,
+          stack: botBuyIn,
           legendName: fresh.name,
         );
       }

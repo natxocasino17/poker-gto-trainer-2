@@ -16,6 +16,15 @@ class GameRepository {
   static const _tableConfigKey = 'table_config';
   static const _localeKey = 'app_locale';
   static const _humanProfileKey = 'human_profile';
+  // ── User settings keys ──
+  static const _difficultyKey = 'opt_difficulty';
+  static const _autoRebuyKey = 'opt_auto_rebuy';
+  static const _rebuyAmountKey = 'opt_rebuy_amount';
+  static const _smallBlindKey = 'opt_small_blind';
+  static const _bigBlindKey = 'opt_big_blind';
+  static const _startingStackKey = 'opt_starting_stack';
+  static const _tutorialSeenKey = 'opt_tutorial_seen';
+  static const _trainerModeKey = 'opt_trainer_mode';
 
   static const double initialBankroll = 1000.0;
   static const double defaultBuyIn = 200.0;
@@ -159,4 +168,37 @@ class GameRepository {
     final logs = getHandLogs();
     return SessionStats.fromHandLogs(logs, getSessionId(), getSessionStart());
   }
+
+  // ── User settings ────────────────────────────────────────────────────────
+  /// 0 = easy, 1 = medium, 2 = hard.
+  int getDifficulty() => _prefs.getInt(_difficultyKey) ?? 1;
+  Future<void> saveDifficulty(int d) =>
+      _prefs.setInt(_difficultyKey, d.clamp(0, 2));
+
+  bool getAutoRebuy() => _prefs.getBool(_autoRebuyKey) ?? true;
+  Future<void> saveAutoRebuy(bool v) => _prefs.setBool(_autoRebuyKey, v);
+
+  double getRebuyAmount() => _prefs.getDouble(_rebuyAmountKey) ?? defaultBuyIn;
+  Future<void> saveRebuyAmount(double v) =>
+      _prefs.setDouble(_rebuyAmountKey, v.clamp(20.0, 100000.0));
+
+  double getSmallBlind() => _prefs.getDouble(_smallBlindKey) ?? 1.0;
+  Future<void> saveSmallBlind(double v) =>
+      _prefs.setDouble(_smallBlindKey, v.clamp(0.5, 50000.0));
+
+  double getBigBlind() => _prefs.getDouble(_bigBlindKey) ?? 2.0;
+  Future<void> saveBigBlind(double v) =>
+      _prefs.setDouble(_bigBlindKey, v.clamp(1.0, 100000.0));
+
+  double getStartingStack() =>
+      _prefs.getDouble(_startingStackKey) ?? defaultBuyIn;
+  Future<void> saveStartingStack(double v) =>
+      _prefs.setDouble(_startingStackKey, v.clamp(20.0, 1000000.0));
+
+  bool getTutorialSeen() => _prefs.getBool(_tutorialSeenKey) ?? false;
+  Future<void> saveTutorialSeen(bool v) =>
+      _prefs.setBool(_tutorialSeenKey, v);
+
+  bool getTrainerMode() => _prefs.getBool(_trainerModeKey) ?? false;
+  Future<void> saveTrainerMode(bool v) => _prefs.setBool(_trainerModeKey, v);
 }

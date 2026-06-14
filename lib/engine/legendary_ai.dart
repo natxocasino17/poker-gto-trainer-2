@@ -125,6 +125,40 @@ class LegendProfile {
 class LegendaryBotEngine {
   static final Random _rng = Random();
 
+  /// Global difficulty knob set from user settings: 0.0 = easy (bots play
+  /// passively and face-up, bluff less), 0.5 = medium (legend baseline),
+  /// 1.0 = hard (bots hero-call thin and stay balanced — tougher to exploit).
+  static double difficulty = 0.5;
+
+  /// Post-processes a postflop decision according to [difficulty]. Easy bots
+  /// give up low-equity aggression; hard bots occasionally bluff-catch thin.
+  static BotDecision _applyDifficulty(
+      BotDecision d, double equity, double callAmount) {
+    if (difficulty < 0.5) {
+      final ease = (0.5 - difficulty) * 2; // 0..1
+      final aggressive = d.type == ActionType.bet ||
+          d.type == ActionType.raise ||
+          d.type == ActionType.allIn;
+      if (aggressive && equity < 0.45 && _rng.nextDouble() < ease * 0.6) {
+        return BotDecision(
+          type: callAmount > 0 ? ActionType.fold : ActionType.check,
+          amount: 0,
+          thinkMs: d.thinkMs,
+        );
+      }
+    } else if (difficulty > 0.5) {
+      final tough = (difficulty - 0.5) * 2; // 0..1
+      if (d.type == ActionType.fold &&
+          callAmount > 0 &&
+          equity > 0.30 &&
+          _rng.nextDouble() < tough * 0.25) {
+        return BotDecision(
+            type: ActionType.call, amount: callAmount, thinkMs: d.thinkMs);
+      }
+    }
+    return d;
+  }
+
   static const List<LegendProfile> _allLegends = [
     // 1. Phil Ivey — High-Stakes Exploiter: reads patterns, barrels turn/river
     // vs over-folders, value-maximises vs stations, never tilts.
@@ -810,6 +844,7 @@ class LegendaryBotEngine {
         villainCheckedBack: villainCheckedBack,
         prevBoard: prevBoard,
       );
+      decision = _applyDifficulty(decision, equity, callAmount);
     }
 
     await Future.delayed(Duration(milliseconds: min(thinkMs, 2900)));
