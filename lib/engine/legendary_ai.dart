@@ -426,21 +426,35 @@ class LegendaryBotEngine {
       // bluffs with strong value, ramps exploitation on the frustrated villain.
       readsOpponent: true,
     ),
-    // 13. Michael Addamo — Overbet Terror: 2-3x pot bombs from the flop
-    // forcing stack-commitment decisions.
+    // 13. Michael Addamo — "The High Roller Nightmare": hyper-aggressive
+    // mathematical pressure that shatters opponents' range structure until the
+    // fold looks like the only safe option (even when it's wrong).
+    // "Presión del overbet": 1.5-3x pot bombs when range advantage is his,
+    // forcing all-stack decisions with marginal hands. "Polarización brutal":
+    // nuts or air, never medium. "Explotación de la incomodidad": punishes GTO
+    // players in late streets, near-100% river aggression vs weakness. Risk
+    // indifferent and almost impossible to read — never bluffs without a plan.
     LegendProfile(
       name: 'Michael',
-      style: 'Overbet Terror',
+      style: 'The Nightmare — Overbet Terror',
       emoji: '💥',
+      avatarAsset: 'assets/avatars/michael.png',
       utgOpen: 0.63, mpOpen: 0.56, coOpen: 0.47, btnOpen: 0.37, sbOpen: 0.49, bbDefend: 0.35,
       threeBetThreshold: 0.67, fourBetThreshold: 0.82,
-      cBetFreq: 0.74, doubleBarrelFreq: 0.62, tripleBarrelFreq: 0.48, checkRaiseFreq: 0.36,
+      // Relentless late-street pressure
+      cBetFreq: 0.74, doubleBarrelFreq: 0.62, tripleBarrelFreq: 0.52, checkRaiseFreq: 0.36,
       bluffFreq: 0.36, slowplayFreq: 0.12,
       preferredSizings: [1.0, 1.5, 2.0, 3.0],
       riverOverbetThreshold: 0.60,
       openSizeBB: 3.0, bluffRaiseFreq: 0.18,
       probeBetFreq: 0.36, donkBetFreq: 0.14,
+      // "Polarización brutal": air or nuts, no medium bets
       polarizedBetting: true,
+      // "Explotación de la incomodidad": near-100% river barrels vs weakness,
+      // never lets GTO players reach showdown for free
+      exploitsHighFolders: true,
+      // "Presión del overbet": sizes up to threaten the whole stack
+      stackPressure: true,
     ),
     // 14. Linus Loeliger — High Roller Cash GTO: mathematically perfect
     // preflop, immune to tilt, zero psychological exploitation.
