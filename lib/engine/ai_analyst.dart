@@ -234,6 +234,10 @@ class HandReviewerEngine {
           analysis: analysis!,
           blockers: blockers!,
           ctx: ctx,
+          recAction: rec.action,
+          recAmount: rec.amount,
+          heroActionLabel: humanAction.label,
+          quality: quality,
         );
         fullExplanation = deep.isEmpty ? rec.reasoning : '${rec.reasoning}\n\n$deep';
         finalKey = '';
@@ -283,10 +287,19 @@ class HandReviewerEngine {
     required HandStrengthAnalysis analysis,
     required Blockers blockers,
     required PostflopContext ctx,
+    required String recAction,
+    required double recAmount,
+    required String heroActionLabel,
+    required DecisionQuality quality,
   }) {
     final isRiver = board.length == 5;
     final b = StringBuffer();
 
+    b.writeln('━━━ ACCIÓN ÓPTIMA ━━━');
+    b.writeln(_optimalSection(recAction, recAmount, pot, heroActionLabel,
+        quality, analysis, equity, ctx));
+
+    b.writeln();
     b.writeln('━━━ FACTORES POSTFLOP ━━━');
     b.writeln(_factorsRead(ctx, equity));
 
@@ -304,6 +317,63 @@ class HandReviewerEngine {
       b.writeln(_bluffRead(hole, board, texture));
     }
     return b.toString().trim();
+  }
+
+  /// "Acción óptima": the GTO play for this street, a concise why, and how the
+  /// hero's actual action compares.
+  String _optimalSection(
+      String recAction,
+      double recAmount,
+      double pot,
+      String heroActionLabel,
+      DecisionQuality quality,
+      HandStrengthAnalysis a,
+      double equity,
+      PostflopContext ctx) {
+    final sizing = recAmount > 0
+        ? ' \$${recAmount.toStringAsFixed(0)} (${(recAmount / max(pot, 1) * 100).toStringAsFixed(0)}% bote)'
+        : '';
+    final b = StringBuffer();
+    b.writeln('GTO óptimo: ${recAction.toUpperCase()}$sizing');
+    b.writeln('Por qué: ${_optimalWhy(a, equity, ctx)}');
+    b.writeln('Tu jugada: $heroActionLabel → ${_verdictLabel(quality)}');
+    return b.toString().trim();
+  }
+
+  String _optimalWhy(HandStrengthAnalysis a, double equity, PostflopContext ctx) {
+    final eq = (equity * 100).toStringAsFixed(0);
+    final pos = ctx.inPosition ? 'en posición' : 'fuera de posición';
+    final ini = ctx.hasInitiative ? 'con iniciativa' : 'sin iniciativa';
+    final mw = ctx.isMultiway
+        ? ' en bote multiway (sube el umbral de valor y baja el farol)'
+        : '';
+    switch (a.bucket) {
+      case HandBucket.nuts:
+      case HandBucket.strongValue:
+        return 'mano fuerte ($eq% equity)$mw: apuesta por valor y construye el bote ($pos, $ini).';
+      case HandBucket.comboDraw:
+      case HandBucket.strongDraw:
+        return '${a.outs} outs (~${(a.drawEquity * 100).toStringAsFixed(0)}%) + fold equity: semi-bluff ($pos, $ini)$mw.';
+      case HandBucket.mediumValue:
+      case HandBucket.weakShowdown:
+        return 'showdown / bluff-catcher ($eq%): controla el bote y paga según pot odds y MDF$mw ($pos).';
+      case HandBucket.weakDraw:
+      case HandBucket.air:
+        return 'poca equity ($eq%): check/fold salvo farol con bloqueadores$mw ($pos, $ini).';
+    }
+  }
+
+  String _verdictLabel(DecisionQuality q) {
+    switch (q) {
+      case DecisionQuality.optimal:
+        return 'ÓPTIMA ✅ (coincide con GTO)';
+      case DecisionQuality.correct:
+        return 'correcta 👍';
+      case DecisionQuality.marginal:
+        return 'marginal ⚠️ (había algo mejor)';
+      case DecisionQuality.blunder:
+        return 'error ❌ (te desviaste del GTO)';
+    }
   }
 
   /// Per-factor postflop read: position/equity realization, multiway, initiative,
