@@ -382,6 +382,9 @@ class EquityCalculator {
     final canBluff = ctx.canPureBluff;
     final callPenalty = ctx.callEvPenalty;
     final isMultiway = ctx.isMultiway;
+    // How much the board favours the preflop aggressor's range.
+    final rangeAdv =
+        texture != null ? RangeModel.aggressorRangeAdvantage(texture) : 0.0;
 
     // ── Determine primary action (now factor-aware) ─────────────────────────
     String action;
@@ -414,6 +417,18 @@ class EquityCalculator {
           hasInitiative) {
         final bet = _snapToBetSize(potSize * 0.50);
         action = 'Bet'; amount = bet; evFinal = 0.08;
+      } else if (hasInitiative &&
+          !isRiver &&
+          canBluff &&
+          !isMultiway &&
+          texture != null &&
+          texture.wetness < 0.55 &&
+          rangeAdv > 0.08) {
+        // Range-advantage c-bet: as the aggressor you continue on boards that
+        // hit YOUR range better — even with air — to deny equity and keep the
+        // pressure. Checking just gives the defender free cards to improve.
+        final bet = _snapToBetSize(potSize * (texture.wetness < 0.30 ? 0.33 : 0.45));
+        action = 'Bet'; amount = bet; evFinal = 0.04;
       } else {
         action = 'Check'; amount = 0; evFinal = 0;
       }
@@ -555,6 +570,8 @@ class EquityCalculator {
       drawPct: drawPct,
       callAmount: callAmount,
       isRiver: isRiver,
+      hasInitiative: ctx.hasInitiative,
+      rangeAdv: RangeModel.aggressorRangeAdvantage(texture),
     )}');
 
     // ── 5. UNA NOTA ADAPTADA — solo la más relevante a este spot ────────────
@@ -698,6 +715,8 @@ class EquityCalculator {
     required String drawPct,
     required double callAmount,
     required bool isRiver,
+    required bool hasInitiative,
+    required double rangeAdv,
   }) {
     final sizing = amount > 0
         ? '\$${amount.toStringAsFixed(0)} (${(amount / max(potSize, 1) * 100).toStringAsFixed(0)}% bote)'
@@ -717,6 +736,9 @@ class EquityCalculator {
       }
       if (action == 'Raise') {
         return 'RAISE-FAROL $sizing — bloqueadores + textura te dejan representar; el rival necesita ${(alpha * 100).toStringAsFixed(0)}% de folds.';
+      }
+      if (hasInitiative && rangeAdv > 0.08) {
+        return 'C-BET DE CONTINUACIÓN $sizing — tienes la iniciativa y el board favorece a TU rango; apuesta aunque no hayas ligado para negar equity y no dar cartas gratis al que defiende.';
       }
       return 'BET fina/protección $sizing — no des cartas gratis a los draws de este board.';
     }
