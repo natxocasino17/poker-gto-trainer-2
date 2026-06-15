@@ -184,18 +184,12 @@ class HandReviewerEngine {
         const streetIdx = {'preflop': 0, 'flop': 1, 'turn': 2, 'river': 3};
         final curIdx = streetIdx[street] ?? 1;
         final preflopRaises = allActions
-            .where((a) =>
-                a.street == 'preflop' &&
-                (a.type == ActionType.raise ||
-                    a.type == ActionType.bet ||
-                    a.type == ActionType.allIn))
+            .where((a) => a.street == 'preflop' && a.isAggressive)
             .length;
         String? lastAggId;
         for (final a in allActions) {
           if ((streetIdx[a.street] ?? 0) > curIdx) break;
-          if (a.type == ActionType.raise ||
-              a.type == ActionType.bet ||
-              a.type == ActionType.allIn) {
+          if (a.isAggressive) {
             lastAggId = a.playerId;
           }
         }

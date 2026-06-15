@@ -552,14 +552,8 @@ class PokerEngine extends ChangeNotifier {
     var actorsRemaining = _state.actorsRemaining;
     var wasAggressor = _state.wasAggressorThisStreet;
 
-    final actionEntry = HandAction(
-      playerId: player.id,
-      playerName: player.name,
-      type: type,
-      amount: rawAmount,
-      street: _state.street,
-      sequence: _state.currentHandActions.length,
-    );
+    // Whether this action takes the betting lead (set inside the switch).
+    bool actionAggressive = false;
 
     PlayerModel updated;
 
@@ -602,6 +596,7 @@ class PokerEngine extends ChangeNotifier {
         // A short "raise" that can't exceed the current bet is really a call/
         // all-in — it must NOT lower the current bet or reopen the action.
         final reopens = amount > currentBet;
+        actionAggressive = reopens;
         if (reopens) {
           currentBet = amount;
           wasAggressor = true;
@@ -627,6 +622,7 @@ class PokerEngine extends ChangeNotifier {
         pot += allInAmount;
         final newStreetBet = player.streetBet + allInAmount;
         if (newStreetBet > currentBet) {
+          actionAggressive = true;
           currentBet = newStreetBet;
           wasAggressor = true;
           final otherActiveCount = players.where((p) =>
@@ -645,6 +641,15 @@ class PokerEngine extends ChangeNotifier {
     }
 
     players[playerIdx] = updated;
+    final actionEntry = HandAction(
+      playerId: player.id,
+      playerName: player.name,
+      type: type,
+      amount: rawAmount,
+      street: _state.street,
+      sequence: _state.currentHandActions.length,
+      isAggressive: actionAggressive,
+    );
     final actions = List<HandAction>.from(_state.currentHandActions)..add(actionEntry);
     final actionLabel = '${player.name}: ${actionEntry.label}';
 
@@ -905,10 +910,7 @@ class PokerEngine extends ChangeNotifier {
   String? _lastAggressorId() {
     String? id;
     for (final a in _state.currentHandActions) {
-      final aggressive = a.type == ActionType.raise ||
-          a.type == ActionType.bet ||
-          (a.type == ActionType.allIn && a.amount > bigBlind);
-      if (aggressive) id = a.playerId;
+      if (a.isAggressive) id = a.playerId;
     }
     return id;
   }

@@ -14,6 +14,11 @@ class HandAction {
   final String street;
   final int sequence;
 
+  /// True when this action took the betting lead (a bet, a genuine raise, or an
+  /// all-in that increased the bet). A call/check — or an undersized all-in
+  /// that doesn't reopen — is defending and stays false. Drives "initiative".
+  final bool isAggressive;
+
   const HandAction({
     required this.playerId,
     required this.playerName,
@@ -21,6 +26,7 @@ class HandAction {
     required this.amount,
     required this.street,
     required this.sequence,
+    this.isAggressive = false,
   });
 
   String get label {
@@ -41,6 +47,7 @@ class HandAction {
     'amt': amount,
     'st': street,
     'seq': sequence,
+    'agg': isAggressive,
   };
 
   factory HandAction.fromJson(Map<String, dynamic> j) => HandAction(
@@ -50,6 +57,7 @@ class HandAction {
     amount: (j['amt'] as num).toDouble(),
     street: j['st'] as String,
     sequence: j['seq'] as int,
+    isAggressive: (j['agg'] as bool?) ?? false,
   );
 }
 
