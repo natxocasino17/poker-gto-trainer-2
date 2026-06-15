@@ -111,6 +111,10 @@ class HoleCardsWidget extends StatelessWidget {
   final double cardHeight;
   final bool highlighted;
 
+  /// When provided, ONLY the cards in this set glow (used at showdown to light
+  /// up just the cards that form the winning hand). Overrides [highlighted].
+  final Set<CardModel>? winningCards;
+
   const HoleCardsWidget({
     super.key,
     required this.cards,
@@ -118,7 +122,13 @@ class HoleCardsWidget extends StatelessWidget {
     this.cardWidth = 32,
     this.cardHeight = 46,
     this.highlighted = false,
+    this.winningCards,
   });
+
+  bool _glow(CardModel? c) {
+    if (winningCards != null) return c != null && winningCards!.contains(c);
+    return highlighted;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +145,7 @@ class HoleCardsWidget extends StatelessWidget {
             faceDown: faceDown,
             width: cardWidth,
             height: cardHeight,
-            highlighted: highlighted,
+            highlighted: faceDown ? false : _glow(cards[0]),
           ),
         ),
         const SizedBox(width: 2),
@@ -146,7 +156,7 @@ class HoleCardsWidget extends StatelessWidget {
             faceDown: faceDown || cards.length < 2,
             width: cardWidth,
             height: cardHeight,
-            highlighted: highlighted,
+            highlighted: faceDown ? false : _glow(cards.length > 1 ? cards[1] : null),
           ),
         ),
       ],

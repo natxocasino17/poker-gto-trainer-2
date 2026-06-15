@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../data/models/player_model.dart';
+import '../../../../data/models/card_model.dart';
 import '../../../../data/models/hand_log_model.dart';
 import 'card_widget.dart';
 import '../../../../core/i18n/i18n.dart';
@@ -17,6 +18,7 @@ class PlayerSeatWidget extends StatelessWidget {
   final String stackLabel;
   final HandAction? lastStreetAction;
   final String? actionAmountLabel;
+  final Set<CardModel>? winningCards;
 
   const PlayerSeatWidget({
     super.key,
@@ -29,6 +31,7 @@ class PlayerSeatWidget extends StatelessWidget {
     required this.stackLabel,
     this.lastStreetAction,
     this.actionAmountLabel,
+    this.winningCards,
   });
 
   @override
@@ -64,7 +67,8 @@ class PlayerSeatWidget extends StatelessWidget {
                 faceDown: !player.cardsVisible,
                 cardWidth: 20,
                 cardHeight: 29,
-                highlighted: player.isWinner,
+                highlighted: player.isWinner && winningCards == null,
+                winningCards: player.isWinner ? winningCards : null,
               ),
             ),
           const SizedBox(height: 2),

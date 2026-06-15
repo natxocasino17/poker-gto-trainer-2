@@ -4,6 +4,7 @@ import '../../../core/utils/hand_evaluator.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/hand_log_model.dart';
+import '../../../data/models/card_model.dart';
 import '../../../engine/legendary_ai.dart';
 import '../../../engine/poker_engine.dart';
 import '../../../presentation/providers/game_provider.dart';
@@ -15,6 +16,8 @@ import 'widgets/trainer_feedback_banner.dart';
 import 'widgets/puxi_tutorial_overlay.dart';
 import '../simulator/simulator_screen.dart';
 import '../puxi/puxi_chat_screen.dart';
+import '../heatmap/range_heatmap_screen.dart';
+import '../progress/progress_screen.dart';
 import '../../../core/i18n/i18n.dart';
 
 class PlayScreen extends StatelessWidget {
@@ -257,11 +260,30 @@ class _PokerTable extends StatelessWidget {
     final rx = width * 0.36;
     final ry = height * 0.33;
 
+    // Show each player's LAST action of the HAND (not just the current
+    // street), so a check/call/fold stays visible after the next card is
+    // dealt — you can always read the last decision.
     HandAction? lastActionOf(String playerId) {
       for (final a in gs.currentHandActions.reversed) {
-        if (a.playerId == playerId && a.street == gs.street) return a;
+        if (a.playerId == playerId) return a;
       }
       return null;
+    }
+
+    // At showdown, light up ONLY the 5 cards that form each winner's hand.
+    final Set<CardModel> winningCards = {};
+    if (gs.phase == GamePhase.handComplete && gs.communityCards.length >= 3) {
+      for (final p in players) {
+        if (p.isWinner && p.holeCards.length == 2) {
+          try {
+            winningCards.addAll(
+              HandEvaluator.evaluateBest(
+                [...p.holeCards, ...gs.communityCards],
+              ).cards,
+            );
+          } catch (_) {}
+        }
+      }
     }
 
     return Stack(
@@ -276,7 +298,7 @@ class _PokerTable extends StatelessWidget {
           left: cx - 95,
           top: cy - 44,
           width: 190,
-          child: _CenterDisplay(gs: gs, gp: gp),
+          child: _CenterDisplay(gs: gs, gp: gp, winningCards: winningCards),
         ),
         // Bet chips in front of each player (on the felt)
         for (int i = 0; i < 6; i++)
@@ -325,6 +347,7 @@ class _PokerTable extends StatelessWidget {
                 stackLabel: gp.money(players[i].stack),
                 lastStreetAction: lastActionOf(players[i].id),
                 actionAmountLabel: _amountLabelFor(lastActionOf(players[i].id)),
+                winningCards: winningCards,
               ),
             ),
           ),
@@ -345,7 +368,7 @@ class _PokerTable extends StatelessWidget {
                   faceDown: false,
                   cardWidth: 42,
                   cardHeight: 60,
-                  highlighted: gs.humanPlayer.isWinner,
+                  winningCards: gs.humanPlayer.isWinner ? winningCards : null,
                 ),
               ),
               // Live made-hand indicator (pro feature)
@@ -420,10 +443,31 @@ class _PokerTable extends StatelessWidget {
           ),
         // GTO FAB
         const Positioned(right: 12, bottom: 12, child: GTOAdvisorFAB()),
-        // Replay the current hand from preflop with the same cards
+        // Preflop ranges (heatmap) — quick study button
         Positioned(
-          right: 14,
-          bottom: 74,
+          left: 12,
+          bottom: 12,
+          child: GestureDetector(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const RangeHeatmapScreen()),
+            ),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.surfaceElevated,
+                border: Border.all(color: AppColors.gold.withOpacity(0.6), width: 1.5),
+              ),
+              child: const Icon(Icons.grid_on, color: AppColors.gold, size: 20),
+            ),
+          ),
+        ),
+        // Replay the current hand from preflop with the same cards — to the
+        // LEFT of the GTO assistant.
+        Positioned(
+          right: 72,
+          bottom: 18,
           child: GestureDetector(
             onTap: gp.canReplay ? gp.replayHand : null,
             child: Container(
@@ -441,22 +485,6 @@ class _PokerTable extends StatelessWidget {
               child: Icon(Icons.replay,
                   color: AppColors.accent.withOpacity(gp.canReplay ? 1 : 0.4),
                   size: 19),
-            ),
-          ),
-        ),
-        // Street label
-        Positioned(
-          top: 6,
-          left: 0,
-          right: 0,
-          child: Center(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: Text(
-                key: ValueKey(gs.street),
-                gs.street.toUpperCase(),
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 10, letterSpacing: 2),
-              ),
             ),
           ),
         ),
@@ -607,13 +635,28 @@ class _DealerButton extends StatelessWidget {
 class _CenterDisplay extends StatelessWidget {
   final GameState gs;
   final GameProvider gp;
-  const _CenterDisplay({required this.gs, required this.gp});
+  final Set<CardModel> winningCards;
+  const _CenterDisplay(
+      {required this.gs, required this.gp, this.winningCards = const {}});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Street label — sits just above the pot.
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: Padding(
+            key: ValueKey(gs.street),
+            padding: const EdgeInsets.only(bottom: 3),
+            child: Text(
+              gs.street.toUpperCase(),
+              style: const TextStyle(
+                  color: AppColors.textMuted, fontSize: 10, letterSpacing: 2),
+            ),
+          ),
+        ),
         // Two pots, on purpose:
         //  · "BOTE" = total pot (closed pot + all bets in front of players) →
         //    the number you use for MDF and the full-pot reasoning.
@@ -673,6 +716,7 @@ class _CenterDisplay extends StatelessWidget {
                           card: gs.communityCards[i],
                           width: 32,
                           height: 46,
+                          highlighted: winningCards.contains(gs.communityCards[i]),
                         )
                       : _EmptySlot(key: ValueKey('empty$i')),
                 ),
@@ -892,6 +936,50 @@ class _LobbyView extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Quick actions before sitting: top up bankroll + open Progress
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () => gp.reloadBankroll(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: _VintageColors.cream.withOpacity(0.88),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: _VintageColors.gold, width: 1.5),
+                          ),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.add, color: _VintageColors.gold, size: 16),
+                            SizedBox(width: 4),
+                            Text('Recargar \$', style: TextStyle(color: _VintageColors.inkBrown, fontWeight: FontWeight.w800, fontFamily: 'serif', fontSize: 12)),
+                          ]),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const ProgressScreen()),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: _VintageColors.cream.withOpacity(0.88),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: _VintageColors.borderDark, width: 1.5),
+                          ),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.emoji_events_outlined, color: _VintageColors.inkBrown, size: 16),
+                            SizedBox(width: 4),
+                            Text('Progreso', style: TextStyle(color: _VintageColors.inkBrown, fontWeight: FontWeight.w800, fontFamily: 'serif', fontSize: 12)),
+                          ]),
+                        ),
+                      ),
+                    ],
                   ),
 
                   const SizedBox(height: 24),

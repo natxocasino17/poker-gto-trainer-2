@@ -17,11 +17,22 @@ class HandScore implements Comparable<HandScore> {
   final List<int> tiebreakers;
   final String description;
 
+  /// The 5 cards that actually form this hand (set by [HandEvaluator]).
+  final List<CardModel> cards;
+
   const HandScore({
     required this.category,
     required this.tiebreakers,
     required this.description,
+    this.cards = const [],
   });
+
+  HandScore withCards(List<CardModel> c) => HandScore(
+        category: category,
+        tiebreakers: tiebreakers,
+        description: description,
+        cards: c,
+      );
 
   @override
   int compareTo(HandScore other) {
@@ -63,7 +74,7 @@ class HandEvaluator {
     assert(cards.length >= 5 && cards.length <= 7,
         'Need 5-7 cards, got ${cards.length}');
 
-    if (cards.length == 5) return _eval5(cards);
+    if (cards.length == 5) return _eval5(cards).withCards(cards);
 
     HandScore? best;
     final n = cards.length;
@@ -72,8 +83,9 @@ class HandEvaluator {
         for (int c = b + 1; c < n - 2; c++) {
           for (int d = c + 1; d < n - 1; d++) {
             for (int e = d + 1; e < n; e++) {
-              final s = _eval5([cards[a], cards[b], cards[c], cards[d], cards[e]]);
-              if (best == null || s > best) best = s;
+              final combo = [cards[a], cards[b], cards[c], cards[d], cards[e]];
+              final s = _eval5(combo);
+              if (best == null || s > best) best = s.withCards(combo);
             }
           }
         }
