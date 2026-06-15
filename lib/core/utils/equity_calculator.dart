@@ -385,6 +385,9 @@ class EquityCalculator {
     // How much the board favours the preflop aggressor's range.
     final rangeAdv =
         texture != null ? RangeModel.aggressorRangeAdvantage(texture) : 0.0;
+    final strongMade = analysis != null &&
+        (analysis.bucket == HandBucket.nuts ||
+            analysis.bucket == HandBucket.strongValue);
 
     // ── Determine primary action (now factor-aware) ─────────────────────────
     String action;
@@ -433,7 +436,13 @@ class EquityCalculator {
         action = 'Check'; amount = 0; evFinal = 0;
       }
     } else {
-      if (equity > 0.62 + vShift && ev > 0.12 + callPenalty) {
+      // Value-raise needs real equity AND, on the river, a genuinely STRONG
+      // made hand. A medium pair (e.g. 2nd pair on an A-high board) facing a
+      // river bet is a BLUFF-CATCHER, not a value raise — the betting range is
+      // polarized (top pair+/value or busted draws), so just CALL.
+      if (equity > 0.62 + vShift &&
+          ev > 0.12 + callPenalty &&
+          (!isRiver || strongMade)) {
         final raise = _snapToBetSize(callAmount * 2.8);
         action = 'Raise'; amount = raise; evFinal = ev;
       } else if (analysis != null &&

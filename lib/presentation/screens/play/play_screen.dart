@@ -260,12 +260,12 @@ class _PokerTable extends StatelessWidget {
     final rx = width * 0.36;
     final ry = height * 0.33;
 
-    // Show each player's LAST action of the HAND (not just the current
-    // street), so a check/call/fold stays visible after the next card is
-    // dealt — you can always read the last decision.
+    // Show each player's last action of the CURRENT betting round. It stays
+    // visible the whole round and clears when the round ends (chips go to the
+    // pot / next card), not lingering into the next decision.
     HandAction? lastActionOf(String playerId) {
       for (final a in gs.currentHandActions.reversed) {
-        if (a.playerId == playerId) return a;
+        if (a.playerId == playerId && a.street == gs.street) return a;
       }
       return null;
     }
