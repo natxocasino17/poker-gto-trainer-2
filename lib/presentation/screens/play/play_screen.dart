@@ -270,6 +270,9 @@ class _PokerTable extends StatelessWidget {
       return null;
     }
 
+    // Precompute each seat's current-round action once (used twice per seat).
+    final lastActions = {for (final p in players) p.id: lastActionOf(p.id)};
+
     // At showdown, light up ONLY the 5 cards that form each winner's hand.
     final Set<CardModel> winningCards = {};
     if (gs.phase == GamePhase.handComplete && gs.communityCards.length >= 3) {
@@ -345,8 +348,8 @@ class _PokerTable extends StatelessWidget {
                     ? gp.money(players[i].stack)
                     : null,
                 stackLabel: gp.money(players[i].stack),
-                lastStreetAction: lastActionOf(players[i].id),
-                actionAmountLabel: _amountLabelFor(lastActionOf(players[i].id)),
+                lastStreetAction: lastActions[players[i].id],
+                actionAmountLabel: _amountLabelFor(lastActions[players[i].id]),
                 winningCards: winningCards,
               ),
             ),
