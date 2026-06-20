@@ -138,21 +138,37 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
               ),
             ],
           ),
-          SliderTheme(
-            data: SliderThemeData(
-              activeTrackColor: AppColors.accent,
-              inactiveTrackColor: AppColors.border,
-              thumbColor: AppColors.accent,
-              overlayColor: AppColors.accentGlow,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-            ),
-            child: Slider(
-              value: _raiseAmount.clamp(min, max).toDouble(),
-              min: min.toDouble(),
-              max: max,
-              divisions: max > min ? ((max - min) / 2).round().clamp(1, 100) : 1,
-              onChanged: (v) => setState(() => _raiseAmount = v),
-            ),
+          Row(
+            children: [
+              _StepBtn(
+                icon: Icons.remove,
+                onTap: () => setState(() => _raiseAmount =
+                    (_raiseAmount - bigBlindAmount).clamp(min, max).toDouble()),
+              ),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderThemeData(
+                    activeTrackColor: AppColors.accent,
+                    inactiveTrackColor: AppColors.border,
+                    thumbColor: AppColors.accent,
+                    overlayColor: AppColors.accentGlow,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                  ),
+                  child: Slider(
+                    value: _raiseAmount.clamp(min, max).toDouble(),
+                    min: min.toDouble(),
+                    max: max,
+                    divisions: max > min ? ((max - min) / 2).round().clamp(1, 100) : 1,
+                    onChanged: (v) => setState(() => _raiseAmount = v),
+                  ),
+                ),
+              ),
+              _StepBtn(
+                icon: Icons.add,
+                onTap: () => setState(() => _raiseAmount =
+                    (_raiseAmount + bigBlindAmount).clamp(min, max).toDouble()),
+              ),
+            ],
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -224,6 +240,29 @@ class _ActionBtn extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _StepBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _StepBtn({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.accent.withOpacity(0.5)),
+        ),
+        child: Icon(icon, color: AppColors.accent, size: 20),
       ),
     );
   }

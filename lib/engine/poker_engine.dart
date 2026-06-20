@@ -1057,6 +1057,37 @@ class PokerEngine extends ChangeNotifier {
         ? primary.explanation
         : '$handCode → $action (EV ≈ +${ev.toStringAsFixed(2)}BB)';
 
+    // ── #8 STACK-DEPTH ADJUSTMENT ───────────────────────────────────────────
+    // The ranges in the DB are studied at ~100bb. Adjust + explain by effective
+    // stack: short = jam/fold and fewer speculative flats; deep = better implied
+    // odds for pairs / suited connectors.
+    final effBB = bigBlind > 0 ? human.stack / bigBlind : 100.0;
+    var finalAction = action;
+    var finalAmount = amount;
+    final String depthNote;
+    if (effBB <= 25) {
+      depthNote =
+          '⛏️ Stack corto (~${effBB.toStringAsFixed(0)}bb): peores implícitas → '
+          'menos flats especulativos; prioriza 3bet/jam o fold. Pares pequeños y '
+          'suited connectors pierden valor para flotar.';
+      // Flatting a 4-bet this short is a clear leak — jam or fold, not call.
+      if (finalAction == 'call' &&
+          effectiveCtx.action == PreflopAction.facing4bet) {
+        finalAction = 'fold';
+        finalAmount = 0;
+      }
+    } else if (effBB >= 175) {
+      depthNote =
+          '🌊 Stack profundo (~${effBB.toStringAsFixed(0)}bb): mejores implícitas '
+          'para pares y suited connectors (set-mining/flats rentables); ojo con '
+          'dominadas (AJ/KQ) en botes grandes.';
+    } else {
+      depthNote =
+          '📏 Stack estándar (~${effBB.toStringAsFixed(0)}bb): los rangos '
+          'estudiados de la base aplican directamente.';
+    }
+    final explanationWithDepth = '$explanation\n\n$depthNote';
+
     // Compute a rough preflop equity for display.
     final preflopEquity = EquityCalculator.calculate(
       heroCards: human.holeCards,
@@ -1067,14 +1098,14 @@ class PokerEngine extends ChangeNotifier {
     );
 
     return GTORecommendation(
-      action: _actionLabel(action),
-      amount: amount,
+      action: _actionLabel(finalAction),
+      amount: finalAmount,
       equity: preflopEquity,
       potOdds: callAmount > 0
           ? EquityCalculator.potOddsRequired(callAmount, _state.pot)
           : 0,
       ev: ev,
-      reasoning: explanation,
+      reasoning: explanationWithDepth,
     );
   }
 

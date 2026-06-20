@@ -398,9 +398,19 @@ class EquityCalculator {
       if (equity > 0.64 + vShift ||
           analysis?.bucket == HandBucket.nuts ||
           analysis?.bucket == HandBucket.strongValue) {
-        // Multiway → bet bigger (more protection, fewer bluffs to balance).
-        final wet = texture != null && texture.wetness > 0.5;
-        final frac = isMultiway ? (wet ? 0.85 : 0.72) : (wet ? 0.75 : 0.66);
+        double frac;
+        if (analysis?.bucket == HandBucket.nuts &&
+            hasInitiative &&
+            !isMultiway &&
+            rangeAdv > 0.12) {
+          // #7 NUT ADVANTAGE: only YOUR range holds the top hands on this board
+          // → overbet (>pot) to tax bluff-catchers and merged value.
+          frac = isRiver ? 1.35 : 1.15;
+        } else {
+          // Multiway → bet bigger (more protection, fewer bluffs to balance).
+          final wet = texture != null && texture.wetness > 0.5;
+          frac = isMultiway ? (wet ? 0.85 : 0.72) : (wet ? 0.75 : 0.66);
+        }
         final bet = _snapToBetSize(potSize * frac);
         action = 'Bet'; amount = bet; evFinal = equity - 0.5;
       } else if ((analysis?.bucket == HandBucket.comboDraw ||
@@ -563,6 +573,17 @@ class EquityCalculator {
       b.writeln('📐 Equity $eqPct% · SPR ${spr.toStringAsFixed(1)} (${_sprLabel(spr)})');
     }
     b.writeln(_factorLine(ctx, equity, realizedEq));
+    // #11/#13 Lectura del rival en tiempo real: su tamaño de apuesta delata el
+    // rango (historia de la mano).
+    if (callAmount > 0) {
+      final bf = callAmount / max(potSize - callAmount, 1.0);
+      final read = bf >= 0.85
+          ? 'grande/overbet → rango POLARIZADO (valor fuerte o farol): tu mano media es bluff-catcher → paga o foldea, NO subas'
+          : (bf <= 0.45
+              ? 'pequeña → rango MERGED / de protección: defiende amplio (MDF alto), flota o sube más'
+              : 'media → rango mixto: decide con equity + bloqueadores');
+      b.writeln('🎲 Sizing del rival: ${(bf * 100).toStringAsFixed(0)}% del bote → $read.');
+    }
     b.writeln();
 
     // ── 4. RECOMENDACIÓN ────────────────────────────────────────────────────
@@ -734,6 +755,9 @@ class EquityCalculator {
 
     if (action == 'Bet' || action == 'Raise') {
       if (bucket == HandBucket.nuts || bucket == HandBucket.strongValue) {
+        if (amount > potSize * 1.05) {
+          return 'OVERBET $sizing — VENTAJA DE NUECES: solo TÚ tienes las manos máximas en este board, así que apuesta más que el bote para cobrar al máximo de sus bluff-catchers.';
+        }
         final size = wet ? '66-75% en board húmedo, protege + extrae' : '50-66% en board seco';
         return 'BET VALOR $sizing — vas adelante, construye el bote ($size).';
       }
