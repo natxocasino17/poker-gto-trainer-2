@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/table_backgrounds.dart';
 import '../../../core/i18n/i18n.dart';
 import '../../../core/utils/hand_export.dart';
 import '../../providers/game_provider.dart';
@@ -70,6 +71,30 @@ class SettingsScreen extends StatelessWidget {
             subtitle: 'Efectos de fichas, cartas y avisos en la mesa',
             value: gp.soundEnabled,
             onChanged: gp.setSoundEnabled,
+          ),
+          _tile(
+            title: 'Fondo de mesa',
+            subtitle: 'Mismo posicionamiento y jugabilidad en todos',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final e in kTableBackgrounds.asMap().entries)
+                  ChoiceChip(
+                    label: Text(e.value.name),
+                    selected: gp.tableBackground == e.key,
+                    onSelected: (_) => gp.setTableBackground(e.key),
+                    selectedColor: AppColors.accent,
+                    backgroundColor: AppColors.surfaceElevated,
+                    labelStyle: TextStyle(
+                      color: gp.tableBackground == e.key
+                          ? const Color(0xFF06231E)
+                          : AppColors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+              ],
+            ),
           ),
           _tile(
             title: I18n.t('language'),

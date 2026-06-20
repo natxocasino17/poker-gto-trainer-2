@@ -43,13 +43,21 @@ class GameProvider extends ChangeNotifier {
   double _startingStack = GameRepository.defaultBuyIn;
   bool _trainerMode = false;
   bool _soundEnabled = true;
+  int _tableBackground = 0;
 
   final SoundController _sfx = SoundController(SoundService());
 
   GameProvider(this._repo);
 
   bool get soundEnabled => _soundEnabled;
+  int get tableBackground => _tableBackground;
   SoundController get sfx => _sfx;
+
+  Future<void> setTableBackground(int i) async {
+    _tableBackground = i;
+    await _repo.saveTableBackground(i);
+    notifyListeners();
+  }
 
   int get difficulty => _difficulty;
   bool get autoRebuy => _autoRebuy;
@@ -145,6 +153,7 @@ class GameProvider extends ChangeNotifier {
     _startingStack = _repo.getStartingStack();
     _trainerMode = _repo.getTrainerMode();
     _soundEnabled = _repo.getSoundEnabled();
+    _tableBackground = _repo.getTableBackground();
     _sfx.enabled = _soundEnabled;
     _applyEngineSettings();
   }

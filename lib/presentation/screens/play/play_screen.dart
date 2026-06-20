@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/utils/hand_evaluator.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/table_backgrounds.dart';
 import '../../../data/models/hand_log_model.dart';
 import '../../../data/models/card_model.dart';
 import '../../../engine/legendary_ai.dart';
@@ -290,13 +291,28 @@ class _PokerTable extends StatelessWidget {
       }
     }
 
+    // Selectable table background. Image backgrounds REPLACE the painted felt
+    // (deck + felt + rail baked into the image); the classic uses the painter.
+    // Every seat / card / pot stays at the SAME position regardless.
+    final bgIdx = gp.tableBackground.clamp(0, kTableBackgrounds.length - 1);
+    final bgAsset = kTableBackgrounds[bgIdx].asset;
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        CustomPaint(
-          size: Size(width, height),
-          painter: _TablePainter(cx: cx, cy: cy, rx: rx * 1.02, ry: ry * 1.06),
-        ),
+        if (bgAsset == null)
+          CustomPaint(
+            size: Size(width, height),
+            painter: _TablePainter(cx: cx, cy: cy, rx: rx * 1.02, ry: ry * 1.06),
+          )
+        else
+          Positioned.fill(
+            child: Image.asset(
+              bgAsset,
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+            ),
+          ),
         // Community cards + pot center
         Positioned(
           left: cx - 95,
