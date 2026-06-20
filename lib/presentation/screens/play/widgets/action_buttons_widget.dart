@@ -178,7 +178,7 @@ class _ActionButtonsWidgetState extends State<ActionButtonsWidget> {
               _QuickSizeBtn(label: '⅔', amount: pot * 0.6667, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
               _QuickSizeBtn(label: I18n.t('three_q_pot'), amount: pot * 0.75, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
               _QuickSizeBtn(label: I18n.t('pot_btn'), amount: pot, onTap: (a) => setState(() => _raiseAmount = a.clamp(min, max).toDouble())),
-              _QuickSizeBtn(label: 'All-In', amount: stack, onTap: (a) => setState(() => _raiseAmount = a)),
+              _QuickSizeBtn(label: 'All-In', amount: stack, onTap: (_) => _doAction(gp, ActionType.allIn, stack)),
             ],
           ),
         ],

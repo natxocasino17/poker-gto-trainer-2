@@ -543,8 +543,13 @@ class PokerEngine extends ChangeNotifier {
     }
   }
 
-  void _applyAction(int playerIdx, ActionType type, double rawAmount) {
+  void _applyAction(int playerIdx, ActionType type, double rawAmountIn) {
     if (_disposed) return;
+    // Sanitize the incoming amount: a NaN/Infinity here would poison stacks and
+    // widget sizes (grey-screen crash). Clamp to a sane finite value.
+    final rawAmount = (rawAmountIn.isFinite ? rawAmountIn : 0.0)
+        .clamp(0.0, 100000000.0)
+        .toDouble();
     final player = _state.players[playerIdx];
     var players = List<PlayerModel>.from(_state.players);
     var pot = _state.pot;
@@ -846,9 +851,18 @@ class PokerEngine extends ChangeNotifier {
         .map((e) => e.key)
         .toList();
 
-    final allCards = activeIndices.map((i) => _state.players[i].holeCards).toList();
-    final winnerLocalIndices = HandEvaluator.findWinners(allCards, _state.communityCards);
-    final winnerPlayerIndices = winnerLocalIndices.map((i) => activeIndices[i]).toList();
+    // Defensive: a bad hand evaluation (e.g. a seat with missing cards) must
+    // never crash the app into a grey screen. Fall back to splitting among the
+    // remaining players if evaluation fails or yields no winner.
+    List<int> winnerPlayerIndices;
+    try {
+      final allCards = activeIndices.map((i) => _state.players[i].holeCards).toList();
+      final winnerLocalIndices = HandEvaluator.findWinners(allCards, _state.communityCards);
+      winnerPlayerIndices = winnerLocalIndices.map((i) => activeIndices[i]).toList();
+      if (winnerPlayerIndices.isEmpty) winnerPlayerIndices = activeIndices;
+    } catch (_) {
+      winnerPlayerIndices = activeIndices;
+    }
 
     var players = List<PlayerModel>.from(_state.players);
     for (int i = 0; i < players.length; i++) {
@@ -874,8 +888,18 @@ class PokerEngine extends ChangeNotifier {
         .map((e) => e.key)
         .toList();
 
-    final winners = winnerPlayerIndices ?? notFolded;
-    final share = _state.pot / winners.length;
+    var winners = winnerPlayerIndices ?? notFolded;
+    if (winners.isEmpty) winners = notFolded;
+    // Last-resort guard: never divide by zero (would make stacks NaN → grey
+    // screen). If somehow nobody is eligible, just start a fresh hand.
+    if (winners.isEmpty) {
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (!_disposed) startNewHand();
+      });
+      return;
+    }
+    final pot = _state.pot.isFinite ? _state.pot : 0.0;
+    final share = pot / winners.length;
 
     var players = List<PlayerModel>.from(_state.players);
     for (final idx in winners) {
