@@ -27,6 +27,7 @@ class HandReviewerEngine {
     required GameState completedState,
     required double humanProfit,
     required int handNumber,
+    Map<String, GTORecommendation>? liveAdvice,
   }) async {
     final humanPlayer = completedState.humanPlayer;
     if (humanPlayer.holeCards.isEmpty) return null;
@@ -61,6 +62,7 @@ class HandReviewerEngine {
       activePlayers: completedState.players.where((p) => !p.isFolded).length,
       position: humanPlayer.position,
       startStack: humanPlayer.stack - humanProfit,
+      liveAdvice: liveAdvice,
     );
 
     final winner = completedState.players.firstWhere(
@@ -98,6 +100,7 @@ class HandReviewerEngine {
     required int activePlayers,
     required TablePosition position,
     required double startStack,
+    Map<String, GTORecommendation>? liveAdvice,
   }) {
     final analyses = <StreetAnalysis>[];
     final streets = ['preflop', 'flop', 'turn', 'river'];
@@ -205,19 +208,23 @@ class HandReviewerEngine {
           potSize: potAtStreet,
         );
 
-        final rec = EquityCalculator.recommend(
-          heroCards: humanHole,
-          communityCards: communityAtStreet,
-          callAmount: callAmt,
-          potSize: potAtStreet,
-          numOpponents: max(1, activePlayers - 1),
-          heroStack: startStack,
-          position: position,
-          inPosition: inPosition,
-          hasInitiative: hasInitiative,
-          numActive: activePlayers,
-          preflopRaises: max(1, preflopRaises),
-        );
+        // Congruence: reuse the EXACT recommendation EL PUXI computed live at
+        // the decision (same factors/snapshot) so the analyzer never contradicts
+        // the in-game advisor. Only recompute if no live advice was captured.
+        final rec = liveAdvice?[street] ??
+            EquityCalculator.recommend(
+              heroCards: humanHole,
+              communityCards: communityAtStreet,
+              callAmount: callAmt,
+              potSize: potAtStreet,
+              numOpponents: max(1, activePlayers - 1),
+              heroStack: startStack,
+              position: position,
+              inPosition: inPosition,
+              hasInitiative: hasInitiative,
+              numActive: activePlayers,
+              preflopRaises: max(1, preflopRaises),
+            );
         // The concise advisor reasoning (head + hand + math + reco) is the
         // top; the hand-by-hand reviewer then APPENDS the deep, card-specific
         // sections (postflop factors, expanded SPR plan, blockers and bluff

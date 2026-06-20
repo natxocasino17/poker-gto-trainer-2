@@ -274,6 +274,7 @@ class GameProvider extends ChangeNotifier {
     await _repo.resetSession();
     _handHistory = [];
     _statsCache = null;
+    _liveAdvice.clear();
     final streakBefore = _repo.getStreakCount();
     final streakNow = await _repo.touchStreak(); // counts a play day
     _applyEngineSettings(); // blinds + difficulty in effect for this session
@@ -357,7 +358,9 @@ class GameProvider extends ChangeNotifier {
       completedState: state,
       humanProfit: profit,
       handNumber: state.handNumber,
+      liveAdvice: Map<String, GTORecommendation>.from(_liveAdvice),
     );
+    _liveAdvice.clear();
 
     _handHistory = _repo.getHandLogs();
     _statsCache = null;
@@ -391,14 +394,24 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // GTO advice captured live at each human decision, keyed by street, so the
+  // post-hand analyzer reuses the EXACT same recommendation (no incongruence
+  // between EL PUXI in-game and the hand-by-hand review).
+  final Map<String, GTORecommendation> _liveAdvice = {};
+
   void humanAction(ActionType type, double amount) {
     final engine = _engine;
     if (engine == null) return;
-    // Trainer mode: grade the decision against GTO BEFORE applying it (so the
-    // recommendation reflects the spot at decision time).
-    if (_trainerMode && engine.state.awaitingHumanAction) {
-      _trainerFeedback = TrainerGrader.grade(type, amount, engine.getGTOAdvice());
-      _sfx.trainerResult(_trainerFeedback!.quality);
+    if (engine.state.awaitingHumanAction) {
+      // Capture the GTO recommendation for THIS exact decision/snapshot.
+      final rec = engine.getGTOAdvice();
+      _liveAdvice[engine.state.street] = rec;
+      if (_trainerMode) {
+        _trainerFeedback = TrainerGrader.grade(type, amount, rec);
+        _sfx.trainerResult(_trainerFeedback!.quality);
+      } else {
+        _trainerFeedback = null;
+      }
     } else {
       _trainerFeedback = null;
     }
