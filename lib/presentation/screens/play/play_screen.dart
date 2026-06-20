@@ -353,8 +353,13 @@ class _PokerTable extends StatelessWidget {
         // Player seats around the table
         for (int i = 0; i < 6; i++)
           Positioned(
-            left: cx + (rx + 50) * cos(_seatAngles[i]) - 48,
-            top: cy + (ry + (players[i].isHuman ? 64 : 52)) * sin(_seatAngles[i]) -
+            left: cx + (rx + (onImg ? 8.0 : 50.0)) * cos(_seatAngles[i]) - 48,
+            top: cy +
+                    (ry +
+                            (players[i].isHuman
+                                ? (onImg ? 44.0 : 64.0)
+                                : (onImg ? 26.0 : 52.0))) *
+                        sin(_seatAngles[i]) -
                 (players[i].isHuman ? 52 : 58),
             width: 96,
             child: Center(
