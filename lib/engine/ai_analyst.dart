@@ -7,6 +7,7 @@ import '../core/utils/hand_evaluator.dart';
 import '../core/utils/equity_calculator.dart';
 import '../core/utils/poker_concepts.dart';
 import '../core/utils/postflop_context.dart';
+import '../core/utils/trainer_feedback.dart';
 import '../data/models/player_model.dart';
 import 'poker_engine.dart';
 import '../core/i18n/i18n.dart';
@@ -181,6 +182,12 @@ class HandReviewerEngine {
       String fullExplanation = '';
       String finalKey = expKey;
       Map<String, String> finalParams = expParams;
+      // Postflop these are overridden so the badge equity, the verdict and the
+      // recommendation ALL come from the same source (no "optimal CALL graded
+      // marginal", no two different equity numbers).
+      var finalQuality = quality;
+      var finalEquity = equity;
+      var finalPotOdds = potOdds;
 
       if (boardCount >= 3) {
         // ── Postflop factors (same model the advisor + bots use) ──
@@ -225,6 +232,12 @@ class HandReviewerEngine {
               numActive: activePlayers,
               preflopRaises: max(1, preflopRaises),
             );
+        // Grade the hero's actual action AGAINST this exact recommendation, and
+        // show rec's equity/odds, so everything is internally consistent.
+        finalQuality =
+            TrainerGrader.grade(humanAction.type, humanAction.amount, rec).quality;
+        finalEquity = rec.equity;
+        finalPotOdds = rec.potOdds;
         // The concise advisor reasoning (head + hand + math + reco) is the
         // top; the hand-by-hand reviewer then APPENDS the deep, card-specific
         // sections (postflop factors, expanded SPR plan, blockers and bluff
@@ -236,7 +249,7 @@ class HandReviewerEngine {
           pot: potAtStreet,
           spr: spr,
           heroStack: startStack,
-          equity: equity,
+          equity: finalEquity,
           texture: texture!,
           analysis: analysis!,
           blockers: blockers!,
@@ -244,7 +257,7 @@ class HandReviewerEngine {
           recAction: rec.action,
           recAmount: rec.amount,
           heroActionLabel: humanAction.label,
-          quality: quality,
+          quality: finalQuality,
         );
         fullExplanation = deep.isEmpty ? rec.reasoning : '${rec.reasoning}\n\n$deep';
         finalKey = '';
@@ -253,11 +266,11 @@ class HandReviewerEngine {
 
       analyses.add(StreetAnalysis(
         street: street,
-        heroEquity: equity,
-        potOdds: potOdds,
+        heroEquity: finalEquity,
+        potOdds: finalPotOdds,
         heroAction: humanAction.label,
         heroAmount: humanAction.amount,
-        quality: quality,
+        quality: finalQuality,
         explanation: fullExplanation,
         explanationKey: finalKey,
         explanationParams: finalParams,

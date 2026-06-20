@@ -18,6 +18,7 @@ import '../simulator/simulator_screen.dart';
 import '../puxi/puxi_chat_screen.dart';
 import '../heatmap/range_heatmap_screen.dart';
 import '../progress/progress_screen.dart';
+import '../settings/settings_screen.dart';
 import '../../../core/i18n/i18n.dart';
 
 class PlayScreen extends StatelessWidget {
@@ -1061,7 +1062,9 @@ class _LobbyView extends StatelessWidget {
                         _LobbyChipButton(
                           icon: Icons.settings,
                           label: I18n.t('settings'),
-                          onTap: () => _openSettings(context, gp),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                          ),
                         ),
                       ],
                     ),

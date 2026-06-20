@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/i18n/i18n.dart';
 import '../../../core/utils/hand_export.dart';
 import '../../providers/game_provider.dart';
 import '../heatmap/range_heatmap_screen.dart';
@@ -69,6 +70,29 @@ class SettingsScreen extends StatelessWidget {
             subtitle: 'Efectos de fichas, cartas y avisos en la mesa',
             value: gp.soundEnabled,
             onChanged: gp.setSoundEnabled,
+          ),
+          _tile(
+            title: I18n.t('language'),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final e in I18n.supported.entries)
+                  ChoiceChip(
+                    label: Text(e.value),
+                    selected: gp.localeCode == e.key,
+                    onSelected: (_) => gp.setLocale(e.key),
+                    selectedColor: AppColors.accent,
+                    backgroundColor: AppColors.surfaceElevated,
+                    labelStyle: TextStyle(
+                      color: gp.localeCode == e.key
+                          ? const Color(0xFF06231E)
+                          : AppColors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+              ],
+            ),
           ),
 
           _section('MESA  (se aplica al empezar una nueva sesión)'),
