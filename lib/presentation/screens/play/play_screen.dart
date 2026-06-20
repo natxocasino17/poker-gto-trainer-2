@@ -296,6 +296,14 @@ class _PokerTable extends StatelessWidget {
     // Every seat / card / pot stays at the SAME position regardless.
     final bgIdx = gp.tableBackground.clamp(0, kTableBackgrounds.length - 1);
     final bgAsset = kTableBackgrounds[bgIdx].asset;
+    // Image tables have a slightly narrower felt than the painted one, so pull
+    // the bet chips / dealer button inward to sit ON the felt (not on the rail).
+    // All image tables share these measurements.
+    final onImg = bgAsset != null;
+    final chipFx = onImg ? 0.70 : 0.90;
+    final chipFy = onImg ? 0.74 : 0.88;
+    final dealerFx = onImg ? 0.70 : 0.89;
+    final dealerFy = onImg ? 0.72 : 0.86;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -324,8 +332,8 @@ class _PokerTable extends StatelessWidget {
         for (int i = 0; i < 6; i++)
           if (players[i].streetBet > 0)
             Positioned(
-              left: cx + rx * 0.90 * cos(_seatAngles[i]) - 32,
-              top: cy + ry * 0.88 * sin(_seatAngles[i]) - 11,
+              left: cx + rx * chipFx * cos(_seatAngles[i]) - 32,
+              top: cy + ry * chipFy * sin(_seatAngles[i]) - 11,
               width: 64,
               child: Center(
                 child: _BetChip(
@@ -338,8 +346,8 @@ class _PokerTable extends StatelessWidget {
         for (int i = 0; i < 6; i++)
           if (players[i].isDealer)
             Positioned(
-              left: cx + rx * 0.89 * cos(_seatAngles[i] - 0.18) - 10,
-              top: cy + ry * 0.86 * sin(_seatAngles[i] - 0.18) - 10,
+              left: cx + rx * dealerFx * cos(_seatAngles[i] - 0.18) - 10,
+              top: cy + ry * dealerFy * sin(_seatAngles[i] - 0.18) - 10,
               child: const _DealerButton(),
             ),
         // Player seats around the table
