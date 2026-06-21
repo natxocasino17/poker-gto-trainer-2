@@ -305,6 +305,9 @@ class _PokerTable extends StatelessWidget {
     final chipFy = onImg ? 0.74 * bgScale : 0.88;
     final dealerFx = onImg ? 0.70 * bgScale : 0.89;
     final dealerFy = onImg ? 0.72 * bgScale : 0.86;
+    // Seats/avatars sit on the rail, just outside the felt. On image tables the
+    // ring scales with the felt (bgScale); the classic keeps its fixed offsets.
+    final seatRx = onImg ? rx * 1.12 * bgScale : rx + 50;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -354,12 +357,11 @@ class _PokerTable extends StatelessWidget {
         // Player seats around the table
         for (int i = 0; i < 6; i++)
           Positioned(
-            left: cx + (rx + (onImg ? 26.0 : 50.0)) * cos(_seatAngles[i]) - 48,
+            left: cx + seatRx * cos(_seatAngles[i]) - 48,
             top: cy +
-                    (ry +
-                            (players[i].isHuman
-                                ? (onImg ? 52.0 : 64.0)
-                                : (onImg ? 38.0 : 52.0))) *
+                    (players[i].isHuman
+                        ? (onImg ? ry * 1.20 * bgScale : ry + 64)
+                        : (onImg ? ry * 1.14 * bgScale : ry + 52)) *
                         sin(_seatAngles[i]) -
                 (players[i].isHuman ? 52 : 58),
             width: 96,
