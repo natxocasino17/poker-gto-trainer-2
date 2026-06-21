@@ -296,14 +296,15 @@ class _PokerTable extends StatelessWidget {
     // Every seat / card / pot stays at the SAME position regardless.
     final bgIdx = gp.tableBackground.clamp(0, kTableBackgrounds.length - 1);
     final bgAsset = kTableBackgrounds[bgIdx].asset;
+    final bgScale = kTableBackgrounds[bgIdx].scale;
     // Image tables have a slightly narrower felt than the painted one, so pull
     // the bet chips / dealer button inward to sit ON the felt (not on the rail).
-    // All image tables share these measurements.
+    // Each image table fine-tunes via its own `scale` (felt width).
     final onImg = bgAsset != null;
-    final chipFx = onImg ? 0.70 : 0.90;
-    final chipFy = onImg ? 0.74 : 0.88;
-    final dealerFx = onImg ? 0.70 : 0.89;
-    final dealerFy = onImg ? 0.72 : 0.86;
+    final chipFx = onImg ? 0.70 * bgScale : 0.90;
+    final chipFy = onImg ? 0.74 * bgScale : 0.88;
+    final dealerFx = onImg ? 0.70 * bgScale : 0.89;
+    final dealerFy = onImg ? 0.72 * bgScale : 0.86;
 
     return Stack(
       clipBehavior: Clip.none,
