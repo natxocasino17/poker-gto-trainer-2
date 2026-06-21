@@ -679,7 +679,11 @@ class PokerEngine extends ChangeNotifier {
     }
 
     if (actorsRemaining <= 0) {
-      _advanceStreet();
+      // Hold the last action of the street (check/call/fold) on screen for a
+      // beat so the player can read the decision before the next card.
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (!_disposed) _advanceStreet();
+      });
     } else {
       _moveToNextPlayer();
     }

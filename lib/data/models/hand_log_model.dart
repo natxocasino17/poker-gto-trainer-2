@@ -165,6 +165,9 @@ class HandLog {
   final List<String> botNames;
   final double humanStartStack;
 
+  /// Position label per player id (e.g. 'UTG', 'BTN') for the hand review.
+  final Map<String, String> positions;
+
   const HandLog({
     required this.id,
     required this.timestamp,
@@ -181,6 +184,7 @@ class HandLog {
     required this.streetAnalyses,
     required this.botNames,
     required this.humanStartStack,
+    this.positions = const {},
   });
 
   bool get humanWon => humanProfit > 0;
@@ -214,6 +218,7 @@ class HandLog {
     'sa': streetAnalyses.map((s) => s.toJson()).toList(),
     'bots': botNames,
     'hss': humanStartStack,
+    'pos': positions,
   };
 
   factory HandLog.fromJson(Map<String, dynamic> j) => HandLog(
@@ -234,6 +239,9 @@ class HandLog {
     streetAnalyses: (j['sa'] as List).map((s) => StreetAnalysis.fromJson(s as Map<String, dynamic>)).toList(),
     botNames: List<String>.from(j['bots'] as List),
     humanStartStack: (j['hss'] as num).toDouble(),
+    positions: (j['pos'] as Map<String, dynamic>?)
+            ?.map((k, v) => MapEntry(k, v as String)) ??
+        const {},
   );
 
   static String encodeList(List<HandLog> logs) =>

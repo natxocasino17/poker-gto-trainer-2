@@ -87,6 +87,9 @@ class HandReviewerEngine {
       streetAnalyses: streetAnalyses,
       botNames: completedState.players.where((p) => !p.isHuman).map((p) => p.name).toList(),
       humanStartStack: humanPlayer.stack - humanProfit,
+      positions: {
+        for (final p in completedState.players) p.id: _posLabel(p.position),
+      },
     );
 
     await _repo.saveHandLog(log);
@@ -260,6 +263,17 @@ class HandReviewerEngine {
           quality: finalQuality,
         );
         fullExplanation = deep.isEmpty ? rec.reasoning : '${rec.reasoning}\n\n$deep';
+        finalKey = '';
+        finalParams = {};
+      } else if (liveAdvice?[street] != null) {
+        // PREFLOP congruence: reuse the exact live advice (DB-driven) so the
+        // verdict + reasoning match EL PUXI (no "optimal fold" graded "marginal").
+        final preRec = liveAdvice![street]!;
+        finalQuality =
+            TrainerGrader.grade(humanAction.type, humanAction.amount, preRec).quality;
+        finalEquity = preRec.equity;
+        finalPotOdds = preRec.potOdds;
+        fullExplanation = preRec.reasoning;
         finalKey = '';
         finalParams = {};
       }

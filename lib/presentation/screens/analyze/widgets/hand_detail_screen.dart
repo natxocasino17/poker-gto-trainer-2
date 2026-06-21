@@ -516,7 +516,7 @@ class _AllHandsReveal extends StatelessWidget {
             child: Row(
               children: [
                 SizedBox(
-                  width: 90,
+                  width: 78,
                   child: Text(
                     _displayName(e.key),
                     style: TextStyle(
@@ -527,6 +527,25 @@ class _AllHandsReveal extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (log.positions[e.key] != null)
+                  Container(
+                    width: 34,
+                    margin: const EdgeInsets.only(right: 4),
+                    padding: const EdgeInsets.symmetric(vertical: 1),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Text(
+                      log.positions[e.key]!,
+                      style: const TextStyle(
+                          color: AppColors.gold,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800),
+                    ),
+                  ),
                 ...e.value.map((c) => _CardChip(card: c)),
               ],
             ),

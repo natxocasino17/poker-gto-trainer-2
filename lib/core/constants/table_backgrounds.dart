@@ -15,4 +15,6 @@ class TableBackground {
 const List<TableBackground> kTableBackgrounds = [
   TableBackground('Clásico', null),
   TableBackground('Tropical', 'assets/backgrounds/tropical.png'),
+  TableBackground('Neón', 'assets/backgrounds/neon.png'),
+  TableBackground('Lujo', 'assets/backgrounds/luxury.png'),
 ];
