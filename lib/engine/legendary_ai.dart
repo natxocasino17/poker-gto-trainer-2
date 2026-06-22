@@ -814,6 +814,7 @@ class LegendaryBotEngine {
     required double bigBlind,
     TablePosition? openerPosition,
     int preflopRaiseCount = 1,
+    int villainBarrels = 0,
     bool inPosition = false,
     bool villainCheckedBack = false,
     List<CardModel> prevBoard = const [],
@@ -843,7 +844,11 @@ class LegendaryBotEngine {
       // equity accordingly, so bluff-catchers don't overrate themselves vs an overbet.
       final betFrac =
           callAmount > 0 ? callAmount / max(currentPot - callAmount, 1.0) : 0.0;
-      final rangeWidth = betFrac > 0.85 ? 0.25 : (betFrac > 0.40 ? 0.33 : 0.40);
+      // Each prior barrel this hand condenses the villain's range further: a
+      // 3rd-barrel river is far stronger than a one-and-done bet of the same size.
+      final rangeWidth = ((betFrac > 0.85 ? 0.25 : (betFrac > 0.40 ? 0.33 : 0.40)) -
+              villainBarrels * 0.04)
+          .clamp(0.18, 0.40);
       final equity = EquityCalculator.calculate(
         heroCards: holeCards,
         communityCards: communityCards,
@@ -1051,8 +1056,13 @@ class LegendaryBotEngine {
         case DefenseAction.threeBetFold:
           // Polar bluff 3-bet at the profile's light 3-bet frequency, fired less
           // vs early openers (stronger continuing range), more vs late opens.
+          // Squeeze awareness: every caller behind the open is another player who
+          // must fold for the bluff to work — crush the bluff frequency multiway.
+          final squeezeBluffMult =
+              PostflopContext.multiwayBluffMultiplier(2 + callers);
           final bluffFreq =
-              (profile.threeBetBluffFreq * 2.2 * (1 - openerTight * 3.0))
+              (profile.threeBetBluffFreq * 2.2 * (1 - openerTight * 3.0) *
+                      squeezeBluffMult)
                   .clamp(0.0, 1.0);
           if (rand < bluffFreq && !profile.stationCalling) {
             final mult = (inPosition ? 3.0 : 4.0) + callers * 1.0;
@@ -1144,6 +1154,17 @@ class LegendaryBotEngine {
     final drawCompleted = prevBoard.isNotEmpty && board.isNotEmpty
         ? BoardTexture.drawCompletedOn(prevBoard, board.last)
         : false;
+
+    // Scare card: the board just PAIRED on this street (turn/river), so trips and
+    // full houses now live in the villain's range. Devalue our non-nut made hands
+    // — stack off less readily and tighten bluff-catchers (no effect on a board
+    // that was already paired on the flop).
+    final pairedOnStreet = isTurnOrRiver &&
+        prevBoard.isNotEmpty &&
+        texture.paired &&
+        !BoardTexture.analyze(prevBoard).paired;
+    final scareValueShift = pairedOnStreet ? 0.03 : 0.0;
+    final scareCommitTighten = pairedOnStreet ? 0.5 : 0.0;
 
     // Pot type (SRP / 3-bet / 4-bet+): ranges get stronger, narrower and more
     // polarized as the preflop raising escalates. The 3-bettor's range is
@@ -1242,7 +1263,7 @@ class LegendaryBotEngine {
     // Multiway: need a bigger edge to commit (more live hands could be ahead).
     // 3-bet/4-bet pots: ranges are stronger and SPR lower, so stack off WIDER.
     final mwCommitTighten = activePlayers >= 4 ? 1.0 : (activePlayers == 3 ? 0.5 : 0.0);
-    final netCommitAdjust = potCommitBoost - mwCommitTighten;
+    final netCommitAdjust = potCommitBoost - mwCommitTighten - scareCommitTighten;
     final commitSprStrongMw = (commitSprStrong + netCommitAdjust)
         .clamp(1.0, commitSprStrong + potCommitBoost);
     final commitSprMediumMw = (commitSprMedium + netCommitAdjust)
@@ -1615,6 +1636,7 @@ class LegendaryBotEngine {
         callThreshold += inPosition ? -0.05 : 0.025;
         callThreshold += mwValueShift; // more live hands behind → defend tighter
         callThreshold += potValueShift; // 3-bet+ pot → villain range stronger
+        callThreshold += scareValueShift; // board just paired → trips/boats live
         // Anti-overfold floor: bluff-catchers must defend enough vs normal bets
         // to not be exploitable. Only true overbets get the disciplined fold.
         // On the river the bettor's range is polarised (value + bluffs), so the

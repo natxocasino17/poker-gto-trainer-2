@@ -476,6 +476,24 @@ class PokerEngine extends ChangeNotifier {
     // the human is still live, else a neutral (baseline) read.
     final readModel = _readModelFacing(player);
 
+    // ── VILLAIN BARRELS: how many postflop streets BEFORE this one the current
+    // aggressor has bet/raised. Each extra barrel condenses their range, so the
+    // bot narrows the range it runs equity against (a 3rd barrel ≫ a lone bet).
+    final aggressorId = _lastAggressorId();
+    final villainBarrels = aggressorId == null
+        ? 0
+        : _state.currentHandActions
+            .where((a) =>
+                a.playerId == aggressorId &&
+                a.street != 'preflop' &&
+                a.street != _state.street &&
+                (a.type == ActionType.bet ||
+                    a.type == ActionType.raise ||
+                    a.type == ActionType.allIn))
+            .map((a) => a.street)
+            .toSet()
+            .length;
+
     BotDecision decision;
     try {
       decision = await LegendaryBotEngine.decide(
@@ -499,6 +517,7 @@ class PokerEngine extends ChangeNotifier {
         bigBlind: bigBlind,
         openerPosition: openerPosition,
         preflopRaiseCount: max(1, preflopRaiseCount),
+        villainBarrels: villainBarrels,
         villainCheckedBack: villainCheckedBack,
         prevBoard: prevBoard,
       );
