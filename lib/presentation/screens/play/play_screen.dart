@@ -302,8 +302,8 @@ class _PokerTable extends StatelessWidget {
     // the bet chips / dealer button inward to sit ON the felt (not on the rail).
     // Each image table fine-tunes via its own `scale` (felt width).
     final onImg = bgAsset != null;
-    final chipFx = onImg ? 0.70 * bgScale : 0.90;
-    final chipFy = onImg ? 0.74 * bgScale : 0.88;
+    final chipFx = onImg ? 0.65 * bgScale : 0.84;
+    final chipFy = onImg ? 0.69 * bgScale : 0.82;
     final dealerFx = onImg ? 0.70 * bgScale : 0.89;
     final dealerFy = onImg ? 0.72 * bgScale : 0.86;
     // Seats/avatars sit on the rail, just outside the felt. On image tables the
@@ -339,7 +339,10 @@ class _PokerTable extends StatelessWidget {
           if (players[i].streetBet > 0)
             Positioned(
               left: cx + rx * chipFx * cos(_seatAngles[i]) - 32,
-              top: cy + ry * chipFy * sin(_seatAngles[i]) - 11,
+              // Bottom-left/bottom-right seats (1, 5) sit at sin=0.5, half the
+              // pole seats' offset — nudge those two chips down so they line
+              // up level with their bot instead of floating high above it.
+              top: cy + ry * chipFy * sin(_seatAngles[i]) - 11 + (i == 1 || i == 5 ? 12 : 0),
               width: 64,
               child: Center(
                 child: _BetChip(
