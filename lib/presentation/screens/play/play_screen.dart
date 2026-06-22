@@ -297,6 +297,7 @@ class _PokerTable extends StatelessWidget {
     final bgIdx = gp.tableBackground.clamp(0, kTableBackgrounds.length - 1);
     final bgAsset = kTableBackgrounds[bgIdx].asset;
     final bgScale = kTableBackgrounds[bgIdx].scale;
+    final seatSpread = kTableBackgrounds[bgIdx].seatSpread;
     // Image tables have a slightly narrower felt than the painted one, so pull
     // the bet chips / dealer button inward to sit ON the felt (not on the rail).
     // Each image table fine-tunes via its own `scale` (felt width).
@@ -306,8 +307,9 @@ class _PokerTable extends StatelessWidget {
     final dealerFx = onImg ? 0.70 * bgScale : 0.89;
     final dealerFy = onImg ? 0.72 * bgScale : 0.86;
     // Seats/avatars sit on the rail, just outside the felt. On image tables the
-    // ring scales with the felt (bgScale); the classic keeps its fixed offsets.
-    final seatRx = onImg ? rx * 1.12 * bgScale : rx + 50;
+    // ring scales with the felt (bgScale) and an extra per-background
+    // seatSpread that pushes seats out further without moving chips/dealer.
+    final seatRx = onImg ? rx * 1.12 * bgScale * seatSpread : rx + 50;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -360,8 +362,8 @@ class _PokerTable extends StatelessWidget {
             left: cx + seatRx * cos(_seatAngles[i]) - 48,
             top: cy +
                     (players[i].isHuman
-                        ? (onImg ? ry * 1.20 * bgScale : ry + 64)
-                        : (onImg ? ry * 1.14 * bgScale : ry + 52)) *
+                        ? (onImg ? ry * 1.20 * bgScale * seatSpread : ry + 64)
+                        : (onImg ? ry * 1.14 * bgScale * seatSpread : ry + 52)) *
                         sin(_seatAngles[i]) -
                 (players[i].isHuman ? 52 : 58),
             width: 96,
