@@ -42,12 +42,56 @@ class TrainerGrader {
     return amount > 0 ? '$base \$${amount.toStringAsFixed(0)}' : base;
   }
 
+  static String _famOfMixLabel(String label) {
+    if (label == 'fold') return 'fold';
+    if (label == 'check' || label == 'call') return label;
+    return 'aggro'; // bet/raise/all-in
+  }
+
+  static String _famNameEs(String fam) {
+    switch (fam) {
+      case 'fold':
+        return 'foldear';
+      case 'check':
+        return 'check';
+      case 'call':
+        return 'pagar';
+      default:
+        return 'apostar/subir';
+    }
+  }
+
   /// Grades [chosen]/[amount] against the GTO [rec] captured at decision time.
   static TrainerFeedback grade(
       ActionType chosen, double amount, GTORecommendation rec) {
     var recFam = rec.action.toLowerCase();
     if (recFam == 'bet' || recFam == 'raise') recFam = 'aggro';
     final cf = _famOf(chosen);
+
+    // Poker doesn't always have a single right answer: when a solved
+    // equilibrium genuinely mixes between two branches (e.g. fold 55% /
+    // call 45%), both are correct GTO play by construction — grading the
+    // non-modal branch as "marginal" would contradict the very strategy
+    // that's supposed to be optimal.
+    final mix = rec.equilibriumMix;
+    if (mix != null && mix.isNotEmpty && cf != recFam) {
+      final topFreq = mix.first.frequency;
+      final heroFreq = mix
+          .where((m) => _famOfMixLabel(m.label) == cf)
+          .fold(0.0, (sum, m) => sum + m.frequency);
+      if (heroFreq >= 0.30 && (topFreq - heroFreq) <= 0.25) {
+        return TrainerFeedback(
+          quality: DecisionQuality.optimal,
+          chosen: _label(chosen, amount),
+          recommended: _label(_recAction(rec.action), rec.amount),
+          equity: rec.equity,
+          ev: rec.ev,
+          note: 'Spot mixto: el equilibrio reparte entre ${_famNameEs(recFam)} '
+              'y ${_famNameEs(cf)} en frecuencias similares — aquí no hay una '
+              'única acción óptima, las dos son correctas.',
+        );
+      }
+    }
 
     DecisionQuality q;
     String note;

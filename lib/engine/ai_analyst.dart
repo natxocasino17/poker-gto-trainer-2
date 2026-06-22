@@ -238,8 +238,8 @@ class HandReviewerEngine {
             );
         // Grade the hero's actual action AGAINST this exact recommendation, and
         // show rec's equity/odds, so everything is internally consistent.
-        finalQuality =
-            TrainerGrader.grade(humanAction.type, humanAction.amount, rec).quality;
+        final feedback = TrainerGrader.grade(humanAction.type, humanAction.amount, rec);
+        finalQuality = feedback.quality;
         finalEquity = rec.equity;
         finalPotOdds = rec.potOdds;
         // The concise advisor reasoning (head + hand + math + reco) is the
@@ -262,6 +262,7 @@ class HandReviewerEngine {
           recAmount: rec.amount,
           heroActionLabel: humanAction.label,
           quality: finalQuality,
+          verdictNote: feedback.note,
         );
         fullExplanation = deep.isEmpty ? rec.reasoning : '${rec.reasoning}\n\n$deep';
         finalKey = '';
@@ -270,11 +271,16 @@ class HandReviewerEngine {
         // PREFLOP congruence: reuse the exact live advice (DB-driven) so the
         // verdict + reasoning match EL PUXI (no "optimal fold" graded "marginal").
         final preRec = liveAdvice![street]!;
-        finalQuality =
-            TrainerGrader.grade(humanAction.type, humanAction.amount, preRec).quality;
+        final feedback = TrainerGrader.grade(humanAction.type, humanAction.amount, preRec);
+        finalQuality = feedback.quality;
         finalEquity = preRec.equity;
         finalPotOdds = preRec.potOdds;
-        fullExplanation = preRec.reasoning;
+        // Always state the verdict's own reasoning right under the canned GTO
+        // chart text, so the badge (e.g. "CORRECTA") and the body never argue
+        // past each other — the database text alone only ever explains the
+        // recommended line, not how the hero's actual action compares to it.
+        fullExplanation = '${preRec.reasoning}\n\nTu jugada: ${humanAction.label} → '
+            '${_verdictLabel(finalQuality)} — ${feedback.note}';
         finalKey = '';
         finalParams = {};
       }
@@ -326,13 +332,14 @@ class HandReviewerEngine {
     required double recAmount,
     required String heroActionLabel,
     required DecisionQuality quality,
+    required String verdictNote,
   }) {
     final isRiver = board.length == 5;
     final b = StringBuffer();
 
     b.writeln('━━━ ACCIÓN ÓPTIMA ━━━');
     b.writeln(_optimalSection(recAction, recAmount, pot, heroActionLabel,
-        quality, analysis, equity, ctx));
+        quality, analysis, equity, ctx, verdictNote));
 
     b.writeln();
     b.writeln('━━━ FACTORES POSTFLOP ━━━');
@@ -364,14 +371,15 @@ class HandReviewerEngine {
       DecisionQuality quality,
       HandStrengthAnalysis a,
       double equity,
-      PostflopContext ctx) {
+      PostflopContext ctx,
+      String verdictNote) {
     final sizing = recAmount > 0
         ? ' \$${recAmount.toStringAsFixed(0)} (${(recAmount / max(pot, 1) * 100).toStringAsFixed(0)}% bote)'
         : '';
     final b = StringBuffer();
     b.writeln('GTO óptimo: ${recAction.toUpperCase()}$sizing');
     b.writeln('Por qué: ${_optimalWhy(a, equity, ctx, recAction)}');
-    b.writeln('Tu jugada: $heroActionLabel → ${_verdictLabel(quality)}');
+    b.writeln('Tu jugada: $heroActionLabel → ${_verdictLabel(quality)} — $verdictNote');
     return b.toString().trim();
   }
 
@@ -417,16 +425,20 @@ class HandReviewerEngine {
     }
   }
 
+  // No static parenthetical here — the caller always appends the matching
+  // TrainerFeedback.note right after this tag, which explains the verdict
+  // from the SAME comparison the grade came from (and, on a genuinely mixed
+  // equilibrium, says so instead of implying a single best line existed).
   String _verdictLabel(DecisionQuality q) {
     switch (q) {
       case DecisionQuality.optimal:
-        return 'ÓPTIMA ✅ (coincide con GTO)';
+        return 'ÓPTIMA ✅';
       case DecisionQuality.correct:
         return 'correcta 👍';
       case DecisionQuality.marginal:
-        return 'marginal ⚠️ (había algo mejor)';
+        return 'marginal ⚠️';
       case DecisionQuality.blunder:
-        return 'error ❌ (te desviaste del GTO)';
+        return 'error ❌';
     }
   }
 

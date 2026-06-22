@@ -5,6 +5,16 @@ import 'hand_evaluator.dart';
 import 'poker_concepts.dart';
 import 'postflop_context.dart';
 
+/// One branch of a solved equilibrium strategy at a decision point — e.g.
+/// "fold" at 62% frequency. Poker doesn't always have a single right answer:
+/// a balanced strategy often mixes between two (or more) actions on purpose,
+/// so the grader treats any branch with substantial frequency as a valid line.
+class ActionFrequency {
+  final String label;
+  final double frequency;
+  const ActionFrequency(this.label, this.frequency);
+}
+
 class GTORecommendation {
   final String action;
   final double amount;
@@ -13,6 +23,10 @@ class GTORecommendation {
   final String reasoning;
   final double ev;
 
+  /// The solved action-frequency mix at this spot, if a CFR solve was
+  /// available (see CfrBridge). Null for the plain heuristic recommendation.
+  final List<ActionFrequency>? equilibriumMix;
+
   const GTORecommendation({
     required this.action,
     required this.amount,
@@ -20,6 +34,7 @@ class GTORecommendation {
     required this.potOdds,
     required this.reasoning,
     required this.ev,
+    this.equilibriumMix,
   });
 }
 

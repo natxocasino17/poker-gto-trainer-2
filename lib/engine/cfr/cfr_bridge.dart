@@ -192,6 +192,9 @@ class CfrBridge {
       potOdds: base.potOdds,
       ev: base.ev,
       reasoning: '${base.reasoning}\n$note',
+      equilibriumMix: shown
+          .map((a) => ActionFrequency(_labelEs(a.label, facingBet), a.frequency))
+          .toList(),
     );
   }
 
