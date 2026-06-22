@@ -9,6 +9,7 @@ import '../core/utils/poker_concepts.dart';
 import '../core/utils/postflop_context.dart';
 import '../core/utils/trainer_feedback.dart';
 import '../data/models/player_model.dart';
+import 'cfr/cfr_bridge.dart';
 import 'poker_engine.dart';
 import '../core/i18n/i18n.dart';
 
@@ -222,7 +223,7 @@ class HandReviewerEngine {
         // the decision (same factors/snapshot) so the analyzer never contradicts
         // the in-game advisor. Only recompute if no live advice was captured.
         final rec = liveAdvice?[street] ??
-            EquityCalculator.recommend(
+            CfrBridge.instance.recommend(
               heroCards: humanHole,
               communityCards: communityAtStreet,
               callAmount: callAmt,
@@ -369,30 +370,49 @@ class HandReviewerEngine {
         : '';
     final b = StringBuffer();
     b.writeln('GTO óptimo: ${recAction.toUpperCase()}$sizing');
-    b.writeln('Por qué: ${_optimalWhy(a, equity, ctx)}');
+    b.writeln('Por qué: ${_optimalWhy(a, equity, ctx, recAction)}');
     b.writeln('Tu jugada: $heroActionLabel → ${_verdictLabel(quality)}');
     return b.toString().trim();
   }
 
-  String _optimalWhy(HandStrengthAnalysis a, double equity, PostflopContext ctx) {
+  // recAction is the action actually being recommended above — the narrative
+  // must justify THAT action, not just describe the hand bucket in the
+  // abstract. Otherwise a "GTO óptimo: CALL" header can be followed by a
+  // "por qué" that argues for a semi-bluff/raise, reading as self-contradictory.
+  String _optimalWhy(
+      HandStrengthAnalysis a, double equity, PostflopContext ctx, String recAction) {
     final eq = (equity * 100).toStringAsFixed(0);
     final pos = ctx.inPosition ? 'en posición' : 'fuera de posición';
     final ini = ctx.hasInitiative ? 'con iniciativa' : 'sin iniciativa';
     final mw = ctx.isMultiway
         ? ' en bote multiway (sube el umbral de valor y baja el farol)'
         : '';
+    final isAggro = recAction == 'Bet' || recAction == 'Raise';
+
     switch (a.bucket) {
       case HandBucket.nuts:
       case HandBucket.strongValue:
-        return 'mano fuerte ($eq% equity)$mw: apuesta por valor y construye el bote ($pos, $ini).';
+        if (isAggro) {
+          return 'mano fuerte ($eq% equity)$mw: apuesta por valor y construye el bote ($pos, $ini).';
+        }
+        return 'mano fuerte ($eq% equity)$mw, pero aquí conviene controlar el bote (trampa/pot-control) en vez de apostar de nuevo ($pos, $ini).';
       case HandBucket.comboDraw:
       case HandBucket.strongDraw:
-        return '${a.outs} outs (~${(a.drawEquity * 100).toStringAsFixed(0)}%) + fold equity: semi-bluff ($pos, $ini)$mw.';
+        if (isAggro) {
+          return '${a.outs} outs (~${(a.drawEquity * 100).toStringAsFixed(0)}%) + fold equity: semi-bluff ($pos, $ini)$mw.';
+        }
+        return '${a.outs} outs (~${(a.drawEquity * 100).toStringAsFixed(0)}%) pero sin suficiente fold equity$mw: realiza tu equity con calma en vez de farolear ($pos, $ini).';
       case HandBucket.mediumValue:
       case HandBucket.weakShowdown:
+        if (isAggro) {
+          return 'valor medio ($eq%) que aguanta una apuesta fina de protección/valor$mw ($pos, $ini).';
+        }
         return 'showdown / bluff-catcher ($eq%): controla el bote y paga según pot odds y MDF$mw ($pos).';
       case HandBucket.weakDraw:
       case HandBucket.air:
+        if (isAggro) {
+          return 'poca equity ($eq%) pero bloqueadores/textura permiten un farol +EV$mw ($pos, $ini).';
+        }
         return 'poca equity ($eq%): check/fold salvo farol con bloqueadores$mw ($pos, $ini).';
     }
   }

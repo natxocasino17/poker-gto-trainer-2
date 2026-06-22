@@ -3,6 +3,7 @@ import '../../data/models/hand_log_model.dart';
 import '../../data/models/session_stats_model.dart';
 import '../../data/models/session_summary_model.dart';
 import '../../data/repositories/game_repository.dart';
+import '../../engine/cfr/cfr_bridge.dart';
 import '../../engine/legendary_ai.dart';
 import '../../engine/poker_engine.dart';
 import '../../engine/ai_analyst.dart';
@@ -141,6 +142,11 @@ class GameProvider extends ChangeNotifier {
     _analyst = HandReviewerEngine(_repo);
     _initialized = true;
     notifyListeners();
+    // Fire-and-forget: trains the preflop CFR tree in a background isolate so
+    // CfrBridge.recommend has equilibrium frequencies to cite once it's done.
+    // Never blocks startup, and the advisor falls back to the heuristic-only
+    // recommendation (identical to before) until this completes.
+    CfrBridge.instance.warmUp();
   }
 
   /// Loads user settings and applies the engine-global ones (blinds, difficulty).

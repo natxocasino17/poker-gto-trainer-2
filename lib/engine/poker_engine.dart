@@ -9,6 +9,7 @@ import '../core/utils/equity_calculator.dart';
 import '../core/utils/poker_concepts.dart';
 import '../core/utils/postflop_context.dart';
 import '../core/utils/preflop_charts.dart';
+import 'cfr/cfr_bridge.dart';
 import 'legendary_ai.dart';
 import '../core/i18n/i18n.dart';
 
@@ -992,7 +993,7 @@ class PokerEngine extends ChangeNotifier {
       }
     }
 
-    return EquityCalculator.recommend(
+    return CfrBridge.instance.recommend(
       heroCards: human.holeCards,
       communityCards: _state.communityCards,
       callAmount: _state.callAmount,

@@ -42,7 +42,7 @@ class HuCashGame extends CfrGame<HuState> {
 
   @override
   bool isTerminal(HuState s) {
-    if (s.p0Folded) return true;
+    if (s.p0Folded || s.p1Folded) return true;
     if (!s.isDealt) return false;
 
     // All-in run-out or round complete on the river
@@ -65,6 +65,10 @@ class HuCashGame extends CfrGame<HuState> {
     if (s.p0Folded) {
       // P0 folded — loses their total contribution this hand
       return -(s.p0StreetBet);
+    }
+    if (s.p1Folded) {
+      // P1 folded — P0 takes the whole pot uncontested
+      return s.pot - s.p0StreetBet;
     }
 
     // Showdown: compute P0's equity from the abstraction table and return EV
@@ -298,6 +302,7 @@ class _FoldAction implements _Action {
     final p0Folds = s.toAct == 0;
     return s.copyWith(
       p0Folded: p0Folds,
+      p1Folded: !p0Folds,
       actorsLeft: 0,
       history: s.history + 'f',
     );

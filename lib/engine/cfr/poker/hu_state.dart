@@ -54,6 +54,7 @@ class HuState {
 
   // ─── Terminal flag ────────────────────────────────────────────────────────
   final bool p0Folded;
+  final bool p1Folded;
 
   // ─── Identifiers for the info-set key ─────────────────────────────────────
   /// Compact action history this street (e.g. "xb1c", "fr0c").
@@ -76,6 +77,7 @@ class HuState {
     this.actorsLeft = 2,
     this.raisesThisStreet = 0,
     this.p0Folded = false,
+    this.p1Folded = false,
     this.history = '',
   });
 
@@ -139,8 +141,6 @@ class HuState {
   bool get isDealt     => p0PreflopBucket >= 0;
   bool get hasBoard    => p0PostBucket >= 0;
 
-  bool get p1Folded => !p0Folded && actorsLeft == 0 && false; // p0Folded is the only fold flag
-
   // ─── copyWith ─────────────────────────────────────────────────────────────
   HuState copyWith({
     int? p0PreflopBucket,
@@ -158,6 +158,7 @@ class HuState {
     int? actorsLeft,
     int? raisesThisStreet,
     bool? p0Folded,
+    bool? p1Folded,
     String? history,
   }) {
     return HuState(
@@ -176,6 +177,7 @@ class HuState {
       actorsLeft:       actorsLeft       ?? this.actorsLeft,
       raisesThisStreet: raisesThisStreet ?? this.raisesThisStreet,
       p0Folded:         p0Folded         ?? this.p0Folded,
+      p1Folded:         p1Folded         ?? this.p1Folded,
       history:          history          ?? this.history,
     );
   }
