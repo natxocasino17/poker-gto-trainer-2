@@ -460,6 +460,22 @@ class PokerEngine extends ChangeNotifier {
       }
     }
 
+    // ── PREFLOP POT TYPE: count preflop raises to know if this is an SRP,
+    // 3-bet or 4-bet+ pot (ranges/SPR differ a lot). Drives PostflopContext.
+    final preflopRaiseCount = _state.currentHandActions
+        .where((a) =>
+            a.street == 'preflop' &&
+            (a.type == ActionType.raise ||
+                a.type == ActionType.bet ||
+                (a.type == ActionType.allIn && a.amount > bigBlind)))
+        .length;
+
+    // ── OPPONENT READ: bots should read the player they're actually up against,
+    // not always the human. If the last aggressor is another bot, derive a read
+    // from that bot's style; otherwise fall back to the human model only while
+    // the human is still live, else a neutral (baseline) read.
+    final readModel = _readModelFacing(player);
+
     BotDecision decision;
     try {
       decision = await LegendaryBotEngine.decide(
@@ -472,7 +488,7 @@ class PokerEngine extends ChangeNotifier {
         myStreetBet: player.streetBet,
         currentPot: _state.pot,
         botStack: player.stack,
-        humanModel: _humanModel,
+        humanModel: readModel,
         isPreflop: _state.phase == GamePhase.preflop,
         wasAggressor: hasInitiative,
         inPosition: inPosition,
@@ -482,6 +498,7 @@ class PokerEngine extends ChangeNotifier {
         callersThisStreet: callersThisStreet,
         bigBlind: bigBlind,
         openerPosition: openerPosition,
+        preflopRaiseCount: max(1, preflopRaiseCount),
         villainCheckedBack: villainCheckedBack,
         prevBoard: prevBoard,
       );
@@ -942,6 +959,25 @@ class PokerEngine extends ChangeNotifier {
       if (a.isAggressive) id = a.playerId;
     }
     return id;
+  }
+
+  /// The read a deciding bot should use, based on WHO it's actually facing.
+  /// Reacting to a bet → read the last aggressor (human model if it's the
+  /// human, a style-derived read if it's another bot). When no one is leading
+  /// (opening / checked round) exploit the human only while they're still live;
+  /// otherwise use a neutral baseline read instead of the human's tendencies.
+  HumanReadModel _readModelFacing(PlayerModel actor) {
+    final aggId = _lastAggressorId();
+    if (aggId != null && aggId != actor.id) {
+      final villain = _state.players.firstWhere(
+          (p) => p.id == aggId,
+          orElse: () => actor);
+      if (villain.isHuman) return _humanModel;
+      return LegendaryBotEngine.readModelFor(
+          LegendaryBotEngine.profileByName(villain.legendName ?? ''));
+    }
+    final humanLive = _state.players.any((p) => p.isHuman && !p.isFolded);
+    return humanLive ? _humanModel : HumanReadModel();
   }
 
   GTORecommendation getGTOAdvice() {

@@ -740,6 +740,25 @@ class LegendaryBotEngine {
     return VillainRead.neutral;
   }
 
+  /// Synthesizes a read for a BOT opponent from its known style, so bot-vs-bot
+  /// pots don't (wrongly) exploit the HUMAN's tendencies. Seeded — the style is
+  /// known a priori, so the read is trusted with moderate confidence from hand
+  /// one rather than waiting for observations that never come for bots.
+  static HumanReadModel readModelFor(LegendProfile p) {
+    final r = villainReadFor(p);
+    // Aggression proxy from the profile's betting dials: bluff-happy / high
+    // c-bet styles read as more aggressive bettors.
+    final aggression =
+        (0.6 + p.bluffFreq * 2.2 + (p.cBetFreq - 0.6)).clamp(0.3, 3.5);
+    final model = HumanReadModel();
+    model.seedFrom({
+      'foldVsBet': r.foldToBet * 100,
+      'riverFold': r.foldToBet * 100,
+      'aggression': aggression,
+    });
+    return model;
+  }
+
   /// When a bot busts it leaves the table; a fresh legend (not currently
   /// seated) takes the empty seat with a new stack.
   static LegendProfile replacementFor(List<String> seatedNames) {
@@ -794,6 +813,7 @@ class LegendaryBotEngine {
     required int callersThisStreet,
     required double bigBlind,
     TablePosition? openerPosition,
+    int preflopRaiseCount = 1,
     bool inPosition = false,
     bool villainCheckedBack = false,
     List<CardModel> prevBoard = const [],
@@ -828,7 +848,7 @@ class LegendaryBotEngine {
         heroCards: holeCards,
         communityCards: communityCards,
         numOpponents: max(1, activePlayers - 1),
-        simulations: 300,
+        simulations: 500,
         rangeWidth: rangeWidth,
       );
       decision = _postflopDecision(
@@ -845,6 +865,7 @@ class LegendaryBotEngine {
         wasAggressor: wasAggressor,
         inPosition: inPosition,
         activePlayers: activePlayers,
+        preflopRaiseCount: preflopRaiseCount,
         street: street,
         bb: bigBlind,
         villainCheckedBack: villainCheckedBack,
@@ -1107,6 +1128,7 @@ class LegendaryBotEngine {
     required String street,
     required double bb,
     int activePlayers = 2,
+    int preflopRaiseCount = 1,
     bool inPosition = false,
     bool villainCheckedBack = false,
     List<CardModel> prevBoard = const [],
@@ -1122,7 +1144,21 @@ class LegendaryBotEngine {
     final drawCompleted = prevBoard.isNotEmpty && board.isNotEmpty
         ? BoardTexture.drawCompletedOn(prevBoard, board.last)
         : false;
-    final defAdv = RangeModel.defenderRangeAdvantage(texture);
+
+    // Pot type (SRP / 3-bet / 4-bet+): ranges get stronger, narrower and more
+    // polarized as the preflop raising escalates. The 3-bettor's range is
+    // condensed and nut-heavy, so the OOP caller's range advantage shrinks,
+    // bluff-catchers must tighten, and value hands stack off wider (low SPR,
+    // strong ranges on both sides).
+    final potType = PostflopContext.potTypeFromRaiseCount(preflopRaiseCount);
+    final potValueShift = potType == PotType.fourBetPlus ? 0.06
+        : potType == PotType.threeBet ? 0.03 : 0.0;
+    final potCommitBoost = potType == PotType.fourBetPlus ? 1.0
+        : potType == PotType.threeBet ? 0.6 : 0.0;
+    final potDefAdvMult = potType == PotType.fourBetPlus ? 0.4
+        : potType == PotType.threeBet ? 0.65 : 1.0;
+    final defAdv =
+        RangeModel.defenderRangeAdvantage(texture) * potDefAdvMult;
 
     // Multiway dampens pure bluffs (every extra player is another fold you
     // need) and raises the bar to stack off/bluff-catch thin.
@@ -1204,11 +1240,13 @@ class LegendaryBotEngine {
         : 1.5;
 
     // Multiway: need a bigger edge to commit (more live hands could be ahead).
+    // 3-bet/4-bet pots: ranges are stronger and SPR lower, so stack off WIDER.
     final mwCommitTighten = activePlayers >= 4 ? 1.0 : (activePlayers == 3 ? 0.5 : 0.0);
-    final commitSprStrongMw =
-        (commitSprStrong - mwCommitTighten).clamp(1.0, commitSprStrong);
-    final commitSprMediumMw =
-        (commitSprMedium - mwCommitTighten).clamp(0.6, commitSprMedium);
+    final netCommitAdjust = potCommitBoost - mwCommitTighten;
+    final commitSprStrongMw = (commitSprStrong + netCommitAdjust)
+        .clamp(1.0, commitSprStrong + potCommitBoost);
+    final commitSprMediumMw = (commitSprMedium + netCommitAdjust)
+        .clamp(0.6, commitSprMedium + potCommitBoost);
 
     // Safe clamp (see _preflopDecision): avoid low>high crash on short stacks.
     double clampBet(double v) => v.clamp(min(bb, stack), stack).toDouble();
@@ -1576,6 +1614,7 @@ class LegendaryBotEngine {
         // defend our bluff-catchers wider (real MDF). Out of position we tighten.
         callThreshold += inPosition ? -0.05 : 0.025;
         callThreshold += mwValueShift; // more live hands behind → defend tighter
+        callThreshold += potValueShift; // 3-bet+ pot → villain range stronger
         // Anti-overfold floor: bluff-catchers must defend enough vs normal bets
         // to not be exploitable. Only true overbets get the disciplined fold.
         // On the river the bettor's range is polarised (value + bluffs), so the
