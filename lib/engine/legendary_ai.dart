@@ -800,7 +800,7 @@ class LegendaryBotEngine {
   }) async {
     // "Thinking time": 1-3s, harder spots take longer
     final difficulty = callAmount > currentPot * 0.6 ? 600 : 0;
-    final thinkMs = 900 + _rng.nextInt(1400) + difficulty;
+    int thinkMs = 900 + _rng.nextInt(1400) + difficulty;
 
     BotDecision decision;
     if (isPreflop) {
@@ -819,12 +819,17 @@ class LegendaryBotEngine {
         openerPosition: openerPosition,
       );
     } else {
+      // A bigger bet polarizes the villain's range — narrow the range used for
+      // equity accordingly, so bluff-catchers don't overrate themselves vs an overbet.
+      final betFrac =
+          callAmount > 0 ? callAmount / max(currentPot - callAmount, 1.0) : 0.0;
+      final rangeWidth = betFrac > 0.85 ? 0.25 : (betFrac > 0.40 ? 0.33 : 0.40);
       final equity = EquityCalculator.calculate(
         heroCards: holeCards,
         communityCards: communityCards,
         numOpponents: max(1, activePlayers - 1),
         simulations: 300,
-        rangeWidth: 0.40,
+        rangeWidth: rangeWidth,
       );
       decision = _postflopDecision(
         profile: profile,
@@ -839,16 +844,32 @@ class LegendaryBotEngine {
         human: humanModel,
         wasAggressor: wasAggressor,
         inPosition: inPosition,
+        activePlayers: activePlayers,
         street: street,
         bb: bigBlind,
         villainCheckedBack: villainCheckedBack,
         prevBoard: prevBoard,
       );
       decision = _applyDifficulty(decision, equity, callAmount);
+      decision = _snapBotBet(decision);
+      if (decision.type == ActionType.fold && equity < 0.12) {
+        thinkMs = 250 + _rng.nextInt(400); // easy fold, no need to tank
+      } else if (callAmount > 0 &&
+          (equity - GtoMath.potOdds(callAmount, currentPot)).abs() < 0.05) {
+        thinkMs += 600 + _rng.nextInt(800); // genuinely close spot, tank longer
+      }
     }
 
     await Future.delayed(Duration(milliseconds: min(thinkMs, 2900)));
     return BotDecision(type: decision.type, amount: decision.amount, thinkMs: thinkMs);
+  }
+
+  /// Rounds bot bet/raise sizes to the nearest $2 — real players bet round
+  /// numbers, not "$37.40". All-ins keep the exact stack amount.
+  static BotDecision _snapBotBet(BotDecision d) {
+    if (d.type != ActionType.bet && d.type != ActionType.raise) return d;
+    final snapped = d.amount < 2 ? d.amount : (d.amount / 2).round() * 2.0;
+    return BotDecision(type: d.type, amount: snapped, thinkMs: d.thinkMs);
   }
 
   // ──────────────────────────────────────────────────────────────────────
@@ -1085,6 +1106,7 @@ class LegendaryBotEngine {
     required bool wasAggressor,
     required String street,
     required double bb,
+    int activePlayers = 2,
     bool inPosition = false,
     bool villainCheckedBack = false,
     List<CardModel> prevBoard = const [],
@@ -1101,6 +1123,11 @@ class LegendaryBotEngine {
         ? BoardTexture.drawCompletedOn(prevBoard, board.last)
         : false;
     final defAdv = RangeModel.defenderRangeAdvantage(texture);
+
+    // Multiway dampens pure bluffs (every extra player is another fold you
+    // need) and raises the bar to stack off/bluff-catch thin.
+    final mwBluffMult = PostflopContext.multiwayBluffMultiplier(activePlayers);
+    final mwValueShift = PostflopContext.multiwayValueShift(activePlayers);
 
     // ── Phil Ivey "El Observador": build a read before exploiting.
     // With low confidence (<30%), plays close to GTO baseline.
@@ -1175,6 +1202,13 @@ class LegendaryBotEngine {
         : (profile.fitOrFold || profile.bluffFreq < 0.10) ? 1.0
         : profile.bluffFreq > 0.48 ? 2.5
         : 1.5;
+
+    // Multiway: need a bigger edge to commit (more live hands could be ahead).
+    final mwCommitTighten = activePlayers >= 4 ? 1.0 : (activePlayers == 3 ? 0.5 : 0.0);
+    final commitSprStrongMw =
+        (commitSprStrong - mwCommitTighten).clamp(1.0, commitSprStrong);
+    final commitSprMediumMw =
+        (commitSprMedium - mwCommitTighten).clamp(0.6, commitSprMedium);
 
     // Safe clamp (see _preflopDecision): avoid low>high crash on short stacks.
     double clampBet(double v) => v.clamp(min(bb, stack), stack).toDouble();
@@ -1407,6 +1441,7 @@ class LegendaryBotEngine {
             papoBluffMult: papoBluffMult,
             papoSizingChaos: papoSizingChaos,
             drawCompleted: drawCompleted,
+            multiwayBluffMult: mwBluffMult,
           );
       }
     }
@@ -1484,10 +1519,10 @@ class LegendaryBotEngine {
     }
 
     // SPR-based early commitment for value hands
-    if (analysis.bucket == HandBucket.strongValue && spr <= commitSprStrong && !isRiver) {
+    if (analysis.bucket == HandBucket.strongValue && spr <= commitSprStrongMw && !isRiver) {
       return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
     }
-    if (analysis.bucket == HandBucket.mediumValue && spr <= commitSprMedium && !isRiver) {
+    if (analysis.bucket == HandBucket.mediumValue && spr <= commitSprMediumMw && !isRiver) {
       return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
     }
 
@@ -1540,6 +1575,7 @@ class LegendaryBotEngine {
         // POSITION: in position we realise more equity and control the pot, so we
         // defend our bluff-catchers wider (real MDF). Out of position we tighten.
         callThreshold += inPosition ? -0.05 : 0.025;
+        callThreshold += mwValueShift; // more live hands behind → defend tighter
         // Anti-overfold floor: bluff-catchers must defend enough vs normal bets
         // to not be exploitable. Only true overbets get the disciplined fold.
         // On the river the bettor's range is polarised (value + bluffs), so the
@@ -1663,6 +1699,7 @@ class LegendaryBotEngine {
           bluffRaiseFreq = max(bluffRaiseFreq, 0.50);
         }
         if (human.isCallingStation) bluffRaiseFreq *= 0.2;
+        bluffRaiseFreq *= mwBluffMult; // fewer profitable pure bluffs with more live opponents
         final alphaNeeded = GtoMath.alpha(pot, raiseTo() - callAmount);
         // Papo respects blockers loosely — conviction over precision
         final papoLooseGate = profile.freestyleAggressor && human.overFolds
@@ -1708,6 +1745,7 @@ class LegendaryBotEngine {
     double raulBluffMult = 1.0,
     double papoBluffMult = 1.0,
     double papoSizingChaos = 1.0,
+    double multiwayBluffMult = 1.0,
     bool inPosition = false,
     bool drawCompleted = false,
   }) {
@@ -1782,7 +1820,7 @@ class LegendaryBotEngine {
     }
 
     // Raúl: apply level-based bluff multiplier
-    bluffFreq = (bluffFreq * raulBluffMult).clamp(0.0, 0.95);
+    bluffFreq = (bluffFreq * raulBluffMult * multiwayBluffMult).clamp(0.0, 0.95);
 
     final betAmount = (pot * sizeFrac).clamp(min(bb, stack), stack).toDouble();
     // Alpha gate: bluff must clear break-even fold frequency (with margin)
