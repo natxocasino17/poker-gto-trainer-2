@@ -61,6 +61,11 @@ class PostflopSpotSolver {
     final streetIdx = board.length == 3 ? 1 : board.length == 4 ? 2 : 3;
     final street = HuStreet.values[streetIdx];
 
+    // Hand-specific terminal equity (real hand + run-out) vs each villain tier,
+    // computed once for this spot. This is what makes the solve reflect the
+    // ACTUAL hand and value draws correctly instead of a coarse bucket table.
+    final heroEq = HandAbstraction.heroEquityByVillainBucket(heroCards, board);
+
     final game = PostflopSpotGame(
       cfg: cfg,
       heroPostBucket: heroPostBucket,
@@ -71,6 +76,7 @@ class PostflopSpotSolver {
       villainStack: villainStack,
       pot: pot,
       facingBet: facingBet,
+      heroEqByVillBucket: heroEq,
     );
 
     final solver = CfrSolver<HuState>(game);

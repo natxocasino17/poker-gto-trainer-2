@@ -50,6 +50,13 @@ class PostflopSpotGame extends CfrGame<HuState> {
   /// Amount villain has already put in THIS street (0 = no bet facing yet).
   final double facingBet;
 
+  /// HERO's real equity (with run-out) vs each villain postflop bucket (0..4),
+  /// from [HandAbstraction.heroEquityByVillainBucket]. When provided, the
+  /// terminal showdown uses this hand-specific equity instead of the coarse
+  /// static table, so the solve reflects the actual hand + draws. Entries of
+  /// -1 (or a null list) fall back to [HandAbstraction.postflopShowdownEquity].
+  final List<double>? heroEqByVillBucket;
+
   const PostflopSpotGame({
     this.cfg = BetSizingConfig.fast,
     required this.heroPostBucket,
@@ -61,7 +68,18 @@ class PostflopSpotGame extends CfrGame<HuState> {
     required this.pot,
     this.facingBet = 0,
     this.villainAnchorPreBkt = 3,
+    this.heroEqByVillBucket,
   });
+
+  /// Hero's equity vs a given villain bucket — real (hand-specific) when
+  /// available, else the abstract table.
+  double _heroEqVs(int villainBucket) {
+    final v = heroEqByVillBucket;
+    if (v != null && villainBucket >= 0 && villainBucket < v.length && v[villainBucket] >= 0) {
+      return v[villainBucket];
+    }
+    return HandAbstraction.postflopShowdownEquity(heroPostBucket, villainBucket);
+  }
 
   // ─── CfrGame interface ────────────────────────────────────────────────────
 
@@ -126,8 +144,17 @@ class PostflopSpotGame extends CfrGame<HuState> {
   double utilityForP0(HuState s) {
     if (s.p0Folded) return -(s.p0StreetBet);
     if (s.p1Folded) return s.pot - s.p0StreetBet;
-    final eq = HandAbstraction.postflopShowdownEquity(s.p0PostBucket, s.p1PostBucket);
-    return eq * s.pot - s.p0StreetBet;
+    // Hero-specific real equity. heroEqByVillBucket is indexed by the VILLAIN's
+    // bucket (the player who isn't hero). From p0's perspective: if hero IS p0,
+    // p0's equity = hero eq vs p1's bucket; if hero is p1, p0 is the villain so
+    // p0's equity = 1 - hero's equity vs p0's bucket.
+    final double p0Eq;
+    if (heroSeat == 0) {
+      p0Eq = _heroEqVs(s.p1PostBucket);
+    } else {
+      p0Eq = 1.0 - _heroEqVs(s.p0PostBucket);
+    }
+    return p0Eq * s.pot - s.p0StreetBet;
   }
 
   @override

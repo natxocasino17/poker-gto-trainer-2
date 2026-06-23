@@ -1,6 +1,7 @@
 import 'dart:math';
 import '../../../data/models/card_model.dart';
 import '../../../core/utils/poker_concepts.dart';
+import '../../../core/utils/hand_evaluator.dart';
 
 /// Maps concrete hole cards and boards to abstract "buckets" so the CFR solver
 /// works on a tractable game tree rather than the full 1326-hand space.
@@ -187,6 +188,56 @@ class HandAbstraction {
   /// P0's showdown equity given postflop buckets (used at terminal nodes).
   static double postflopShowdownEquity(int p0, int p1) {
     return postflopEquityTable[p0.clamp(0, 4)][p1.clamp(0, 4)];
+  }
+
+  /// The HERO's REAL showdown equity (with the full board run-out) split by the
+  /// villain's CURRENT-board postflop bucket (0..4). This is the key to a
+  /// realistic postflop solve: instead of the coarse static [postflopEquityTable]
+  /// (which says "bucket 3 beats bucket 2 63% of the time" for any hand), this
+  /// measures THIS exact hand on THIS board vs each villain tier, and runs the
+  /// remaining cards out — so draws get their real realized equity and made
+  /// hands are valued for what they actually are.
+  ///
+  /// One Monte Carlo pass tallies all five buckets at once (deterministic seed
+  /// from the hero+board, so the advisor/analyzer are reproducible). Buckets
+  /// with no sampled villain hands return -1 (caller falls back to the table).
+  static List<double> heroEquityByVillainBucket(
+    List<CardModel> hero,
+    List<CardModel> board, {
+    int simulations = 2400,
+  }) {
+    if (hero.length != 2 || board.length < 3 || board.length > 5) {
+      return List.filled(5, -1.0);
+    }
+    final wins = List<double>.filled(5, 0.0);
+    final counts = List<int>.filled(5, 0);
+    int id(CardModel c) => c.rank * 4 + c.suit.index;
+    final known = <int>{for (final c in hero) id(c), for (final c in board) id(c)};
+    final deck = [
+      for (final c in CardModel.freshDeck()) if (!known.contains(id(c))) c
+    ];
+    final boardNeeded = 5 - board.length;
+
+    int seed = 17;
+    for (final c in [...hero, ...board]) {
+      seed = seed * 131 + id(c);
+    }
+    final rng = Random(seed & 0x7fffffff);
+
+    for (int sim = 0; sim < simulations; sim++) {
+      deck.shuffle(rng);
+      final villain = [deck[0], deck[1]];
+      final vb = postflopBucket(villain, board);
+      final full = boardNeeded > 0
+          ? [...board, ...deck.sublist(2, 2 + boardNeeded)]
+          : board;
+      final hs = HandEvaluator.evaluateBest([...hero, ...full]);
+      final vs = HandEvaluator.evaluateBest([...villain, ...full]);
+      final cmp = hs.compareTo(vs);
+      wins[vb] += cmp > 0 ? 1.0 : (cmp == 0 ? 0.5 : 0.0);
+      counts[vb]++;
+    }
+    return [for (int i = 0; i < 5; i++) counts[i] > 0 ? wins[i] / counts[i] : -1.0];
   }
 
   // ---------------------------------------------------------------------------
