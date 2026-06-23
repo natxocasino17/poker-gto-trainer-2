@@ -68,6 +68,10 @@ class StreetAnalysis {
   final String heroAction;
   final double heroAmount;
   final DecisionQuality quality;
+  /// Estimated EV the hero's action left on the table vs the recommended line,
+  /// in chips (0 when the decision was fine). Lets the analyzer put a price on
+  /// each leak. 0 for legacy logs recorded before this field existed.
+  final double evCostChips;
   /// Pre-rendered fallback text (used by old logs that predate i18n keys).
   final String explanation;
   /// i18n key of the coach phrase + the raw params needed to re-localize it
@@ -85,6 +89,7 @@ class StreetAnalysis {
     required this.heroAmount,
     required this.quality,
     required this.explanation,
+    this.evCostChips = 0,
     this.explanationKey = '',
     this.explanationParams = const {},
   });
@@ -121,6 +126,7 @@ class StreetAnalysis {
     'action': heroAction,
     'amount': heroAmount,
     'quality': quality.index,
+    'evcost': evCostChips,
     'explanation': explanation,
     'ekey': explanationKey,
     'eparams': explanationParams,
@@ -133,6 +139,7 @@ class StreetAnalysis {
     heroAction: j['action'] as String,
     heroAmount: (j['amount'] as num).toDouble(),
     quality: DecisionQuality.values[j['quality'] as int],
+    evCostChips: (j['evcost'] as num?)?.toDouble() ?? 0,
     explanation: j['explanation'] as String? ?? '',
     explanationKey: j['ekey'] as String? ?? '',
     explanationParams: (j['eparams'] as Map?)?.map((k, v) => MapEntry(k.toString(), v.toString())) ?? const {},

@@ -281,6 +281,8 @@ class HandReviewerEngine {
           verdictNote: feedback.note,
         );
         fullExplanation = deep.isEmpty ? rec.reasoning : '${rec.reasoning}\n\n$deep';
+        final sizingNote = _sizingRemark(humanAction, rec);
+        if (sizingNote.isNotEmpty) fullExplanation = '$fullExplanation\n$sizingNote';
         finalKey = '';
         finalParams = {};
       } else if (liveAdvice?[street] != null) {
@@ -301,6 +303,35 @@ class HandReviewerEngine {
         finalParams = {};
       }
 
+      // ── Estimated EV cost of a flagged decision, in chips ──────────────────
+      // A pragmatic proxy (labelled "≈" to the user): how much EV the action
+      // left vs the recommended line. Folds that declined a +EV continue and
+      // calls into a -EV spot use the equity-vs-odds gap over the pot; flagged
+      // aggression uses the equity shortfall over the amount risked. Bounded by
+      // the chips actually in play, halved for "marginal" (smaller mistakes).
+      double evCostChips = 0;
+      if (finalQuality == DecisionQuality.blunder ||
+          finalQuality == DecisionQuality.marginal) {
+        final gap = finalEquity - finalPotOdds;
+        switch (humanAction.type) {
+          case ActionType.fold:
+            if (finalPotOdds > 0) evCostChips = max(0.0, gap) * potAtStreet;
+            break;
+          case ActionType.call:
+            if (finalPotOdds > 0) evCostChips = max(0.0, -gap) * potAtStreet;
+            break;
+          case ActionType.bet:
+          case ActionType.raise:
+          case ActionType.allIn:
+            evCostChips = max(0.0, 0.45 - finalEquity) * humanAction.amount * 2;
+            break;
+          case ActionType.check:
+            break;
+        }
+        evCostChips = evCostChips.clamp(0.0, potAtStreet + humanAction.amount);
+        if (finalQuality == DecisionQuality.marginal) evCostChips *= 0.5;
+      }
+
       analyses.add(StreetAnalysis(
         street: street,
         heroEquity: finalEquity,
@@ -308,6 +339,7 @@ class HandReviewerEngine {
         heroAction: humanAction.label,
         heroAmount: humanAction.amount,
         quality: finalQuality,
+        evCostChips: evCostChips,
         explanation: fullExplanation,
         explanationKey: finalKey,
         explanationParams: finalParams,
@@ -315,6 +347,29 @@ class HandReviewerEngine {
     }
 
     return analyses;
+  }
+
+  /// Sizing critique: when the hero chose the right ACTION FAMILY (bet/raise)
+  /// but a materially different size than recommended, flag it — sizing is a
+  /// core GTO lever the family-level grade can't see. Bluffs are punished for
+  /// being too small (no fold equity) or too big (risking too much); value bets
+  /// for leaving chips behind. Returns '' when sizing is fine or N/A.
+  String _sizingRemark(HandAction hero, GTORecommendation rec) {
+    final heroAggro = hero.type == ActionType.bet ||
+        hero.type == ActionType.raise ||
+        hero.type == ActionType.allIn;
+    final recAggro = rec.action == 'Bet' || rec.action == 'Raise';
+    if (!heroAggro || !recAggro || rec.amount <= 0 || hero.amount <= 0) return '';
+    final ratio = hero.amount / rec.amount;
+    if (ratio >= 0.75 && ratio <= 1.30) return ''; // close enough
+    final recTxt = '\$${rec.amount.toStringAsFixed(0)}';
+    final heroTxt = '\$${hero.amount.toStringAsFixed(0)}';
+    if (ratio < 0.75) {
+      return '📐 Tamaño: apostaste $heroTxt cuando ~$recTxt era mejor. Te quedas '
+          'corto: menos fold equity y dejas valor/protección en la mesa.';
+    }
+    return '📐 Tamaño: apostaste $heroTxt vs ~$recTxt recomendado. Sobredimensionas: '
+        'arriesgas de más con faroles y aíslas tu rango de valor.';
   }
 
   List<CardModel> _communityAtStreet(List<CardModel> community, String street) {
@@ -1012,13 +1067,15 @@ class HandReviewerEngine {
   }
 }
 
-/// A recurring session leak: the hands where it showed up plus a renderer that
-/// turns the formatted hand list into the Puxi's verdict for that leak.
+/// A recurring session leak: the hands where it showed up, the estimated EV it
+/// cost (chips) and a renderer that turns the formatted hand list + cost into
+/// the Puxi's verdict for that leak.
 class _Leak {
   final List<int> hands;
-  final String Function(String formattedHands) _build;
+  double cost = 0;
+  final String Function(String formattedHands, String cost) _build;
   _Leak(this.hands, this._build);
-  String render() => _build(AICoach._fmtHands(hands));
+  String render() => _build(AICoach._fmtHands(hands), AICoach._fmtCost(cost));
 }
 
 class AICoach {
@@ -1118,11 +1175,37 @@ class AICoach {
   /// mistake and rank by how often it repeats — the highest-frequency leaks
   /// first. Returns at most 3 lines, Puxi-flavoured.
   static List<String> _detectLeaks(List<HandLog> hands) {
-    final riverFolds = <int>[]; // folded turn/river when the grader says it's -EV
-    final loosePreCalls = <int>[]; // flagged preflop flats (defending too wide)
-    final spew = <int>[]; // bet/raise/all-in blunders with little equity
-    final payOffs = <int>[]; // calling-station blunders on turn/river
-    final missedValue = <int>[]; // checked back a hand that wanted to bet
+    final riverFolds = _Leak(
+      [],
+      (hs, c) => '💧 Sueltas el river/turn con demasiada equity en $hs ($c). '
+          'Eso es over-fold: los agresivos te farolean gratis. Defiende tus '
+          'bluff-catchers según MDF.',
+    );
+    final payOffs = _Leak(
+      [],
+      (hs, c) => '🐟 Pagas perdiendo en calles altas en $hs ($c). Cuando te '
+          'suben fuerte y no llegas, foldear es gratis; el crying call no.',
+    );
+    final spew = _Leak(
+      [],
+      (hs, c) => '🔥 Apuestas/subes sin equity ni fold equity en $hs ($c). '
+          'Faroles sin plan = fichas regaladas. Elige mejor boards y bloqueadores.',
+    );
+    final loosePreCalls = _Leak(
+      [],
+      (hs, c) => '🎣 Pagas preflop demasiado flojo en $hs ($c). Flotar basura '
+          'fuera de posición sangra; 3-betea o foldea en vez de pagar por pagar.',
+    );
+    final missedValue = _Leak(
+      [],
+      (hs, c) => '💸 Das check con la mejor mano y dejas valor en la mesa en '
+          '$hs ($c). Si vas ganando, cobra: apuesta por valor.',
+    );
+
+    void hit(_Leak leak, HandLog h, StreetAnalysis sa) {
+      leak.hands.add(h.handNumber);
+      leak.cost += sa.evCostChips;
+    }
 
     for (final h in hands) {
       for (final sa in h.streetAnalyses) {
@@ -1136,25 +1219,23 @@ class AICoach {
           case 'fold':
             // The fold grader only flags folds whose equity was too high to
             // release, so a flagged turn/river fold is an over-fold.
-            if (sa.street == 'turn' || sa.street == 'river') {
-              riverFolds.add(h.handNumber);
-            }
+            if (sa.street == 'turn' || sa.street == 'river') hit(riverFolds, h, sa);
             break;
           case 'call':
             if (sa.street == 'preflop') {
-              loosePreCalls.add(h.handNumber);
+              hit(loosePreCalls, h, sa);
             } else if (isBlunder) {
-              payOffs.add(h.handNumber);
+              hit(payOffs, h, sa);
             }
             break;
           case 'bet':
           case 'raise':
           case 'all-in':
-            if (isBlunder && sa.heroEquity < 0.45) spew.add(h.handNumber);
+            if (isBlunder && sa.heroEquity < 0.45) hit(spew, h, sa);
             break;
           case 'check':
             if (sa.quality == DecisionQuality.marginal && sa.heroEquity >= 0.62) {
-              missedValue.add(h.handNumber);
+              hit(missedValue, h, sa);
             }
             break;
         }
@@ -1162,36 +1243,17 @@ class AICoach {
     }
 
     final candidates = <_Leak>[
-      _Leak(
-        riverFolds,
-        (hs) => '💧 Sueltas el river/turn con demasiada equity en $hs. '
-            'Eso es over-fold: los agresivos te farolean gratis. Defiende tus '
-            'bluff-catchers según MDF.',
-      ),
-      _Leak(
-        payOffs,
-        (hs) => '🐟 Pagas perdiendo en calles altas en $hs. Cuando te suben '
-            'fuerte y no llegas, foldear es gratis; el crying call no.',
-      ),
-      _Leak(
-        spew,
-        (hs) => '🔥 Apuestas/subes sin equity ni fold equity en $hs. Faroles '
-            'sin plan = fichas regaladas. Elige mejor tus boards y bloqueadores.',
-      ),
-      _Leak(
-        loosePreCalls,
-        (hs) => '🎣 Pagas preflop demasiado flojo en $hs. Flotar basura fuera '
-            'de posición sangra; 3-betea o foldea en vez de pagar por pagar.',
-      ),
-      _Leak(
-        missedValue,
-        (hs) => '💸 Das check con la mejor mano y dejas valor en la mesa en $hs. '
-            'Si vas ganando, cobra: apuesta por valor.',
-      ),
+      riverFolds, payOffs, spew, loosePreCalls, missedValue,
     ]..removeWhere((l) => l.hands.toSet().length < 2); // must repeat across hands
 
-    candidates.sort(
-        (a, b) => b.hands.toSet().length.compareTo(a.hands.toSet().length));
+    // Rank by the EV they bleed (chips), falling back to frequency when the
+    // cost estimate is unavailable (legacy logs) so the worst leak leads.
+    candidates.sort((a, b) {
+      final byCost = b.cost.compareTo(a.cost);
+      return byCost != 0
+          ? byCost
+          : b.hands.toSet().length.compareTo(a.hands.toSet().length);
+    });
     return candidates.take(3).map((l) => l.render()).toList();
   }
 
@@ -1201,6 +1263,10 @@ class AICoach {
     final shown = unique.take(6).map((n) => '#$n').join(', ');
     return unique.length > 6 ? '$shown… (+${unique.length - 6})' : shown;
   }
+
+  /// Formats an estimated EV cost in chips, e.g. "≈ -$24 de EV".
+  static String _fmtCost(double chips) =>
+      chips <= 0 ? 'EV no estimable' : '≈ -\$${chips.round()} de EV';
 
   static List<String> _generateTasks(SessionStats stats) {
     final tasks = <String>[];
