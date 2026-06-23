@@ -1188,9 +1188,10 @@ class AICoach {
         (hs) => '💸 Das check con la mejor mano y dejas valor en la mesa en $hs. '
             'Si vas ganando, cobra: apuesta por valor.',
       ),
-    ]..removeWhere((l) => l.hands.length < 2); // a leak repeats; one-offs aren't
+    ]..removeWhere((l) => l.hands.toSet().length < 2); // must repeat across hands
 
-    candidates.sort((a, b) => b.hands.length.compareTo(a.hands.length));
+    candidates.sort(
+        (a, b) => b.hands.toSet().length.compareTo(a.hands.toSet().length));
     return candidates.take(3).map((l) => l.render()).toList();
   }
 
