@@ -375,13 +375,27 @@ class EquityCalculator {
   }) {
     final isPostflop = communityCards.length >= 3;
     final isRiver = communityCards.length == 5;
+    // Bet-size-aware villain range: facing a big bet/all-in, the villain's range
+    // is far narrower and stronger, so equity vs a fixed 40% range is wildly
+    // inflated (this is what made the advisor say "CALL optimal" vs all-ins with
+    // weak hands). Mirror the bots' heuristic: the bigger the bet relative to
+    // the pot, the tighter the range we measure equity against.
+    final double rangeWidth;
+    if (!isPostflop) {
+      rangeWidth = 1.0;
+    } else if (callAmount > 0) {
+      final betFrac = callAmount / max(potSize - callAmount, 1.0);
+      rangeWidth = betFrac > 0.85 ? 0.25 : (betFrac > 0.40 ? 0.33 : 0.40);
+    } else {
+      rangeWidth = 0.40;
+    }
     final equity = calculate(
       heroCards: heroCards,
       communityCards: communityCards,
       numOpponents: max(1, numOpponents),
       simulations: 500,
       deterministic: true,
-      rangeWidth: isPostflop ? 0.40 : 1.0,
+      rangeWidth: rangeWidth,
     );
 
     final odds = potOddsRequired(callAmount, potSize);
@@ -453,7 +467,10 @@ class EquityCalculator {
           (canBluff || realizedEq > 0.45)) {
         final bet = _snapToBetSize(potSize * 0.66);
         action = 'Bet'; amount = bet; evFinal = equity - 0.35;
-      } else if (realizedEq > 0.52 + vShift) {
+      } else if (realizedEq > 0.52 + vShift && (inPosition || hasInitiative)) {
+        // Thin value bet — only IN POSITION or with initiative. OOP as the
+        // NON-aggressor, leading (donking) a medium hand is non-standard: check
+        // to the pre-flop raiser (check-call / check-raise) instead of donking.
         final bet = _snapToBetSize(potSize * 0.40);
         action = 'Bet'; amount = bet; evFinal = equity - 0.45;
       } else if (equity > 0.28 &&
@@ -590,7 +607,7 @@ class EquityCalculator {
     } else {
       final prevBoard = communityCards.sublist(0, communityCards.length - 1);
       final newCard = communityCards.last;
-      b.writeln('➕ $newCard — ${_newCardImpact(prevBoard, newCard)}');
+      b.writeln('➕ $newCard — ${_newCardImpact(prevBoard, newCard, isRiver)}');
     }
     b.writeln();
 
@@ -719,7 +736,7 @@ class EquityCalculator {
 
   /// Describes what the just-dealt turn/river card changed versus the prior
   /// board — the core "una lectura distinta por calle" behaviour.
-  static String _newCardImpact(List<CardModel> prevBoard, CardModel newCard) {
+  static String _newCardImpact(List<CardModel> prevBoard, CardModel newCard, bool isRiver) {
     final prevRanks = prevBoard.map((c) => c.rank).toList();
     final maxPrev = prevRanks.isEmpty ? 0 : prevRanks.reduce(max);
     final suitOnBoard = prevBoard.where((c) => c.suit == newCard.suit).length;
@@ -739,9 +756,15 @@ class EquityCalculator {
       return 'completa posibles ESCALERAS. Reevalúa: tu valor medio baja, el rival pudo ligar.';
     }
     if (overcard) {
-      return 'sobrecarta (${newCard.rankSymbol}). Conecta con el rango del rival, pero también es buena carta para representar fuerza tú.';
+      return isRiver
+          ? 'sobrecarta (${newCard.rankSymbol}): conecta con el rango del rival; es la última carta, decide valor vs farol por tu historia de la mano.'
+          : 'sobrecarta (${newCard.rankSymbol}). Conecta con el rango del rival, pero también es buena carta para representar fuerza tú.';
     }
-    return 'ladrillo — no cambia nada del board; tu historia de fuerza sigue intacta, puedes seguir presionando.';
+    // River = last card; there's nothing more to come, so don't talk about
+    // "next card" or "keep pressuring" generically.
+    return isRiver
+        ? 'ladrillo — no cambia el board; decide showdown value vs farol según la historia de la mano (no quedan más cartas).'
+        : 'ladrillo — no cambia nada del board; tu historia de fuerza sigue intacta, puedes seguir presionando.';
   }
 
   /// Concrete description of the hero hand on this board: tier + made hand +
@@ -827,7 +850,9 @@ class EquityCalculator {
     final trap = (bucket == HandBucket.nuts || bucket == HandBucket.strongValue)
         ? ' Si apuestan, check-raise para construir el bote de golpe.'
         : '';
-    return 'CHECK — controla el bote y reevalúa según la próxima carta.$trap';
+    return isRiver
+        ? 'CHECK — control de bote y vas a showdown; no quedan cartas, así que evita pagar de más con mano marginal.$trap'
+        : 'CHECK — controla el bote y reevalúa según la próxima carta.$trap';
   }
 
   /// Picks the single most relevant coaching note for this spot instead of
