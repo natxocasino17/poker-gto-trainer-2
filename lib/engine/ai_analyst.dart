@@ -78,6 +78,9 @@ class HandReviewerEngine {
       startStack: humanPlayer.stack - humanProfit,
       liveAdvice: liveAdvice,
       villainRead: villainRead,
+      positions: {
+        for (final p in completedState.players) p.id: _posLabel(p.position),
+      },
     );
 
     final winner = completedState.players.firstWhere(
@@ -120,8 +123,13 @@ class HandReviewerEngine {
     required double startStack,
     Map<String, GTORecommendation>? liveAdvice,
     VillainRead villainRead = VillainRead.neutral,
+    Map<String, String> positions = const {},
   }) {
     final analyses = <StreetAnalysis>[];
+    // Real pot facing the hero BEFORE each of their actions, reconstructed by
+    // replaying chip increments across ALL streets (the old code only counted
+    // the current street, so pot odds / % sizing / SPR were all wrong).
+    final potBeforeSeq = _potBeforeActions(allActions, positions);
     final streets = ['preflop', 'flop', 'turn', 'river'];
 
     for (final street in streets) {
@@ -150,12 +158,19 @@ class HandReviewerEngine {
         );
       }
 
-      final streetBets = allActions
-          .where((a) => a.street == street && a.type != ActionType.fold && a.type != ActionType.check)
-          .map((a) => a.amount)
-          .fold(0.0, (sum, a) => sum + a);
-      final potAtStreet = streetBets + (street == 'preflop' ? 3.0 : 0);
       final humanAction = streetHumanActions.last;
+      // Real pot the hero faced for THIS decision (all prior streets + this
+      // street up to the hero's action), reconstructed from chip increments.
+      // Fall back to a current-street sum only if the lookup misses.
+      final potAtStreet = potBeforeSeq[humanAction.sequence] ??
+          (allActions
+                  .where((a) =>
+                      a.street == street &&
+                      a.type != ActionType.fold &&
+                      a.type != ActionType.check)
+                  .map((a) => a.amount)
+                  .fold(0.0, (sum, a) => sum + a) +
+              (street == 'preflop' ? 3.0 : 0));
       final callAmt = humanAction.type == ActionType.call ? humanAction.amount : 0.0;
       final potOdds = EquityCalculator.potOddsRequired(callAmt, potAtStreet);
 
@@ -370,6 +385,52 @@ class HandReviewerEngine {
     }
     return '📐 Tamaño: apostaste $heroTxt vs ~$recTxt recomendado. Sobredimensionas: '
         'arriesgas de más con faroles y aíslas tu rango de valor.';
+  }
+
+  /// Reconstructs the exact pot BEFORE each action by replaying chip increments
+  /// across the whole hand, mirroring PokerEngine exactly: bet/raise record a
+  /// TO-total street bet (increment = amount - current street bet), while
+  /// call/all-in record the increment directly. Blinds are seeded so preflop is
+  /// correct. Returns action.sequence -> pot size just before that action — used
+  /// for correct pot odds, % sizing and SPR in the review.
+  Map<int, double> _potBeforeActions(
+      List<HandAction> all, Map<String, String> positions) {
+    final res = <int, double>{};
+    final sb = PokerEngine.smallBlind;
+    final bb = PokerEngine.bigBlind;
+    double pot = sb + bb;
+    final streetBet = <String, double>{};
+    positions.forEach((id, label) {
+      if (label == 'SB') streetBet[id] = sb;
+      if (label == 'BB') streetBet[id] = bb;
+    });
+    String curStreet = 'preflop';
+    final ordered = [...all]..sort((a, b) => a.sequence.compareTo(b.sequence));
+    for (final a in ordered) {
+      if (a.street != curStreet) {
+        curStreet = a.street;
+        streetBet.clear(); // bets reset each street; blinds only matter preflop
+      }
+      res[a.sequence] = pot; // pot BEFORE this action (what the actor faces)
+      final prev = streetBet[a.playerId] ?? 0.0;
+      switch (a.type) {
+        case ActionType.bet:
+        case ActionType.raise:
+          final inc = (a.amount - prev).clamp(0.0, double.infinity).toDouble();
+          pot += inc;
+          streetBet[a.playerId] = a.amount;
+          break;
+        case ActionType.call:
+        case ActionType.allIn:
+          pot += a.amount;
+          streetBet[a.playerId] = prev + a.amount;
+          break;
+        case ActionType.fold:
+        case ActionType.check:
+          break;
+      }
+    }
+    return res;
   }
 
   List<CardModel> _communityAtStreet(List<CardModel> community, String street) {
