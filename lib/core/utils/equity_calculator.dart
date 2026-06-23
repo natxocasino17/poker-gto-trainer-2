@@ -24,9 +24,13 @@ class GTORecommendation {
   final double ev;
 
   /// EV expressed in big blinds (preflop: straight from the chart; postflop:
-  /// EV-fraction × pot ÷ BB). 0 when not computed. More intuitive than the raw
-  /// fraction for the user-facing display.
+  /// evChips ÷ BB). 0 when not computed. More intuitive for display.
   final double evBB;
+
+  /// Real EV of the RECOMMENDED action, in chips: the expected chips you take
+  /// from the pot with this line, accounting for equity realisation AND, for a
+  /// bet/raise, fold equity. Fold = 0. Defined for every action (no "fake" EV).
+  final double evChips;
 
   /// The solved action-frequency mix at this spot, if available — from the CFR
   /// solve (postflop) or the preflop chart's mixed strategy. Null for a pure
@@ -41,10 +45,12 @@ class GTORecommendation {
     required this.reasoning,
     required this.ev,
     this.evBB = 0,
+    this.evChips = 0,
     this.equilibriumMix,
   });
 
-  GTORecommendation copyWith({double? evBB, List<ActionFrequency>? equilibriumMix}) =>
+  GTORecommendation copyWith(
+          {double? evBB, double? evChips, List<ActionFrequency>? equilibriumMix}) =>
       GTORecommendation(
         action: action,
         amount: amount,
@@ -53,6 +59,7 @@ class GTORecommendation {
         reasoning: reasoning,
         ev: ev,
         evBB: evBB ?? this.evBB,
+        evChips: evChips ?? this.evChips,
         equilibriumMix: equilibriumMix ?? this.equilibriumMix,
       );
 }
@@ -773,6 +780,32 @@ class EquityCalculator {
       }
     }
 
+    // ── Real EV of the recommended action, in chips ────────────────────────
+    // Facing a bet: EV of continuing (call/raise) vs folding. No bet faced:
+    // a bet's EV folds in FOLD EQUITY (villain folds ~ break-even freq, shifted
+    // by the read), a check is your realised share of the pot, a fold is 0.
+    final double evChips;
+    if (action == 'Fold') {
+      evChips = 0.0;
+    } else if (callAmount > 0) {
+      // realizedEqVsPrice already accounts for street/position/draw realisation.
+      evChips = realizedEqVsPrice * (potSize + callAmount) - callAmount;
+    } else if (action == 'Bet' || action == 'Raise') {
+      final bet = amount;
+      final readFold = villainRead.overFolds
+          ? 0.12
+          : (villainRead.callingStation ? -0.18 : 0.0);
+      // Break-even fold frequency (alpha) shifted by the read, clamped sane.
+      final pFold =
+          (bet / (potSize + bet) + readFold).clamp(0.0, 0.92).toDouble();
+      final realizedWhenCalled = (equity * realization).clamp(0.0, 1.0);
+      evChips = pFold * potSize +
+          (1 - pFold) * (realizedWhenCalled * (potSize + 2 * bet) - bet);
+    } else {
+      // Check: expected share of the current pot.
+      evChips = (equity * realization).clamp(0.0, 1.0) * potSize;
+    }
+
     final reasoning = _buildReasoning(
       heroCards: heroCards,
       communityCards: communityCards,
@@ -791,7 +824,6 @@ class EquityCalculator {
       primaryAction: action,
       primaryAmount: amount,
       isRiver: isRiver,
-      realEdge: ev,
     );
 
     return GTORecommendation(
@@ -799,7 +831,8 @@ class EquityCalculator {
       amount: amount,
       equity: equity,
       potOdds: odds,
-      ev: ev, // REAL edge after equity realization, consistent everywhere
+      ev: ev, // REAL edge after equity realization (fraction; used for grading)
+      evChips: evChips,
       reasoning: reasoning,
     );
   }
@@ -822,7 +855,6 @@ class EquityCalculator {
     required String primaryAction,
     required double primaryAmount,
     required bool isRiver,
-    required double realEdge,
   }) {
     final b = StringBuffer();
     final eqPct = (equity * 100).toStringAsFixed(1);
@@ -867,10 +899,9 @@ class EquityCalculator {
     // ── 3. MATEMÁTICAS — una sola línea ─────────────────────────────────────
     if (callAmount > 0) {
       final odds = potOddsRequired(callAmount, potSize);
-      // Real EV = realized-equity edge (matches the headline EV everywhere),
-      // not the raw equity-vs-odds, so position/multiway/draws are reflected.
-      final evVal = realEdge;
-      b.writeln('📐 Equity $eqPct% · Pot odds ${(odds * 100).toStringAsFixed(1)}% · EV ${evVal >= 0 ? "+" : ""}${(evVal * 100).toStringAsFixed(1)}% · MDF ${(mdf * 100).toStringAsFixed(0)}%');
+      // Show the price math here (equity vs the price); the single EV number
+      // lives in the headline metric (real EV in BB), so it can't contradict.
+      b.writeln('📐 Equity $eqPct% · Pot odds ${(odds * 100).toStringAsFixed(1)}% · MDF ${(mdf * 100).toStringAsFixed(0)}%');
     } else {
       b.writeln('📐 Equity $eqPct% · SPR ${spr.toStringAsFixed(1)} (${_sprLabel(spr)})');
     }
