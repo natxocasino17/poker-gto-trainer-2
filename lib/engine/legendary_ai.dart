@@ -1045,7 +1045,10 @@ class LegendaryBotEngine {
           // Not bluffing this time → give up the open rather than auto-4bet.
           return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
         case ChartAction.orCall3B:
-          if (callAmount <= stack * 0.30) {
+          // These hands are DESIGNATED to call a 3-bet (KQo/AJs/TT… IP), so
+          // calling a standard/large 3-bet is correct — don't fold them to a
+          // normal raise. Only give up vs a near-jam (very large 3-bet / short).
+          if (callAmount <= stack * 0.42) {
             return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
           }
           return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
@@ -1476,8 +1479,10 @@ class LegendaryBotEngine {
           return const BotDecision(type: ActionType.check, amount: 0, thinkMs: 0);
 
         case HandBucket.comboDraw:
-          // Moneymaker: jam combo draws and force variance
-          if (profile.highVarianceDraws && spr < 5 && !isRiver && rand < 0.55) {
+          // Jam combo draws ONLY at low SPR (genuinely pot-committed with big
+          // fold equity), not deep — a deep shove with no made hand is just
+          // spew and ends in nonsensical all-ins when the draw misses.
+          if (profile.highVarianceDraws && spr < 2.5 && !isRiver && rand < 0.30) {
             return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
           }
           if (!isRiver && rand < 0.80) {
@@ -1740,7 +1745,9 @@ class LegendaryBotEngine {
         return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
 
       case HandBucket.comboDraw:
-        if (profile.highVarianceDraws && !isRiver && rand < 0.50) {
+        // Only ship a draw over a bet when SPR is low (committed + fold equity),
+        // not deep — deep draw-jams are spew that show down as "nothing".
+        if (profile.highVarianceDraws && spr < 3 && !isRiver && rand < 0.35) {
           return BotDecision(type: ActionType.allIn, amount: stack, thinkMs: 0);
         }
         if (!isRiver && rand < (profile.checkRaiseFreq + 0.25) * oopCRMult && foldEst > 0.35) {
