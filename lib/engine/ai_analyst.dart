@@ -996,6 +996,15 @@ class HandReviewerEngine {
   }
 }
 
+/// A recurring session leak: the hands where it showed up plus a renderer that
+/// turns the formatted hand list into the Puxi's verdict for that leak.
+class _Leak {
+  final List<int> hands;
+  final String Function(String formattedHands) _build;
+  _Leak(this.hands, this._build);
+  String render() => _build(AICoach._fmtHands(hands));
+}
+
 class AICoach {
   static String generateReport(SessionStats stats, List<HandLog> hands) {
     if (stats.handsPlayed < 3) {
@@ -1061,6 +1070,18 @@ class AICoach {
     }
     b.writeln('Nota de decisiones: ${stats.decisionScore.toStringAsFixed(0)}/100');
 
+    // ── Session-level leak detection: cross-reference flagged decisions across
+    //    ALL hands into recurring leaks, with the exact hand numbers to review.
+    //    This turns the report from "stats dump" into "here's your pattern".
+    final leaks = _detectLeaks(hands);
+    if (leaks.isNotEmpty) {
+      b.writeln('');
+      b.writeln('🩸 FUGAS DETECTADAS (tu patrón, no manos sueltas)');
+      for (final l in leaks) {
+        b.writeln(l);
+      }
+    }
+
     b.writeln('');
     b.writeln('📋 DEBERES PARA LA PRÓXIMA SESIÓN');
     b.writeln('(sí, deberes; el talento no te va a salvar)');
@@ -1072,6 +1093,96 @@ class AICoach {
     b.writeln('— el Puxi, que te aprecia más de lo que parece 🃏');
 
     return b.toString();
+  }
+
+  /// Cross-references every flagged decision (blunder/marginal) across ALL
+  /// hands of the session and groups them into recurring leaks, each with the
+  /// specific hand numbers to review. The grader already decided each decision
+  /// was off (equity/EV-wise) per street, so here we just bucket by the kind of
+  /// mistake and rank by how often it repeats — the highest-frequency leaks
+  /// first. Returns at most 3 lines, Puxi-flavoured.
+  static List<String> _detectLeaks(List<HandLog> hands) {
+    final riverFolds = <int>[]; // folded turn/river when the grader says it's -EV
+    final loosePreCalls = <int>[]; // flagged preflop flats (defending too wide)
+    final spew = <int>[]; // bet/raise/all-in blunders with little equity
+    final payOffs = <int>[]; // calling-station blunders on turn/river
+    final missedValue = <int>[]; // checked back a hand that wanted to bet
+
+    for (final h in hands) {
+      for (final sa in h.streetAnalyses) {
+        if (sa.quality == DecisionQuality.optimal ||
+            sa.quality == DecisionQuality.correct) {
+          continue;
+        }
+        final isBlunder = sa.quality == DecisionQuality.blunder;
+        final act = sa.heroAction.split(' ').first.toLowerCase();
+        switch (act) {
+          case 'fold':
+            // The fold grader only flags folds whose equity was too high to
+            // release, so a flagged turn/river fold is an over-fold.
+            if (sa.street == 'turn' || sa.street == 'river') {
+              riverFolds.add(h.handNumber);
+            }
+            break;
+          case 'call':
+            if (sa.street == 'preflop') {
+              loosePreCalls.add(h.handNumber);
+            } else if (isBlunder) {
+              payOffs.add(h.handNumber);
+            }
+            break;
+          case 'bet':
+          case 'raise':
+          case 'all-in':
+            if (isBlunder && sa.heroEquity < 0.45) spew.add(h.handNumber);
+            break;
+          case 'check':
+            if (sa.quality == DecisionQuality.marginal && sa.heroEquity >= 0.62) {
+              missedValue.add(h.handNumber);
+            }
+            break;
+        }
+      }
+    }
+
+    final candidates = <_Leak>[
+      _Leak(
+        riverFolds,
+        (hs) => '💧 Sueltas el river/turn con demasiada equity en $hs. '
+            'Eso es over-fold: los agresivos te farolean gratis. Defiende tus '
+            'bluff-catchers según MDF.',
+      ),
+      _Leak(
+        payOffs,
+        (hs) => '🐟 Pagas perdiendo en calles altas en $hs. Cuando te suben '
+            'fuerte y no llegas, foldear es gratis; el crying call no.',
+      ),
+      _Leak(
+        spew,
+        (hs) => '🔥 Apuestas/subes sin equity ni fold equity en $hs. Faroles '
+            'sin plan = fichas regaladas. Elige mejor tus boards y bloqueadores.',
+      ),
+      _Leak(
+        loosePreCalls,
+        (hs) => '🎣 Pagas preflop demasiado flojo en $hs. Flotar basura fuera '
+            'de posición sangra; 3-betea o foldea en vez de pagar por pagar.',
+      ),
+      _Leak(
+        missedValue,
+        (hs) => '💸 Das check con la mejor mano y dejas valor en la mesa en $hs. '
+            'Si vas ganando, cobra: apuesta por valor.',
+      ),
+    ]..removeWhere((l) => l.hands.length < 2); // a leak repeats; one-offs aren't
+
+    candidates.sort((a, b) => b.hands.length.compareTo(a.hands.length));
+    return candidates.take(3).map((l) => l.render()).toList();
+  }
+
+  /// Formats a leak's hand numbers as "#3, #7, #12" — unique, sorted, capped.
+  static String _fmtHands(List<int> nums) {
+    final unique = nums.toSet().toList()..sort();
+    final shown = unique.take(6).map((n) => '#$n').join(', ');
+    return unique.length > 6 ? '$shown… (+${unique.length - 6})' : shown;
   }
 
   static List<String> _generateTasks(SessionStats stats) {
