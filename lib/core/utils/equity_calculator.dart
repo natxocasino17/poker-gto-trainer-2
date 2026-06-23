@@ -399,7 +399,6 @@ class EquityCalculator {
     );
 
     final odds = potOddsRequired(callAmount, potSize);
-    final ev = equity - odds;
 
     final analysis = isPostflop ? HandStrengthAnalysis.analyze(heroCards, communityCards) : null;
     final blockers = isPostflop ? Blockers.analyze(heroCards, communityCards) : null;
@@ -436,6 +435,22 @@ class EquityCalculator {
     final strongMade = analysis != null &&
         (analysis.bucket == HandBucket.nuts ||
             analysis.bucket == HandBucket.strongValue);
+
+    // REAL edge of continuing, after equity REALIZATION (not just raw showdown
+    // equity vs the price): on the river you go to showdown so you realise 100%
+    // of your equity; on earlier streets position / initiative / multiway decide
+    // how much you keep, and DRAWS realise extra via implied odds (they get paid
+    // when they hit). This is the number reported as EV and used to decide
+    // call/fold, so the advice reflects what you'll actually make, not a raw
+    // pot-odds comparison that ignores being OOP, multiway, or on a draw.
+    final isDraw = analysis != null &&
+        (analysis.bucket == HandBucket.comboDraw ||
+            analysis.bucket == HandBucket.strongDraw);
+    final callRealization = isRiver
+        ? 1.0
+        : (isDraw ? (realization * 1.15).clamp(0.0, 1.30) : realization).toDouble();
+    final realizedEqVsPrice = (equity * callRealization).clamp(0.0, 1.0).toDouble();
+    final ev = realizedEqVsPrice - odds;
 
     // ── Determine primary action (now factor-aware) ─────────────────────────
     // NOTE: the reported EV (GTORecommendation.ev) is ALWAYS the real pot-odds
@@ -548,6 +563,7 @@ class EquityCalculator {
       primaryAction: action,
       primaryAmount: amount,
       isRiver: isRiver,
+      realEdge: ev,
     );
 
     return GTORecommendation(
@@ -555,7 +571,7 @@ class EquityCalculator {
       amount: amount,
       equity: equity,
       potOdds: odds,
-      ev: ev, // real pot-odds edge (equity - odds), consistent everywhere
+      ev: ev, // REAL edge after equity realization, consistent everywhere
       reasoning: reasoning,
     );
   }
@@ -578,6 +594,7 @@ class EquityCalculator {
     required String primaryAction,
     required double primaryAmount,
     required bool isRiver,
+    required double realEdge,
   }) {
     final b = StringBuffer();
     final eqPct = (equity * 100).toStringAsFixed(1);
@@ -622,7 +639,9 @@ class EquityCalculator {
     // ── 3. MATEMÁTICAS — una sola línea ─────────────────────────────────────
     if (callAmount > 0) {
       final odds = potOddsRequired(callAmount, potSize);
-      final evVal = equity - odds;
+      // Real EV = realized-equity edge (matches the headline EV everywhere),
+      // not the raw equity-vs-odds, so position/multiway/draws are reflected.
+      final evVal = realEdge;
       b.writeln('📐 Equity $eqPct% · Pot odds ${(odds * 100).toStringAsFixed(1)}% · EV ${evVal >= 0 ? "+" : ""}${(evVal * 100).toStringAsFixed(1)}% · MDF ${(mdf * 100).toStringAsFixed(0)}%');
     } else {
       b.writeln('📐 Equity $eqPct% · SPR ${spr.toStringAsFixed(1)} (${_sprLabel(spr)})');
