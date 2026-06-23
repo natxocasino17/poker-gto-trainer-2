@@ -1309,13 +1309,23 @@ class LegendaryBotEngine {
         }
       }
 
-      // ── OOP Donk bet: defender's range advantage is high and not a probe spot ──
+      // ── OOP Donk bet: leading into the preflop aggressor. Real players donk
+      //    RARELY and only on textures that genuinely favour the defender's
+      //    range — low/connected/paired boards (e.g. 765, 543, 884) — never on
+      //    ace-high or broadway-heavy boards where the raiser's range crushes.
+      //    Gate is strict (high defender advantage AND favourable texture) and
+      //    frequencies are low, so the lead is reserved for strong made hands
+      //    that want to build a pot OOP and the occasional strong draw, instead
+      //    of firing into the aggressor on any board with a slight edge.
+      final donkFavorableTexture = (texture.low || texture.connected || texture.paired) &&
+          !texture.aceHigh &&
+          !texture.broadwayHeavy;
       if (!inPosition && !wasAggressor && !villainCheckedBack &&
-          defAdv > 0.10 && !profile.fitOrFold) {
+          defAdv > 0.18 && donkFavorableTexture && !profile.fitOrFold) {
         switch (analysis.bucket) {
           case HandBucket.nuts:
           case HandBucket.strongValue:
-            if (rand < profile.donkBetFreq * 2.0) {
+            if (rand < profile.donkBetFreq) {
               return BotDecision(
                 type: ActionType.bet,
                 amount: clampBet(_valueSize(profile, pot, texture, street, spr: spr, nut: analysis.bucket == HandBucket.nuts)),
@@ -1324,13 +1334,13 @@ class LegendaryBotEngine {
             }
             break;
           case HandBucket.mediumValue:
-            if (rand < profile.donkBetFreq * 0.8) {
+            if (rand < profile.donkBetFreq * 0.4) {
               return BotDecision(type: ActionType.bet, amount: clampBet(pot * 0.33), thinkMs: 0);
             }
             break;
           case HandBucket.comboDraw:
           case HandBucket.strongDraw:
-            if (!isRiver && rand < profile.donkBetFreq * 1.2) {
+            if (!isRiver && rand < profile.donkBetFreq * 0.7) {
               return BotDecision(type: ActionType.bet, amount: clampBet(pot * 0.50), thinkMs: 0);
             }
             break;
