@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/session_stats_model.dart';
 import '../../../presentation/providers/game_provider.dart';
 import '../../widgets/zeros_avatar.dart';
+import '../../widgets/app_background.dart';
 import '../../../core/i18n/i18n.dart';
 
 class StatsScreen extends StatelessWidget {
@@ -14,8 +15,9 @@ class StatsScreen extends StatelessWidget {
     final gp = context.watch<GameProvider>();
     final stats = gp.sessionStats;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return AppBackground(
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text(I18n.t('stats_title')),
         centerTitle: true,
@@ -34,6 +36,7 @@ class StatsScreen extends StatelessWidget {
                 _CoachReportCard(gp: gp),
               ],
             ),
+      ),
     );
   }
 }

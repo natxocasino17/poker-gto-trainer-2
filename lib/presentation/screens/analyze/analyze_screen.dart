@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/hand_log_model.dart';
 import '../../../presentation/providers/game_provider.dart';
 import '../../../core/i18n/i18n.dart';
+import '../../widgets/app_background.dart';
 import 'widgets/hand_detail_screen.dart';
 
 class AnalyzeScreen extends StatelessWidget {
@@ -14,8 +15,9 @@ class AnalyzeScreen extends StatelessWidget {
     final gp = context.watch<GameProvider>();
     final hands = List<HandLog>.from(gp.handHistory).reversed.toList();
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return AppBackground(
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text(I18n.t('analyze_title')),
         centerTitle: true,
@@ -44,6 +46,7 @@ class AnalyzeScreen extends StatelessWidget {
                 ),
               ),
             ),
+      ),
     );
   }
 }

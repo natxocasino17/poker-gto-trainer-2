@@ -3,6 +3,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/player_model.dart';
 import '../../../data/gto/hand_classes.dart';
 import '../../../data/gto/open_raise.dart';
+import '../../widgets/app_background.dart';
 
 /// 13×13 RFI (open-raise first-in) range heatmap by position. Read-only view
 /// over the GTO database — green = raise, gold = mixed, muted = fold.
@@ -48,8 +49,9 @@ class _RangeHeatmapScreenState extends State<RangeHeatmapScreen> {
     }
     final pct = ((raises + mixed * 0.5) / hands.length * 100).toStringAsFixed(0);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return AppBackground(
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
@@ -59,6 +61,42 @@ class _RangeHeatmapScreenState extends State<RangeHeatmapScreen> {
       ),
       body: Column(
         children: [
+          // Study-only disclaimer: using a chart during real play is cheating.
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: AppColors.gtoMarginal.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.gtoMarginal.withOpacity(0.6)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('⚠️ ', style: TextStyle(fontSize: 13)),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      style: const TextStyle(fontSize: 11, height: 1.35),
+                      children: [
+                        const TextSpan(
+                          text: 'Solo para estudio. ',
+                          style: TextStyle(color: AppColors.losing, fontWeight: FontWeight.w900),
+                        ),
+                        TextSpan(
+                          text: 'Usar esta tabla durante una partida real (online o en vivo) '
+                              'está prohibido y se considera trampa. Aquí está únicamente para '
+                              'aprender los rangos.',
+                          style: const TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -119,6 +157,7 @@ class _RangeHeatmapScreenState extends State<RangeHeatmapScreen> {
           _legend(),
           const SizedBox(height: 16),
         ],
+      ),
       ),
     );
   }

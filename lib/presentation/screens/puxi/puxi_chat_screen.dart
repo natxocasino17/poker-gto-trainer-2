@@ -5,6 +5,7 @@ import '../../../core/i18n/i18n.dart';
 import '../../../core/utils/puxi_knowledge.dart';
 import '../../../engine/ai_analyst.dart';
 import '../../providers/game_provider.dart';
+import '../../widgets/app_background.dart';
 import '../../widgets/zeros_avatar.dart';
 
 /// Offline AI coach chat. el Puxi answers poker fundamentals questions
@@ -86,8 +87,9 @@ class _PuxiChatScreenState extends State<PuxiChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return AppBackground(
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         centerTitle: true,
         leading: IconButton(
@@ -173,6 +175,7 @@ class _PuxiChatScreenState extends State<PuxiChatScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

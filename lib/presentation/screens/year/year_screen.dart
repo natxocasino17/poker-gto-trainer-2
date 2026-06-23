@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/session_summary_model.dart';
 import '../../providers/game_provider.dart';
 import '../../widgets/zeros_avatar.dart';
+import '../../widgets/app_background.dart';
 import '../../../core/i18n/i18n.dart';
 
 /// Yearly progress hub: every closed session is archived here, with a
@@ -16,8 +17,9 @@ class YearScreen extends StatelessWidget {
     final gp = context.watch<GameProvider>();
     final sessions = gp.sessionArchive.reversed.toList();
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return AppBackground(
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text(I18n.t('year_title')),
         centerTitle: true,
@@ -54,6 +56,7 @@ class YearScreen extends StatelessWidget {
             _SessionsTable(sessions: sessions, gp: gp),
           ],
         ],
+      ),
       ),
     );
   }

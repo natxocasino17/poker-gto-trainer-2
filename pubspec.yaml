@@ -24,6 +24,7 @@ flutter:
     - assets/zeros_avatar.png
     - assets/ipt_logo.png
     - assets/lobby_bg.jpg
+    - assets/ui_pattern.jpg
     - assets/avatars/
     - assets/audio/
     - assets/backgrounds/
