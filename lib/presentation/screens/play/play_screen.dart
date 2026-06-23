@@ -338,11 +338,18 @@ class _PokerTable extends StatelessWidget {
         for (int i = 0; i < 6; i++)
           if (players[i].streetBet > 0)
             Positioned(
-              left: cx + rx * chipFx * cos(_seatAngles[i]) - 32,
-              // Bottom-left/bottom-right seats (1, 5) sit at sin=0.5, half the
-              // pole seats' offset — nudge those two chips down so they line
-              // up level with their bot instead of floating high above it.
-              top: cy + ry * chipFy * sin(_seatAngles[i]) - 11 + (i == 1 || i == 5 ? 12 : 0),
+              // Bottom-left/right bots (1,5) sit half-way up the felt and their
+              // chips used to crowd the center / the human's chip — push them
+              // outward (toward their own seat) so each chip is centered in
+              // front of its bot. The human's own chip (0) pulls slightly in.
+              left: cx + rx * chipFx * cos(_seatAngles[i]) - 32 +
+                  (i == 1 ? -18 : (i == 5 ? 18 : 0)),
+              // Bottom-left/right seats (1, 5) sit at sin=0.5, half the pole
+              // seats' offset — drop those two chips well below center so they
+              // line up in front of their bot and clear the human. The human's
+              // chip (0) nudges down a touch to sit closer to the seat.
+              top: cy + ry * chipFy * sin(_seatAngles[i]) - 11 +
+                  (i == 1 || i == 5 ? 24 : (i == 0 ? 14 : 0)),
               width: 64,
               child: Center(
                 child: _BetChip(
@@ -356,16 +363,22 @@ class _PokerTable extends StatelessWidget {
           if (players[i].isDealer)
             Positioned(
               left: cx + rx * dealerFx * cos(_seatAngles[i] - 0.18) - 10,
-              top: cy + ry * dealerFy * sin(_seatAngles[i] - 0.18) - 10,
+              // Bring the human's dealer button down closer to their seat.
+              top: cy + ry * dealerFy * sin(_seatAngles[i] - 0.18) - 10 +
+                  (players[i].isHuman ? 16 : 0),
               child: const _DealerButton(),
             ),
         // Player seats around the table
         for (int i = 0; i < 6; i++)
           Positioned(
             left: cx + seatRx * cos(_seatAngles[i]) - 48,
+            // Human avatar height is FIXED to the "Yate" look across every
+            // background (factor 1.20*0.98*1.09 ≈ 1.282), so it sits at the same
+            // height everywhere and is immune to per-background seatSpread. Bots
+            // keep their per-background ring so they spread/contract per felt.
             top: cy +
                     (players[i].isHuman
-                        ? (onImg ? ry * 1.20 * bgScale * seatSpread : ry + 64)
+                        ? ry * 1.282
                         : (onImg ? ry * 1.14 * bgScale * seatSpread : ry + 52)) *
                         sin(_seatAngles[i]) -
                 (players[i].isHuman ? 52 : 58),

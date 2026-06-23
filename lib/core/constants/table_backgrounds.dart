@@ -31,10 +31,10 @@ const List<TableBackground> kTableBackgrounds = [
   TableBackground('Neón', 'assets/backgrounds/neon.png', seatSpread: 1.09),
   TableBackground('Lujo', 'assets/backgrounds/luxury.png', seatSpread: 1.09),
   TableBackground('Terciopelo', 'assets/backgrounds/bg1.png', scale: 0.85, seatSpread: 1.25),
-  TableBackground('Minimal', 'assets/backgrounds/bg2.png', scale: 0.80, seatSpread: 1.25),
+  TableBackground('Minimal', 'assets/backgrounds/bg2.png', scale: 0.80, seatSpread: 1.34),
   TableBackground('Saloon', 'assets/backgrounds/bg3.png', scale: 1.05, seatSpread: 1.09),
-  TableBackground('Espacial', 'assets/backgrounds/bg4.png', scale: 0.82, seatSpread: 1.25),
-  TableBackground('Yate', 'assets/backgrounds/bg5.png', scale: 0.98, seatSpread: 1.09),
+  TableBackground('Espacial', 'assets/backgrounds/bg4.png', scale: 0.82, seatSpread: 1.34),
+  TableBackground('Yate', 'assets/backgrounds/bg5.png', scale: 0.98, seatSpread: 1.18),
   TableBackground('Arcade', 'assets/backgrounds/bg6.png', scale: 1.08, seatSpread: 1.06),
   TableBackground('Steampunk', 'assets/backgrounds/bg7.png', scale: 0.92, seatSpread: 1.25),
 ];
