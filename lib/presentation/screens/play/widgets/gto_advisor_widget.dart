@@ -3,6 +3,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../presentation/providers/game_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../widgets/zeros_avatar.dart';
+import '../../heatmap/range_heatmap_screen.dart';
 
 class GTOAdvisorFAB extends StatelessWidget {
   const GTOAdvisorFAB({super.key});
@@ -59,6 +60,7 @@ class GTOAdvisorOverlay extends StatelessWidget {
     if (!gp.showGTOOverlay || gp.lastGTOAdvice == null) return const SizedBox.shrink();
 
     final advice = gp.lastGTOAdvice!;
+    final rangeSpot = gp.preflopRangeSpot();
 
     return GestureDetector(
       onTap: gp.dismissGTOOverlay,
@@ -191,6 +193,31 @@ class GTOAdvisorOverlay extends StatelessWidget {
                                     ),
                                   ),
                                 ],
+                              ),
+                            ),
+                          ],
+                          if (rangeSpot != null) ...[
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  gp.dismissGTOOverlay();
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => RangeHeatmapScreen(
+                                      initialPosition: rangeSpot.villainPos,
+                                      highlightHand: rangeSpot.heroHand,
+                                      spotLabel: rangeSpot.label,
+                                    ),
+                                  ));
+                                },
+                                icon: const Icon(Icons.grid_on, size: 16, color: AppColors.accent),
+                                label: Text('Ver rango del rival (${rangeSpot.label})',
+                                    style: const TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w700)),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: AppColors.accent.withOpacity(0.5)),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                ),
                               ),
                             ),
                           ],

@@ -999,6 +999,45 @@ class PokerEngine extends ChangeNotifier {
     return humanLive ? _humanModel : HumanReadModel();
   }
 
+  /// The opener whose preflop OPEN range the live viewer should show (the first
+  /// pre-flop aggressor — what the heatmap accurately represents), with the
+  /// hero's hand code and a label. Null if it's not preflop, the opener is the
+  /// hero, or nobody has raised yet (no villain open range to show).
+  ({TablePosition villainPos, String heroHand, String label})? preflopRangeSpot() {
+    if (_state.phase != GamePhase.preflop) return null;
+    final human = _state.humanPlayer;
+    if (human.holeCards.length != 2) return null;
+    for (final a in _state.currentHandActions.where((a) => a.street == 'preflop')) {
+      final isRaise = a.type == ActionType.raise ||
+          a.type == ActionType.bet ||
+          (a.type == ActionType.allIn && a.amount > bigBlind);
+      if (isRaise) {
+        final p = _state.players.firstWhere(
+            (pl) => pl.name == a.playerName, orElse: () => _state.players[0]);
+        // Hero's own range isn't a "villain range"; and the heatmap only models
+        // opens from UTG..SB, so skip a BB opener (no RFI range to show).
+        if (p.isHuman || p.position == TablePosition.bb) return null;
+        return (
+          villainPos: p.position,
+          heroHand: PreflopCharts.handCode(human.holeCards),
+          label: 'Rango de apertura · ${_posShort(p.position)}',
+        );
+      }
+    }
+    return null;
+  }
+
+  static String _posShort(TablePosition p) {
+    switch (p) {
+      case TablePosition.utg: return 'UTG';
+      case TablePosition.mp: return 'MP';
+      case TablePosition.co: return 'CO';
+      case TablePosition.btn: return 'BTN';
+      case TablePosition.sb: return 'SB';
+      case TablePosition.bb: return 'BB';
+    }
+  }
+
   GTORecommendation getGTOAdvice() {
     final human = _state.humanPlayer;
 

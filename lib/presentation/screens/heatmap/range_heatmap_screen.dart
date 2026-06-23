@@ -6,8 +6,21 @@ import '../../../data/gto/open_raise.dart';
 
 /// 13×13 RFI (open-raise first-in) range heatmap by position. Read-only view
 /// over the GTO database — green = raise, gold = mixed, muted = fold.
+///
+/// Can be opened standalone (explore any position) or wired LIVE from the GTO
+/// advisor for the current spot: [initialPosition] focuses the villain whose
+/// range matters, [highlightHand] outlines the hero's exact hand in the grid,
+/// and [spotLabel] describes the spot.
 class RangeHeatmapScreen extends StatefulWidget {
-  const RangeHeatmapScreen({super.key});
+  final TablePosition? initialPosition;
+  final String? highlightHand;
+  final String? spotLabel;
+  const RangeHeatmapScreen({
+    super.key,
+    this.initialPosition,
+    this.highlightHand,
+    this.spotLabel,
+  });
 
   @override
   State<RangeHeatmapScreen> createState() => _RangeHeatmapScreenState();
@@ -22,7 +35,7 @@ class _RangeHeatmapScreenState extends State<RangeHeatmapScreen> {
     (TablePosition.sb, 'SB'),
   ];
 
-  TablePosition _pos = TablePosition.btn;
+  late TablePosition _pos = widget.initialPosition ?? TablePosition.btn;
 
   @override
   Widget build(BuildContext context) {
@@ -41,8 +54,8 @@ class _RangeHeatmapScreenState extends State<RangeHeatmapScreen> {
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
-        title: const Text('Rangos GTO · RFI',
-            style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1)),
+        title: Text(widget.spotLabel ?? 'Rangos GTO · RFI',
+            style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1)),
       ),
       body: Column(
         children: [
@@ -75,6 +88,12 @@ class _RangeHeatmapScreenState extends State<RangeHeatmapScreen> {
           const SizedBox(height: 8),
           Text('Open ≈ $pct% de las manos',
               style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w700)),
+          if (widget.highlightHand != null && widget.highlightHand!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text('Tu mano: ${widget.highlightHand}  (resaltada)',
+                  style: const TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
           const SizedBox(height: 12),
           Expanded(
             child: Padding(
@@ -114,10 +133,14 @@ class _RangeHeatmapScreenState extends State<RangeHeatmapScreen> {
     } else {
       bg = AppColors.surfaceElevated;
     }
+    final isHero = widget.highlightHand != null && hand == widget.highlightHand;
     return Container(
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(3),
+        border: isHero
+            ? Border.all(color: AppColors.accent, width: 2.5)
+            : null,
       ),
       alignment: Alignment.center,
       child: FittedBox(

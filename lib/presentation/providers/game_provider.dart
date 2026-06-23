@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../../data/models/hand_log_model.dart';
+import '../../data/models/player_model.dart';
 import '../../data/models/session_stats_model.dart';
 import '../../data/models/session_summary_model.dart';
 import '../../data/repositories/game_repository.dart';
@@ -76,6 +77,11 @@ class GameProvider extends ChangeNotifier {
   List<HandLog> get handHistory => _handHistory;
   bool get showGTOOverlay => _showGTOOverlay;
   GTORecommendation? get lastGTOAdvice => _lastGTOAdvice;
+
+  /// Villain position + hero hand for the live per-spot range viewer, or null
+  /// when there's no specific preflop range to show right now.
+  ({TablePosition villainPos, String heroHand, String label})? preflopRangeSpot() =>
+      _engine?.preflopRangeSpot();
   double get bankroll => _bankroll;
   bool get displayInBB => _displayInBB;
   bool get canAffordBuyIn => _bankroll >= _startingStack;
