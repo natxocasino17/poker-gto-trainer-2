@@ -201,17 +201,26 @@ class HandAbstraction {
   /// One Monte Carlo pass tallies all five buckets at once (deterministic seed
   /// from the hero+board, so the advisor/analyzer are reproducible). Buckets
   /// with no sampled villain hands return -1 (caller falls back to the table).
+  static final Map<String, List<double>> _heroEqCache = {};
+
   static List<double> heroEquityByVillainBucket(
     List<CardModel> hero,
     List<CardModel> board, {
-    int simulations = 2400,
+    int simulations = 1600,
   }) {
     if (hero.length != 2 || board.length < 3 || board.length > 5) {
       return List.filled(5, -1.0);
     }
+    int id(CardModel c) => c.rank * 4 + c.suit.index;
+    // Cache by exact hand+board (the advisor and the analyzer often query the
+    // very same spot) so each is only Monte-Carlo'd once.
+    final cacheKey =
+        '${(hero.map(id).toList()..sort()).join(",")}|${(board.map(id).toList()..sort()).join(",")}';
+    final cached = _heroEqCache[cacheKey];
+    if (cached != null) return cached;
+
     final wins = List<double>.filled(5, 0.0);
     final counts = List<int>.filled(5, 0);
-    int id(CardModel c) => c.rank * 4 + c.suit.index;
     final known = <int>{for (final c in hero) id(c), for (final c in board) id(c)};
     final deck = [
       for (final c in CardModel.freshDeck()) if (!known.contains(id(c))) c
@@ -237,7 +246,12 @@ class HandAbstraction {
       wins[vb] += cmp > 0 ? 1.0 : (cmp == 0 ? 0.5 : 0.0);
       counts[vb]++;
     }
-    return [for (int i = 0; i < 5; i++) counts[i] > 0 ? wins[i] / counts[i] : -1.0];
+    final result = [
+      for (int i = 0; i < 5; i++) counts[i] > 0 ? wins[i] / counts[i] : -1.0
+    ];
+    if (_heroEqCache.length >= 4000) _heroEqCache.clear();
+    _heroEqCache[cacheKey] = result;
+    return result;
   }
 
   // ---------------------------------------------------------------------------

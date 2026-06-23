@@ -116,9 +116,29 @@ class PostflopSpotGame extends CfrGame<HuState> {
   @override
   bool isChance(HuState s) => !_dealt(s);
 
+  /// Villain bucket distribution for the chance deal. When villain has already
+  /// bet into hero (facingBet>0), their range is stronger and more POLARIZED
+  /// (value + bluffs, fewer merged middle hands) — and more so for bigger bets —
+  /// which is what makes bluff-catching realistic in the solve.
+  List<double> _villainDist() {
+    final dist = HandAbstraction.postflopTransition(villainAnchorPreBkt, boardBucket);
+    if (facingBet <= 0) return dist;
+    final frac = (facingBet / max(pot, 1.0)).clamp(0.0, 1.0);
+    final pol = 0.10 + 0.25 * frac; // polarization strength grows with bet size
+    final out = [
+      dist[0] * (1 + pol),       // more pure bluffs
+      dist[1] * (1 - pol * 0.5),
+      dist[2] * (1 - pol),       // fewer merged medium hands
+      dist[3] * (1 + pol * 0.3),
+      dist[4] * (1 + pol * 1.2), // more value
+    ];
+    final sum = out.reduce((a, b) => a + b);
+    return sum > 0 ? [for (final v in out) v / sum] : dist;
+  }
+
   @override
   List<ChanceOutcome<HuState>> chanceOutcomes(HuState s) {
-    final dist = HandAbstraction.postflopTransition(villainAnchorPreBkt, boardBucket);
+    final dist = _villainDist();
     final outcomes = <ChanceOutcome<HuState>>[];
     for (int vb = 0; vb < dist.length; vb++) {
       if (dist[vb] <= 0) continue;

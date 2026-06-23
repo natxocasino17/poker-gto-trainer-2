@@ -190,7 +190,7 @@ class CfrBridge {
     // the primary recommendation. The preflop solver is a long-lived warm tree,
     // so we surface its training depth instead.
     final note = isPostflop
-        ? 'Referencia CFR (abstracción aprox., orientativa): $mix.'
+        ? 'Solver CFR (equity real de tu mano + run-out): $mix.'
         : 'Equilibrio CFR (~$_totalIterations iter): $mix.';
 
     return GTORecommendation(
