@@ -30,6 +30,46 @@ class PreflopCharts {
     return '${r[hi.rank]}${r[lo.rank]}$suited';
   }
 
+  /// Estimated width of the villain's range for the spot hero is facing, as a
+  /// `rangeWidth` for [EquityCalculator.calculate] (≈ top fraction of hands).
+  /// Used so the live advisor + analyzer show preflop equity vs a REALISTIC
+  /// opponent range, not vs random cards (AKo is ~48% vs a UTG open, not ~65%
+  /// vs random). Mirrors the open/3bet/4bet widths the bots actually play.
+  ///
+  ///  - facing a 4-bet+ (3+ raises): ~top 6% (premiums only)
+  ///  - facing a 3-bet, or squeezed: ~top 11%
+  ///  - facing a single open: by opener position (UTG tight → BTN/blinds wide)
+  ///  - blind-vs-blind: SB's wide opening range
+  ///  - unraised / hero opens: a defending caller's range (~top 45%)
+  static double estimateVillainRangeWidth({
+    required int numRaises,
+    TablePosition? aggressorPos,
+    bool blindVsBlind = false,
+    bool squeeze = false,
+  }) {
+    if (numRaises >= 3) return 0.06; // 4-bet+ pot: only premiums continue
+    if (numRaises == 2 || squeeze) return 0.11; // 3-bet / squeeze range
+    if (blindVsBlind) return 0.45; // wide SB open range
+    if (numRaises == 1) {
+      switch (aggressorPos) {
+        case TablePosition.utg:
+          return 0.16;
+        case TablePosition.mp:
+          return 0.20;
+        case TablePosition.co:
+          return 0.27;
+        case TablePosition.btn:
+          return 0.45;
+        case TablePosition.sb:
+          return 0.40;
+        case TablePosition.bb:
+        case null:
+          return 0.40;
+      }
+    }
+    return 0.45; // unraised pot: equity vs a defending caller range
+  }
+
   // ───────────────────────── RFI CHARTS ─────────────────────────
 
   static const Set<String> _premium4BetCall = {'AA', 'KK', 'QQ', 'AKs', 'AKo'};

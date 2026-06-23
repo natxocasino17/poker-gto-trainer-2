@@ -108,7 +108,7 @@ class GTOAdvisorOverlay extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildMetricRow('Tu Equity', '${(advice.equity * 100).toStringAsFixed(1)}%', _equityColor(advice.equity)),
+                          _buildMetricRow('Tu Equity (vs rango)', '${(advice.equity * 100).toStringAsFixed(1)}%', _equityColor(advice.equity)),
                           if (advice.potOdds > 0)
                             _buildMetricRow('Pot Odds', '${(advice.potOdds * 100).toStringAsFixed(1)}%', AppColors.textSecondary),
                           _buildMetricRow('EV', '${advice.ev >= 0 ? "+" : ""}${(advice.ev * 100).toStringAsFixed(1)}%', advice.ev >= 0 ? AppColors.winning : AppColors.losing),

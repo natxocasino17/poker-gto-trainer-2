@@ -1172,13 +1172,23 @@ class PokerEngine extends ChangeNotifier {
     }
     final explanationWithDepth = '$explanation\n\n$depthNote';
 
-    // Compute a rough preflop equity for display.
+    // Preflop equity for display — vs the villain's ESTIMATED range for this
+    // spot (open/3bet/4bet/squeeze/BvB), not vs random cards. Showing "AKo 65%"
+    // (vs random) when it's ~48% vs a UTG open is misleading; this mirrors the
+    // ranges the bots actually play.
+    final villainRangeWidth = PreflopCharts.estimateVillainRangeWidth(
+      numRaises: numRaisers,
+      aggressorPos: lastAggressor ?? opener,
+      blindVsBlind: effectiveCtx.action == PreflopAction.blindVsBlind,
+      squeeze: effectiveCtx.action == PreflopAction.squeeze,
+    );
     final preflopEquity = EquityCalculator.calculate(
       heroCards: human.holeCards,
       communityCards: const [],
       numOpponents: max(1, _state.activeCount - 1),
-      simulations: 200,
+      simulations: 400,
       deterministic: true,
+      rangeWidth: villainRangeWidth,
     );
 
     return GTORecommendation(
