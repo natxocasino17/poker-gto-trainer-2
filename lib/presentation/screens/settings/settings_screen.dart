@@ -6,6 +6,7 @@ import '../../../core/constants/table_backgrounds.dart';
 import '../../../core/i18n/i18n.dart';
 import '../../../core/utils/hand_export.dart';
 import '../../providers/game_provider.dart';
+import '../../widgets/app_background.dart';
 import '../heatmap/range_heatmap_screen.dart';
 import '../progress/progress_screen.dart';
 import 'about_screen.dart';
@@ -17,8 +18,9 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final gp = context.watch<GameProvider>();
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return AppBackground(
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
@@ -65,12 +67,6 @@ class SettingsScreen extends StatelessWidget {
             subtitle: 'Stacks y botes en big blinds en vez de dólares',
             value: gp.displayInBB,
             onChanged: (_) => gp.toggleDisplayUnits(),
-          ),
-          _switchTile(
-            title: 'Sonido',
-            subtitle: 'Efectos de fichas, cartas y avisos en la mesa',
-            value: gp.soundEnabled,
-            onChanged: gp.setSoundEnabled,
           ),
           _tile(
             title: 'Fondo de mesa',
@@ -190,6 +186,7 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
