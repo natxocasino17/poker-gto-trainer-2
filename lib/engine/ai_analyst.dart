@@ -1174,6 +1174,10 @@ class AICoach {
   /// was off (equity/EV-wise) per street, so here we just bucket by the kind of
   /// mistake and rank by how often it repeats — the highest-frequency leaks
   /// first. Returns at most 3 lines, Puxi-flavoured.
+  /// Public leak summary (same detector as the session report) so the coach
+  /// chat can answer "what are my leaks?" with the player's real patterns.
+  static List<String> sessionLeaks(List<HandLog> hands) => _detectLeaks(hands);
+
   static List<String> _detectLeaks(List<HandLog> hands) {
     final riverFolds = _Leak(
       [],

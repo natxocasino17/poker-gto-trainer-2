@@ -810,10 +810,16 @@ class EquityCalculator {
       return 'BET fina/protección $sizing — no des cartas gratis a los draws de este board.';
     }
     if (action == 'Call') {
-      final alt = (!isRiver && (bucket == HandBucket.strongDraw || bucket == HandBucket.comboDraw))
+      final isDraw = bucket == HandBucket.strongDraw || bucket == HandBucket.comboDraw;
+      final alt = (!isRiver && isDraw)
           ? ' Alternativa superior: semi-bluff raise (sumas fold equity a tus $outs outs).'
           : '';
-      return 'CALL — equity $eqPct% cubre las pot odds.$alt';
+      // Implied odds: a draw with stacks behind can call even slightly -EV
+      // directly, because you get paid on the streets you complete.
+      final implied = (!isRiver && isDraw && spr > 3)
+          ? ' Implícitas: con SPR ${spr.toStringAsFixed(1)} hay stack detrás para cobrar cuando ligues, así que el call aguanta aunque las odds directas estén justas.'
+          : '';
+      return 'CALL — equity $eqPct% cubre las pot odds.$alt$implied';
     }
     if (action == 'Fold') {
       return 'FOLD — equity $eqPct% insuficiente; continuar es -EV en este board.';

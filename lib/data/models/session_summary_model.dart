@@ -171,6 +171,31 @@ class YearCoach {
       b.writeln('⚠️ VPIP reciente ${vpipNew.toStringAsFixed(1)}% (objetivo 22–28%). El preflop sigue siendo tu asignatura pendiente.');
     }
 
+    // Persistent leaks: a problem that shows up across MOST recent sessions is
+    // a real, ingrained leak — not session variance. Pure trend logic over the
+    // stats we already archive, so the yearly coach names what keeps costing.
+    final recentN = recent.length;
+    final need = (recentN / 2).ceil();
+    int cnt(bool Function(SessionSummary) f) => recent.where(f).length;
+    final persistent = <String>[];
+    void check(bool Function(SessionSummary) f, String msg) {
+      final c = cnt(f);
+      if (c >= need && c >= 2) persistent.add('• $msg (en $c de tus últimas $recentN sesiones)');
+    }
+    check((s) => s.riverFoldPct > 55,
+        'Over-fold de river: te farolean gratis');
+    check((s) => s.threeBetPct < 6, '3-bet demasiado bajo: te roban las ciegas');
+    check((s) => s.cBetPct > 80, 'C-bet automática: explotable en boards húmedos');
+    check((s) => s.vpip > 32, 'VPIP inflado: juegas demasiadas manos basura');
+    check((s) => s.hands > 0 && s.blunders / s.hands * 100 > 5,
+        'Tasa de blunders alta: revisa tus manos en ANALIZAR');
+    if (persistent.isNotEmpty) {
+      b.writeln('\n🩸 FUGAS PERSISTENTES (lo que llevas sesiones sin corregir)');
+      for (final p in persistent) {
+        b.writeln(p);
+      }
+    }
+
     b.writeln('\n📋 PRIORIDADES PARA LAS PRÓXIMAS SESIONES');
     int n = 1;
     if (blunderRateNew > 5) {

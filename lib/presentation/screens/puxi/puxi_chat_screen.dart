@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/i18n/i18n.dart';
 import '../../../core/utils/puxi_knowledge.dart';
+import '../../../engine/ai_analyst.dart';
+import '../../providers/game_provider.dart';
 import '../../widgets/zeros_avatar.dart';
 
 /// Offline AI coach chat. el Puxi answers poker fundamentals questions
@@ -30,16 +33,47 @@ class _PuxiChatScreenState extends State<PuxiChatScreen> {
     _messages.add(_ChatMsg(I18n.t('puxi_greeting'), true));
   }
 
+  /// True when the user is asking about THEIR OWN game rather than a concept
+  /// ("mis errores", "mis fugas", "cómo voy", "qué mejoro", "my leaks"...).
+  bool _isPersonalQuery(String q) {
+    final l = q.toLowerCase();
+    const cues = [
+      'mis ', 'mi juego', 'mi leak', 'mis leak', 'mis fuga', 'mi fuga',
+      'cómo voy', 'como voy', 'qué mejoro', 'que mejoro', 'qué hago mal',
+      'que hago mal', 'mis errores', 'my leak', 'my game', 'my mistakes',
+      'how am i', 'what should i improve',
+    ];
+    return cues.any(l.contains);
+  }
+
+  String _personalAnswer() {
+    final hands = context.read<GameProvider>().handHistory;
+    if (hands.length < 3) {
+      return 'Juega unas cuantas manos más y te disecciono el juego con nombres '
+          'y apellidos. Ahora mismo no tengo pruebas suficientes. — el Puxi';
+    }
+    final leaks = AICoach.sessionLeaks(hands);
+    if (leaks.isEmpty) {
+      return 'Mira, por ahora no veo un patrón de fuga claro en tus manos. O '
+          'juegas decente o aún no me has dado material. Sigue y reviso. — el Puxi';
+    }
+    return 'Tus fugas reales de esta sesión, sin filtros:\n\n${leaks.join('\n\n')}'
+        '\n\nRepásalas en ANALIZAR. — el Puxi';
+  }
+
   void _send(String text) {
     final q = text.trim();
     if (q.isEmpty) return;
     setState(() {
       _messages.add(_ChatMsg(q, false));
-      final topic = PuxiKnowledge.match(q);
-      _messages.add(_ChatMsg(
-        topic != null ? topic.localizedAnswer : I18n.t('puxi_no_match'),
-        true,
-      ));
+      final String answer;
+      if (_isPersonalQuery(q)) {
+        answer = _personalAnswer();
+      } else {
+        final topic = PuxiKnowledge.match(q);
+        answer = topic != null ? topic.localizedAnswer : I18n.t('puxi_no_match');
+      }
+      _messages.add(_ChatMsg(answer, true));
     });
     _controller.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) {
