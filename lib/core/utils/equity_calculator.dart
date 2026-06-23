@@ -380,7 +380,7 @@ class EquityCalculator {
     // inflated (this is what made the advisor say "CALL optimal" vs all-ins with
     // weak hands). Mirror the bots' heuristic: the bigger the bet relative to
     // the pot, the tighter the range we measure equity against.
-    final double rangeWidth;
+    double rangeWidth;
     if (!isPostflop) {
       rangeWidth = 1.0;
     } else if (callAmount > 0) {
@@ -388,6 +388,17 @@ class EquityCalculator {
       rangeWidth = betFrac > 0.85 ? 0.25 : (betFrac > 0.40 ? 0.33 : 0.40);
     } else {
       rangeWidth = 0.40;
+    }
+    // Pot type: in 3-bet / 4-bet pots both players' ranges are stronger and
+    // narrower, so measure equity against a tighter villain range (a real
+    // factor the raw bet-size heuristic misses).
+    if (isPostflop) {
+      final pt = PostflopContext.potTypeFromRaiseCount(preflopRaises);
+      if (pt == PotType.threeBet) {
+        rangeWidth = (rangeWidth - 0.05).clamp(0.18, 1.0).toDouble();
+      } else if (pt == PotType.fourBetPlus) {
+        rangeWidth = (rangeWidth - 0.10).clamp(0.15, 1.0).toDouble();
+      }
     }
     final equity = calculate(
       heroCards: heroCards,
