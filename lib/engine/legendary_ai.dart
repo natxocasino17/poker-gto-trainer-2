@@ -1241,8 +1241,13 @@ class LegendaryBotEngine {
     double papoBluffMult = 1.0;
     double papoSizingChaos = 1.0; // random multiplier on bluff bet sizing
     if (profile.freestyleAggressor) {
-      // Surprise factor: chaotic sizing on every bluff (0.7x - 1.6x)
-      papoSizingChaos = 0.7 + _rng.nextDouble() * 0.9;
+      // Surprise factor — but deceptive WITH METHOD, not a uniform random smear:
+      // a flat 0.7-1.6x leaks info (a small bluff reads as weak). Polarize the
+      // size instead — mostly large to apply max pressure, occasionally a small
+      // merge — so the amount doesn't correlate readably with strength.
+      papoSizingChaos = _rng.nextDouble() < 0.65
+          ? 1.30 + _rng.nextDouble() * 0.50 // 1.30-1.80x polarized
+          : 0.55 + _rng.nextDouble() * 0.20; // 0.55-0.75x merge
       // Attacks tight players: over-folders or low aggression get hammered
       if (human.overFolds || (human.confidence >= 0.30 && human.aggressionFactor < 0.9)) {
         papoBluffMult = 1.50;
@@ -1943,6 +1948,12 @@ class LegendaryBotEngine {
     double spr = 5.0,
   }) {
     final isRiver = street == 'river';
+    // Deceptive trap (freestyle/Papo): occasionally UNDER-bet the nuts to induce
+    // bluffs and light calls instead of always sizing big — breaks the readable
+    // "big bet = strong" tell that pure value sizing creates.
+    if (profile.freestyleAggressor && nut && _rng.nextDouble() < 0.35) {
+      return pot * (0.25 + _rng.nextDouble() * 0.15); // 0.25-0.40x trap
+    }
     double frac;
     if (texture.wetness < 0.35) {
       frac = profile.preferredSizings.first.clamp(0.25, 0.6).toDouble();
