@@ -23,8 +23,14 @@ class GTORecommendation {
   final String reasoning;
   final double ev;
 
-  /// The solved action-frequency mix at this spot, if a CFR solve was
-  /// available (see CfrBridge). Null for the plain heuristic recommendation.
+  /// EV expressed in big blinds (preflop: straight from the chart; postflop:
+  /// EV-fraction × pot ÷ BB). 0 when not computed. More intuitive than the raw
+  /// fraction for the user-facing display.
+  final double evBB;
+
+  /// The solved action-frequency mix at this spot, if available — from the CFR
+  /// solve (postflop) or the preflop chart's mixed strategy. Null for a pure
+  /// single-action heuristic recommendation.
   final List<ActionFrequency>? equilibriumMix;
 
   const GTORecommendation({
@@ -34,8 +40,21 @@ class GTORecommendation {
     required this.potOdds,
     required this.reasoning,
     required this.ev,
+    this.evBB = 0,
     this.equilibriumMix,
   });
+
+  GTORecommendation copyWith({double? evBB, List<ActionFrequency>? equilibriumMix}) =>
+      GTORecommendation(
+        action: action,
+        amount: amount,
+        equity: equity,
+        potOdds: potOdds,
+        reasoning: reasoning,
+        ev: ev,
+        evBB: evBB ?? this.evBB,
+        equilibriumMix: equilibriumMix ?? this.equilibriumMix,
+      );
 }
 
 class EquityCalculator {

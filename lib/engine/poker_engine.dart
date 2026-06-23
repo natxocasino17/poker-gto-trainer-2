@@ -1048,7 +1048,7 @@ class PokerEngine extends ChangeNotifier {
       }
     }
 
-    return CfrBridge.instance.recommend(
+    final rec = CfrBridge.instance.recommend(
       heroCards: human.holeCards,
       communityCards: _state.communityCards,
       callAmount: _state.callAmount,
@@ -1062,6 +1062,9 @@ class PokerEngine extends ChangeNotifier {
       preflopRaises: max(1, preflopRaises),
       villainRead: read,
     );
+    // Postflop EV is a fraction of the pot; express it in BB for display.
+    final evBB = bigBlind > 0 ? rec.ev * _state.pot / bigBlind : 0.0;
+    return rec.copyWith(evBB: evBB);
   }
 
   /// Preflop GTO advice using the full database hierarchy:
@@ -1209,6 +1212,23 @@ class PokerEngine extends ChangeNotifier {
       rangeWidth: villainRangeWidth,
     );
 
+    // Surface the chart's MIXED strategy so the user learns GTO often splits a
+    // hand between actions (e.g. "Open 50% / Fold 50%") instead of a single
+    // verdict. Skipped when short-stack logic rewrote the action (the chart mix
+    // no longer matches the push/fold line).
+    List<ActionFrequency>? mix;
+    if (finalAction == action) {
+      final m = strategy.actions
+          .where((a) => a.frequency > 0.05)
+          .toList()
+        ..sort((a, b) => b.frequency.compareTo(a.frequency));
+      if (m.length > 1) {
+        mix = m
+            .map((a) => ActionFrequency(_actionLabel(a.action), a.frequency))
+            .toList();
+      }
+    }
+
     return GTORecommendation(
       action: _actionLabel(finalAction),
       amount: finalAmount,
@@ -1217,7 +1237,9 @@ class PokerEngine extends ChangeNotifier {
           ? EquityCalculator.potOddsRequired(callAmount, _state.pot)
           : 0,
       ev: ev,
+      evBB: ev, // preflop chart EV is already in big blinds
       reasoning: explanationWithDepth,
+      equilibriumMix: mix,
     );
   }
 

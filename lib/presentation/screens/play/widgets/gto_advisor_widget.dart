@@ -111,7 +111,7 @@ class GTOAdvisorOverlay extends StatelessWidget {
                           _buildMetricRow('Tu Equity (vs rango)', '${(advice.equity * 100).toStringAsFixed(1)}%', _equityColor(advice.equity)),
                           if (advice.potOdds > 0)
                             _buildMetricRow('Pot Odds', '${(advice.potOdds * 100).toStringAsFixed(1)}%', AppColors.textSecondary),
-                          _buildMetricRow('EV', '${advice.ev >= 0 ? "+" : ""}${(advice.ev * 100).toStringAsFixed(1)}%', advice.ev >= 0 ? AppColors.winning : AppColors.losing),
+                          _buildMetricRow('EV', '${advice.evBB >= 0 ? "+" : ""}${advice.evBB.toStringAsFixed(2)} BB', advice.evBB >= 0 ? AppColors.winning : AppColors.losing),
                           const SizedBox(height: 12),
                           Container(
                             width: double.infinity,
@@ -141,6 +141,31 @@ class GTOAdvisorOverlay extends StatelessWidget {
                               ],
                             ),
                           ),
+                          if (advice.equilibriumMix != null && advice.equilibriumMix!.length > 1) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.textMuted.withOpacity(0.10),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('🎲 Estrategia mixta (GTO no siempre es una sola acción)',
+                                      style: TextStyle(color: AppColors.textMuted, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    advice.equilibriumMix!
+                                        .map((a) => '${a.label.toUpperCase()} ${(a.frequency * 100).round()}%')
+                                        .join('   ·   '),
+                                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 12),
                           Text(
                             advice.reasoning,
