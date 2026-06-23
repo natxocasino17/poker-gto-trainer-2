@@ -10,6 +10,7 @@ import '../core/utils/postflop_context.dart';
 import '../core/utils/trainer_feedback.dart';
 import '../data/models/player_model.dart';
 import 'cfr/cfr_bridge.dart';
+import 'legendary_ai.dart';
 import 'poker_engine.dart';
 import '../core/i18n/i18n.dart';
 
@@ -56,6 +57,17 @@ class HandReviewerEngine {
       } catch (_) {}
     }
 
+    // Villain read for the review: exploit the main bot opponent's known style
+    // (calling station / over-folder) the same way the live advisor does, so
+    // the deep review and any recomputed advice match the in-game overlay.
+    VillainRead villainRead = VillainRead.neutral;
+    final liveOpponents =
+        completedState.players.where((p) => !p.isHuman && !p.isFolded).toList();
+    if (liveOpponents.length == 1) {
+      villainRead = LegendaryBotEngine.villainReadFor(
+          LegendaryBotEngine.profileByName(liveOpponents.first.legendName ?? ''));
+    }
+
     final streetAnalyses = _analyzeStreets(
       humanActions: humanActions,
       humanHole: humanPlayer.holeCards,
@@ -65,6 +77,7 @@ class HandReviewerEngine {
       position: humanPlayer.position,
       startStack: humanPlayer.stack - humanProfit,
       liveAdvice: liveAdvice,
+      villainRead: villainRead,
     );
 
     final winner = completedState.players.firstWhere(
@@ -106,6 +119,7 @@ class HandReviewerEngine {
     required TablePosition position,
     required double startStack,
     Map<String, GTORecommendation>? liveAdvice,
+    VillainRead villainRead = VillainRead.neutral,
   }) {
     final analyses = <StreetAnalysis>[];
     final streets = ['preflop', 'flop', 'turn', 'river'];
@@ -217,6 +231,7 @@ class HandReviewerEngine {
           potType: PostflopContext.potTypeFromRaiseCount(max(1, preflopRaises)),
           villainBet: callAmt,
           potSize: potAtStreet,
+          read: villainRead,
         );
 
         // Congruence: reuse the EXACT recommendation EL PUXI computed live at
@@ -235,6 +250,7 @@ class HandReviewerEngine {
               hasInitiative: hasInitiative,
               numActive: activePlayers,
               preflopRaises: max(1, preflopRaises),
+              villainRead: villainRead,
             );
         // Grade the hero's actual action AGAINST this exact recommendation, and
         // show rec's equity/odds, so everything is internally consistent.

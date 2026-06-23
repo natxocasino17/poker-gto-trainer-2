@@ -1639,6 +1639,9 @@ class LegendaryBotEngine {
           callThreshold += nit ? 0.10 : (blockers.topCardBlocker ? 0.02 : 0.06);
         }
         if (human.aggressionFactor > 2.0) callThreshold -= 0.03; // they bluff a lot
+        // Symmetric read: a passive villain rarely bluffs, so their bets are
+        // value-weighted → fold more bluff-catchers against them.
+        if (human.aggressionFactor < 0.8 || human.overFolds) callThreshold += 0.04;
         // Board texture: on monotone/paired boards tighten (risk of flush/full)
         if (texture.wetness > 0.65) callThreshold += 0.04;
         // POSITION: in position we realise more equity and control the pot, so we
@@ -1861,6 +1864,17 @@ class LegendaryBotEngine {
     // vs passive over-folder with reads → slight boost (but stays GTO-anchored)
     if (profile.polarizedBetting && human.overFolds && human.confidence >= 0.45) {
       bluffFreq = (bluffFreq * 1.25).clamp(0.0, 0.95);
+    }
+    // Generic in-hand adaptation: ANY thinking opponent fires a bit more when
+    // the villain folds too much, scaled by how confident the read is — not
+    // only the dedicated exploiters above. Modest and capped so ordinary
+    // profiles get more lifelike (they punish over-folding) without turning
+    // into maniacs.
+    if (human.overFolds &&
+        human.confidence >= 0.35 &&
+        !profile.exploitsHighFolders &&
+        !profile.polarizedBetting) {
+      bluffFreq = (bluffFreq * (1.0 + 0.25 * human.confidence)).clamp(0.0, 0.85);
     }
 
     // Papo "Presión de Límites": hammer tight/over-folding opponents
