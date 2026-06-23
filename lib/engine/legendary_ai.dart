@@ -838,6 +838,7 @@ class LegendaryBotEngine {
         callers: callersThisStreet,
         bb: bigBlind,
         openerPosition: openerPosition,
+        villain: humanModel,
       );
     } else {
       // A bigger bet polarizes the villain's range — narrow the range used for
@@ -915,6 +916,7 @@ class LegendaryBotEngine {
     required int callers,
     required double bb,
     TablePosition? openerPosition,
+    HumanReadModel? villain,
   }) {
     final code = PreflopCharts.handCode(hole);
     final rfiPlan = PreflopCharts.rfi(position, code);
@@ -924,9 +926,15 @@ class LegendaryBotEngine {
 
     // Personality drift around the chart: loose profiles (Dwan, Maniac)
     // add hands the chart folds; tight ones (Hellmuth, Nit) trim the bottom.
-    final looseness = (0.40 - profile.btnOpen).clamp(-0.25, 0.25).toDouble();
-    final posThreshold = _openThreshold(profile, position);
+    final baseLooseness = (0.40 - profile.btnOpen).clamp(-0.25, 0.25).toDouble();
     final stackBBs = stack / bb;
+    // Dynamic table image (session-trajectory proxy from this bot's stack): a
+    // stuck/short stack tilts slightly looser (frustration/chasing), a deep
+    // winning stack gambles a touch more. Small and personality-bounded so a
+    // nit doesn't suddenly spew, but the table feels alive across a session.
+    final tilt = stackBBs < 60 ? 0.05 : (stackBBs > 170 ? 0.02 : 0.0);
+    final looseness = (baseLooseness + tilt).clamp(-0.25, 0.30).toDouble();
+    final posThreshold = _openThreshold(profile, position);
 
     // Safe clamp: when the stack is shorter than one BB the lower bound would
     // exceed the upper bound and Dart's clamp() throws — collapse to all-in.
@@ -1074,9 +1082,20 @@ class LegendaryBotEngine {
           // must fold for the bluff to work — crush the bluff frequency multiway.
           final squeezeBluffMult =
               PostflopContext.multiwayBluffMultiplier(2 + callers);
+          // Preflop adaptation: widen the light-3bet range vs a villain who
+          // folds too much (free fold-equity), tighten vs a station who won't
+          // give it up. Scaled by read confidence so it only kicks in with data.
+          double readMult = 1.0;
+          if (villain != null && villain.confidence >= 0.30) {
+            if (villain.overFolds) {
+              readMult = 1.0 + 0.6 * villain.confidence;
+            } else if (villain.isCallingStation) {
+              readMult = 1.0 - 0.5 * villain.confidence;
+            }
+          }
           final bluffFreq =
               (profile.threeBetBluffFreq * 2.2 * (1 - openerTight * 3.0) *
-                      squeezeBluffMult)
+                      squeezeBluffMult * readMult)
                   .clamp(0.0, 1.0);
           if (rand < bluffFreq && !profile.stationCalling) {
             final mult = (inPosition ? 3.0 : 4.0) + callers * 1.0;
@@ -1179,6 +1198,21 @@ class LegendaryBotEngine {
         !BoardTexture.analyze(prevBoard).paired;
     final scareValueShift = pairedOnStreet ? 0.03 : 0.0;
     final scareCommitTighten = pairedOnStreet ? 0.5 : 0.0;
+
+    // Turn/river CARD IMPACT on a barrel: a broadway overcard that arrives
+    // favours the pre-flop aggressor's range (more big cards) → barrel more; a
+    // low card that connects on a coordinated/low flop helps the caller's range
+    // → barrel less. Complements drawCompleted/paired handling above.
+    double barrelCardMult = 1.0;
+    if (isTurnOrRiver && prevBoard.isNotEmpty && board.isNotEmpty) {
+      final newRank = board.last.rank;
+      final prevTex = BoardTexture.analyze(prevBoard);
+      if (newRank >= 12 && !prevTex.aceHigh && !prevTex.broadwayHeavy) {
+        barrelCardMult = 1.20; // scare overcard (Q+/K/A) → fire
+      } else if (newRank <= 8 && (prevTex.connected || prevTex.low)) {
+        barrelCardMult = 0.82; // low card connects the caller → ease off
+      }
+    }
 
     // Pot type (SRP / 3-bet / 4-bet+): ranges get stronger, narrower and more
     // polarized as the preflop raising escalates. The 3-bettor's range is
@@ -1530,6 +1564,7 @@ class LegendaryBotEngine {
             papoSizingChaos: papoSizingChaos,
             drawCompleted: drawCompleted,
             multiwayBluffMult: mwBluffMult,
+            barrelCardMult: barrelCardMult,
           );
       }
     }
@@ -1841,6 +1876,7 @@ class LegendaryBotEngine {
     double multiwayBluffMult = 1.0,
     bool inPosition = false,
     bool drawCompleted = false,
+    double barrelCardMult = 1.0,
   }) {
     final rand = _rng.nextDouble();
     final isRiver = street == 'river';
@@ -1852,6 +1888,9 @@ class LegendaryBotEngine {
       bluffFreq = _streetCBetFreq(profile, street) * (1 + rangeAdv * 1.4);
       // Wet boards: reduce bluff freq for tight profiles; LAG maintains pressure
       bluffFreq *= texture.wetness < 0.4 ? 1.15 : (profile.bluffFreq > 0.40 ? 0.85 : 0.70);
+      // Turn/river card impact: scare overcards fire more, low cards that help
+      // the caller ease off (see barrelCardMult).
+      bluffFreq *= barrelCardMult;
       // In position with initiative: keep the foot on the gas
       if (inPosition) bluffFreq *= 1.12;
     } else {
