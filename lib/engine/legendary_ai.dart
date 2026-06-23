@@ -1020,8 +1020,22 @@ class LegendaryBotEngine {
           if (raiseCount >= 3) {
             return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
           }
-          return BotDecision(
-            type: ActionType.raise, amount: clampTo(currentBet * 2.3), thinkMs: 0);
+          // 4-bet BLUFF is profile-dependent, not automatic: a nit almost never
+          // turns A5s into a 4-bet bluff, while loose-aggressive players do it
+          // often. Derive the frequency from the light-3bet / bluff-raise dials
+          // (4-bet bluffing is rarer than 3-bet bluffing) and require enough
+          // depth to have fold equity — short stacks jam or fold rather than
+          // make a fine fold-to-5bet bluff.
+          final fourBetBluffFreq =
+              (profile.threeBetBluffFreq * 0.5 + profile.bluffRaiseFreq * 0.2)
+                  .clamp(0.0, 0.5);
+          final deepEnough = stack > currentBet * 4.0;
+          if (deepEnough && rand < fourBetBluffFreq) {
+            return BotDecision(
+                type: ActionType.raise, amount: clampTo(currentBet * 2.3), thinkMs: 0);
+          }
+          // Not bluffing this time → give up the open rather than auto-4bet.
+          return const BotDecision(type: ActionType.fold, amount: 0, thinkMs: 0);
         case ChartAction.orCall3B:
           if (callAmount <= stack * 0.30) {
             return BotDecision(type: ActionType.call, amount: callAmount, thinkMs: 0);
@@ -1932,6 +1946,13 @@ class LegendaryBotEngine {
     double frac;
     if (texture.wetness < 0.35) {
       frac = profile.preferredSizings.first.clamp(0.25, 0.6).toDouble();
+      // Vulnerable value: even on a low-wetness board, if it's two-tone or
+      // connected there are live draws, so a NON-nut made hand should charge
+      // them rather than bet thin and let equity realise cheaply. Nutted hands
+      // keep their own (often smaller/trappy) sizing logic below.
+      if (!nut && (texture.twoTone || texture.connected)) {
+        frac = max(frac, 0.6);
+      }
     } else {
       frac = 0.70;
     }
