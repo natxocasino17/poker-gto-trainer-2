@@ -1149,7 +1149,25 @@ class PokerEngine extends ChangeNotifier {
     var finalAction = action;
     var finalAmount = amount;
     final String depthNote;
-    if (effBB <= 25) {
+    if (effBB <= 12) {
+      // Push/fold zone: at ~12bb or less, min-raising and flat-calling are
+      // dominated by jam-or-fold. Collapse the studied line accordingly —
+      // open/3bet/squeeze become a shove; flats become folds.
+      depthNote =
+          '🚀 Stack muy corto (~${effBB.toStringAsFixed(0)}bb): zona push/fold. '
+          'Abrir small o pagar es dominado; juega jam o fold. Con manos para '
+          'continuar, jamea por fold-equity en vez de inflar un bote sin SPR.';
+      if (finalAction == 'open' ||
+          finalAction == '3bet' ||
+          finalAction == 'squeeze' ||
+          finalAction == '4bet') {
+        finalAction = '5bet_jam';
+        finalAmount = human.stack;
+      } else if (finalAction == 'call') {
+        finalAction = 'fold';
+        finalAmount = 0;
+      }
+    } else if (effBB <= 25) {
       depthNote =
           '⛏️ Stack corto (~${effBB.toStringAsFixed(0)}bb): peores implícitas → '
           'menos flats especulativos; prioriza 3bet/jam o fold. Pares pequeños y '

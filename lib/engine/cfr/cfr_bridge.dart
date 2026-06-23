@@ -126,7 +126,7 @@ class CfrBridge {
               : null);
 
       if (actions == null || actions.isEmpty) return base;
-      return _withEquilibriumNote(base, actions, callAmount > 0);
+      return _withEquilibriumNote(base, actions, callAmount > 0, isPostflop);
     } catch (_) {
       // Any solver failure must never block the heuristic recommendation.
       return base;
@@ -175,6 +175,7 @@ class CfrBridge {
     GTORecommendation base,
     List<ActionStrategy> actions,
     bool facingBet,
+    bool isPostflop,
   ) {
     final shown = actions.where((a) => a.frequency > 0.05).toList()
       ..sort((a, b) => b.frequency.compareTo(a.frequency));
@@ -183,7 +184,14 @@ class CfrBridge {
     final mix = shown
         .map((a) => '${_labelEs(a.label, facingBet)} ${(a.frequency * 100).round()}%')
         .join(', ');
-    final note = 'Equilibrio CFR: $mix.';
+    // Be honest about reliability: the postflop solver uses a coarse hand/board
+    // abstraction solved per street in isolation, so its mix is a directional
+    // REFERENCE, not a precise equilibrium — the heuristic action above stays
+    // the primary recommendation. The preflop solver is a long-lived warm tree,
+    // so we surface its training depth instead.
+    final note = isPostflop
+        ? 'Referencia CFR (abstracción aprox., orientativa): $mix.'
+        : 'Equilibrio CFR (~$_totalIterations iter): $mix.';
 
     return GTORecommendation(
       action: base.action,
