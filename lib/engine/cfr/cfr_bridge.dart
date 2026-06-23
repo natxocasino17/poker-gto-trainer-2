@@ -83,6 +83,8 @@ class CfrBridge {
     int numActive = 0,
     int preflopRaises = 1,
     VillainRead villainRead = VillainRead.neutral,
+    double villainPreflopWidth = 0.45,
+    int villainBarrels = 1,
   }) {
     final base = EquityCalculator.recommend(
       heroCards: heroCards,
@@ -97,6 +99,8 @@ class CfrBridge {
       numActive: numActive,
       preflopRaises: preflopRaises,
       villainRead: villainRead,
+      villainPreflopWidth: villainPreflopWidth,
+      villainBarrels: villainBarrels,
     );
 
     if (heroCards.length < 2) return base;

@@ -1166,6 +1166,34 @@ class PokerEngine extends ChangeNotifier {
       }
     }
 
+    // Villain's PRE-flop range width (for the action-derived equity): if the
+    // villain was the pre-flop aggressor use their position's opening width;
+    // if they only called/limped their range is wider but capped.
+    TablePosition? villainPreAggPos;
+    for (final a in _state.currentHandActions.where((a) => a.street == 'preflop')) {
+      final isAgg = a.type == ActionType.raise ||
+          a.type == ActionType.bet ||
+          (a.type == ActionType.allIn && a.amount > bigBlind);
+      if (isAgg && a.playerId != 'human') {
+        final p = _state.players.firstWhere((pl) => pl.id == a.playerId,
+            orElse: () => _state.players[0]);
+        villainPreAggPos = p.position;
+      }
+    }
+    final villainPreflopWidth = villainPreAggPos != null
+        ? PreflopCharts.estimateVillainRangeWidth(
+            numRaises: max(1, preflopRaises), aggressorPos: villainPreAggPos)
+        : 0.50;
+    // Barrels: number of post-flop streets on which a villain has bet/raised.
+    final villainBarrels = const ['flop', 'turn', 'river']
+        .where((st) => _state.currentHandActions.any((a) =>
+            a.street == st &&
+            a.playerId != 'human' &&
+            (a.type == ActionType.bet ||
+                a.type == ActionType.raise ||
+                a.type == ActionType.allIn)))
+        .length;
+
     final rec = CfrBridge.instance.recommend(
       heroCards: human.holeCards,
       communityCards: _state.communityCards,
@@ -1179,6 +1207,8 @@ class PokerEngine extends ChangeNotifier {
       numActive: _state.activeCount,
       preflopRaises: max(1, preflopRaises),
       villainRead: read,
+      villainPreflopWidth: villainPreflopWidth,
+      villainBarrels: villainBarrels,
     );
     // Postflop EV is a fraction of the pot; express it in BB for display.
     // Precise EV of CONTINUING, in big blinds: rec.ev is the pot-odds edge

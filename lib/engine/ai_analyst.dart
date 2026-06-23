@@ -9,7 +9,7 @@ import '../core/utils/poker_concepts.dart';
 import '../core/utils/postflop_context.dart';
 import '../core/utils/trainer_feedback.dart';
 import '../data/models/player_model.dart';
-import 'cfr/cfr_bridge.dart';
+import '../core/utils/preflop_charts.dart';
 import 'legendary_ai.dart';
 import 'poker_engine.dart';
 import '../core/i18n/i18n.dart';
@@ -251,9 +251,21 @@ class HandReviewerEngine {
 
         // Congruence: reuse the EXACT recommendation EL PUXI computed live at
         // the decision (same factors/snapshot) so the analyzer never contradicts
-        // the in-game advisor. Only recompute if no live advice was captured.
+        // the in-game advisor. Only recompute if no live advice was captured —
+        // and then use the FAST heuristic (EquityCalculator.recommend), NOT the
+        // CFR solver, so reviewing a hand at hand-end never hitches. (The CFR mix
+        // only matters when the GTO overlay was opened live, in which case the
+        // captured liveAdvice is reused above.)
+        final villainBarrels = const ['flop', 'turn', 'river']
+            .where((st) => allActions.any((a) =>
+                a.street == st &&
+                a.playerId != 'human' &&
+                (a.type == ActionType.bet ||
+                    a.type == ActionType.raise ||
+                    a.type == ActionType.allIn)))
+            .length;
         final rec = liveAdvice?[street] ??
-            CfrBridge.instance.recommend(
+            EquityCalculator.recommend(
               heroCards: humanHole,
               communityCards: communityAtStreet,
               callAmount: callAmt,
@@ -266,6 +278,9 @@ class HandReviewerEngine {
               numActive: activePlayers,
               preflopRaises: max(1, preflopRaises),
               villainRead: villainRead,
+              villainPreflopWidth: PreflopCharts.estimateVillainRangeWidth(
+                  numRaises: max(1, preflopRaises)),
+              villainBarrels: villainBarrels,
             );
         // Grade the hero's actual action AGAINST this exact recommendation, and
         // show rec's equity/odds, so everything is internally consistent.

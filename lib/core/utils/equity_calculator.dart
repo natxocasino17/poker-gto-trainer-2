@@ -356,6 +356,199 @@ class EquityCalculator {
     return callAmount / (callAmount + potSize);
   }
 
+  // ── Action-derived villain range + real equity ────────────────────────────
+  static final Map<String, double> _realEqCache = {};
+
+  /// HERO's REAL equity vs the villain's ACTION-DERIVED range, run out to the
+  /// river. Instead of a blunt "top X%", this builds the villain's actual range:
+  /// their pre-flop range ([preflopWidth], by position/action) filtered by their
+  /// post-flop line — betting polarises (value + chosen bluffs, fewer mediums,
+  /// scaled by [betFrac]/[barrels]); checking caps off the big value; calling
+  /// keeps mediums/draws and drops the nuts/air. Deterministic + cached. Falls
+  /// back to [calculate] vs the top-[preflopWidth] range if the range degenerates.
+  static double realEquity({
+    required List<CardModel> hero,
+    required List<CardModel> board,
+    required double preflopWidth,
+    double betFrac = 0.0,
+    bool villainBet = false,
+    bool villainChecked = false,
+    bool villainCalled = false,
+    int barrels = 1,
+    int simulations = 800,
+  }) {
+    if (hero.length != 2) return 0.5;
+    int idc(CardModel c) => c.rank * 4 + c.suit.index;
+    final isPostflop = board.length >= 3 && board.length <= 5;
+    final actSig = '${preflopWidth.toStringAsFixed(2)}|${betFrac.toStringAsFixed(2)}'
+        '|${villainBet ? 1 : 0}${villainChecked ? 1 : 0}${villainCalled ? 1 : 0}|$barrels';
+    final key = '${(hero.map(idc).toList()..sort()).join(",")}'
+        '|${(board.map(idc).toList()..sort()).join(",")}|$actSig';
+    final hit = _realEqCache[key];
+    if (hit != null) return hit;
+
+    final known = <int>{for (final c in hero) idc(c), for (final c in board) idc(c)};
+    final deck = [for (final c in CardModel.freshDeck()) if (!known.contains(idc(c))) c];
+
+    final cut = max(0.0, 0.75 - preflopWidth);
+    final combos = <List<CardModel>>[];
+    final cumWeights = <double>[];
+    double total = 0.0;
+    for (int i = 0; i < deck.length - 1; i++) {
+      for (int j = i + 1; j < deck.length; j++) {
+        final combo = [deck[i], deck[j]];
+        if (CardModel.preflopStrength(combo) < cut) continue;
+        double w = 1.0;
+        if (isPostflop) {
+          final bucket = HandStrengthAnalysis.analyze(combo, board).bucket;
+          w *= _actionWeight(bucket,
+              betFrac: betFrac,
+              villainBet: villainBet,
+              villainChecked: villainChecked,
+              villainCalled: villainCalled,
+              barrels: barrels);
+        }
+        if (w <= 0) continue;
+        total += w;
+        combos.add(combo);
+        cumWeights.add(total);
+      }
+    }
+    if (combos.isEmpty || total <= 0) {
+      return _cacheReal(
+        key,
+        calculate(
+          heroCards: hero,
+          communityCards: board,
+          numOpponents: 1,
+          simulations: 500,
+          deterministic: true,
+          rangeWidth: preflopWidth,
+        ),
+      );
+    }
+
+    int seed = 23;
+    for (final c in [...hero, ...board]) {
+      seed = seed * 131 + idc(c);
+    }
+    final rng = Random(seed & 0x7fffffff);
+    final boardNeeded = 5 - board.length;
+
+    double wins = 0.0;
+    int n = 0;
+    for (int s = 0; s < simulations; s++) {
+      final r = rng.nextDouble() * total;
+      int lo = 0, hi = cumWeights.length - 1;
+      while (lo < hi) {
+        final mid = (lo + hi) >> 1;
+        if (cumWeights[mid] < r) {
+          lo = mid + 1;
+        } else {
+          hi = mid;
+        }
+      }
+      final v = combos[lo];
+      final vIds = {idc(v[0]), idc(v[1])};
+      List<CardModel> full;
+      if (boardNeeded > 0) {
+        final run = <CardModel>[];
+        while (run.length < boardNeeded) {
+          final c = deck[rng.nextInt(deck.length)];
+          final cid = idc(c);
+          if (vIds.contains(cid)) continue;
+          if (run.any((x) => idc(x) == cid)) continue;
+          run.add(c);
+        }
+        full = [...board, ...run];
+      } else {
+        full = board;
+      }
+      final hs = HandEvaluator.evaluateBest([...hero, ...full]);
+      final vs = HandEvaluator.evaluateBest([...v, ...full]);
+      final cmp = hs.compareTo(vs);
+      wins += cmp > 0 ? 1.0 : (cmp == 0 ? 0.5 : 0.0);
+      n++;
+    }
+    return _cacheReal(key, n > 0 ? wins / n : 0.5);
+  }
+
+  static double _cacheReal(String key, double v) {
+    if (_realEqCache.length >= 4000) _realEqCache.clear();
+    _realEqCache[key] = v;
+    return v;
+  }
+
+  /// Weight of a villain combo (by its post-flop [HandBucket]) given the
+  /// villain's line. See [realEquity].
+  static double _actionWeight(
+    HandBucket b, {
+    required double betFrac,
+    required bool villainBet,
+    required bool villainChecked,
+    required bool villainCalled,
+    required int barrels,
+  }) {
+    final pol =
+        (0.35 + betFrac.clamp(0.0, 1.5) * 0.4 + (barrels - 1) * 0.2).clamp(0.0, 1.5);
+    if (villainBet) {
+      switch (b) {
+        case HandBucket.nuts:
+        case HandBucket.strongValue:
+          return 1.0;
+        case HandBucket.comboDraw:
+          return 0.85;
+        case HandBucket.strongDraw:
+          return 0.7;
+        case HandBucket.mediumValue:
+          return (0.6 - pol * 0.35).clamp(0.05, 1.0);
+        case HandBucket.weakShowdown:
+          return (0.3 - pol * 0.2).clamp(0.0, 1.0);
+        case HandBucket.weakDraw:
+          return (pol * 0.35).clamp(0.0, 0.6);
+        case HandBucket.air:
+          return (pol * 0.3).clamp(0.0, 0.5);
+      }
+    }
+    if (villainChecked) {
+      switch (b) {
+        case HandBucket.nuts:
+          return 0.3;
+        case HandBucket.strongValue:
+          return 0.5;
+        case HandBucket.comboDraw:
+          return 0.8;
+        case HandBucket.strongDraw:
+          return 0.75;
+        case HandBucket.mediumValue:
+        case HandBucket.weakShowdown:
+        case HandBucket.weakDraw:
+        case HandBucket.air:
+          return 1.0;
+      }
+    }
+    if (villainCalled) {
+      switch (b) {
+        case HandBucket.nuts:
+          return 0.2;
+        case HandBucket.strongValue:
+          return 0.7;
+        case HandBucket.mediumValue:
+          return 1.0;
+        case HandBucket.weakShowdown:
+          return 0.8;
+        case HandBucket.comboDraw:
+        case HandBucket.strongDraw:
+          return 1.0;
+        case HandBucket.weakDraw:
+          return 0.5;
+        case HandBucket.air:
+          return 0.15;
+      }
+    }
+    return 1.0;
+  }
+
   static GTORecommendation recommend({
     required List<CardModel> heroCards,
     required List<CardModel> communityCards,
@@ -372,42 +565,66 @@ class EquityCalculator {
     int numActive = 0,
     int preflopRaises = 1,
     VillainRead villainRead = VillainRead.neutral,
+    // Villain's estimated PRE-flop range width (top fraction) for this spot,
+    // by their position/action; and how many streets they've bet (barrels).
+    // Used to build their ACTION-DERIVED range for a real equity vs range.
+    double villainPreflopWidth = 0.45,
+    int villainBarrels = 1,
   }) {
     final isPostflop = communityCards.length >= 3;
     final isRiver = communityCards.length == 5;
-    // Bet-size-aware villain range: facing a big bet/all-in, the villain's range
-    // is far narrower and stronger, so equity vs a fixed 40% range is wildly
-    // inflated (this is what made the advisor say "CALL optimal" vs all-ins with
-    // weak hands). Mirror the bots' heuristic: the bigger the bet relative to
-    // the pot, the tighter the range we measure equity against.
-    double rangeWidth;
-    if (!isPostflop) {
-      rangeWidth = 1.0;
-    } else if (callAmount > 0) {
-      final betFrac = callAmount / max(potSize - callAmount, 1.0);
-      rangeWidth = betFrac > 0.85 ? 0.25 : (betFrac > 0.40 ? 0.33 : 0.40);
+    // Pot type tightens the villain's PRE-flop range (3-bet/4-bet pots = stronger,
+    // narrower starting ranges).
+    final pt = PostflopContext.potTypeFromRaiseCount(preflopRaises);
+    double preflopWidth = villainPreflopWidth;
+    if (pt == PotType.threeBet) {
+      preflopWidth = (preflopWidth - 0.08).clamp(0.10, 1.0).toDouble();
+    } else if (pt == PotType.fourBetPlus) {
+      preflopWidth = (preflopWidth - 0.15).clamp(0.08, 1.0).toDouble();
+    }
+
+    final double equity;
+    if (isPostflop && numOpponents == 1) {
+      // HEADS-UP postflop: measure equity vs the villain's ACTION-DERIVED range
+      // (their pre-flop range filtered by their real post-flop line), not a blunt
+      // top-X%. This is the "real" number: polarised vs a bet, capped vs a check.
+      equity = realEquity(
+        hero: heroCards,
+        board: communityCards,
+        preflopWidth: preflopWidth,
+        betFrac: callAmount > 0 ? callAmount / max(potSize - callAmount, 1.0) : 0.0,
+        villainBet: callAmount > 0,
+        villainChecked: callAmount <= 0 && hasInitiative,
+        barrels: villainBarrels,
+      );
     } else {
-      rangeWidth = 0.40;
-    }
-    // Pot type: in 3-bet / 4-bet pots both players' ranges are stronger and
-    // narrower, so measure equity against a tighter villain range (a real
-    // factor the raw bet-size heuristic misses).
-    if (isPostflop) {
-      final pt = PostflopContext.potTypeFromRaiseCount(preflopRaises);
-      if (pt == PotType.threeBet) {
-        rangeWidth = (rangeWidth - 0.05).clamp(0.18, 1.0).toDouble();
-      } else if (pt == PotType.fourBetPlus) {
-        rangeWidth = (rangeWidth - 0.10).clamp(0.15, 1.0).toDouble();
+      // Multiway or pre-flop: the explicit range model is HU-only, so fall back
+      // to the bet-size-aware top-X% range (still tightens vs big bets).
+      double rangeWidth;
+      if (!isPostflop) {
+        rangeWidth = 1.0;
+      } else if (callAmount > 0) {
+        final betFrac = callAmount / max(potSize - callAmount, 1.0);
+        rangeWidth = betFrac > 0.85 ? 0.25 : (betFrac > 0.40 ? 0.33 : 0.40);
+      } else {
+        rangeWidth = 0.40;
       }
+      if (isPostflop) {
+        if (pt == PotType.threeBet) {
+          rangeWidth = (rangeWidth - 0.05).clamp(0.18, 1.0).toDouble();
+        } else if (pt == PotType.fourBetPlus) {
+          rangeWidth = (rangeWidth - 0.10).clamp(0.15, 1.0).toDouble();
+        }
+      }
+      equity = calculate(
+        heroCards: heroCards,
+        communityCards: communityCards,
+        numOpponents: max(1, numOpponents),
+        simulations: 500,
+        deterministic: true,
+        rangeWidth: rangeWidth,
+      );
     }
-    final equity = calculate(
-      heroCards: heroCards,
-      communityCards: communityCards,
-      numOpponents: max(1, numOpponents),
-      simulations: 500,
-      deterministic: true,
-      rangeWidth: rangeWidth,
-    );
 
     final odds = potOddsRequired(callAmount, potSize);
 
