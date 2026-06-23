@@ -113,7 +113,8 @@ class GTOAdvisorOverlay extends StatelessWidget {
                           _buildMetricRow('Tu Equity (vs rango)', '${(advice.equity * 100).toStringAsFixed(1)}%', _equityColor(advice.equity)),
                           if (advice.potOdds > 0)
                             _buildMetricRow('Pot Odds', '${(advice.potOdds * 100).toStringAsFixed(1)}%', AppColors.textSecondary),
-                          _buildMetricRow('EV', '${advice.evBB >= 0 ? "+" : ""}${advice.evBB.toStringAsFixed(2)} BB', advice.evBB >= 0 ? AppColors.winning : AppColors.losing),
+                          if (!advice.evBB.isNaN)
+                            _buildMetricRow('EV', '${advice.evBB >= 0 ? "+" : ""}${advice.evBB.toStringAsFixed(2)} BB', advice.evBB >= 0 ? AppColors.winning : AppColors.losing),
                           const SizedBox(height: 12),
                           Container(
                             width: double.infinity,

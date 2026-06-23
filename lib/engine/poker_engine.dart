@@ -1181,7 +1181,14 @@ class PokerEngine extends ChangeNotifier {
       villainRead: read,
     );
     // Postflop EV is a fraction of the pot; express it in BB for display.
-    final evBB = bigBlind > 0 ? rec.ev * _state.pot / bigBlind : 0.0;
+    // Precise EV of CONTINUING, in big blinds: rec.ev is the pot-odds edge
+    // (equity - potOdds), and the chips at stake if you call are (pot + call),
+    // so EV = (equity - potOdds) * (pot + call). Only meaningful when facing a
+    // bet — NaN otherwise so the UI hides it instead of showing a fake number.
+    final callAmt = _state.callAmount;
+    final evBB = (callAmt > 0 && bigBlind > 0)
+        ? rec.ev * (_state.pot + callAmt) / bigBlind
+        : double.nan;
     return rec.copyWith(evBB: evBB);
   }
 

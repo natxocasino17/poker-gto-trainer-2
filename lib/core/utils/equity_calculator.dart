@@ -438,9 +438,13 @@ class EquityCalculator {
             analysis.bucket == HandBucket.strongValue);
 
     // ── Determine primary action (now factor-aware) ─────────────────────────
+    // NOTE: the reported EV (GTORecommendation.ev) is ALWAYS the real pot-odds
+    // edge `equity - odds` (computed above), the SAME number the reasoning text
+    // and the analyzer use — so there's never a mismatch between the trainer,
+    // the advisor and the hand review. The branches below only pick the action
+    // and sizing; they do not invent a separate EV.
     String action;
     double amount;
-    double evFinal;
 
     if (callAmount <= 0) {
       if (equity > 0.64 + vShift ||
@@ -460,19 +464,19 @@ class EquityCalculator {
           frac = isMultiway ? (wet ? 0.85 : 0.72) : (wet ? 0.75 : 0.66);
         }
         final bet = _snapToBetSize(potSize * frac);
-        action = 'Bet'; amount = bet; evFinal = equity - 0.5;
+        action = 'Bet'; amount = bet;
       } else if ((analysis?.bucket == HandBucket.comboDraw ||
               analysis?.bucket == HandBucket.strongDraw) &&
           !isRiver &&
           (canBluff || realizedEq > 0.45)) {
         final bet = _snapToBetSize(potSize * 0.66);
-        action = 'Bet'; amount = bet; evFinal = equity - 0.35;
+        action = 'Bet'; amount = bet;
       } else if (realizedEq > 0.52 + vShift && (inPosition || hasInitiative)) {
         // Thin value bet — only IN POSITION or with initiative. OOP as the
         // NON-aggressor, leading (donking) a medium hand is non-standard: check
         // to the pre-flop raiser (check-call / check-raise) instead of donking.
         final bet = _snapToBetSize(potSize * 0.40);
-        action = 'Bet'; amount = bet; evFinal = equity - 0.45;
+        action = 'Bet'; amount = bet;
       } else if (equity > 0.28 &&
           potSize > 15 &&
           (blockers?.goodBluffBlockers ?? false) &&
@@ -480,7 +484,7 @@ class EquityCalculator {
           canBluff &&
           hasInitiative) {
         final bet = _snapToBetSize(potSize * 0.50);
-        action = 'Bet'; amount = bet; evFinal = 0.08;
+        action = 'Bet'; amount = bet;
       } else if (hasInitiative &&
           !isRiver &&
           canBluff &&
@@ -492,9 +496,9 @@ class EquityCalculator {
         // hit YOUR range better — even with air — to deny equity and keep the
         // pressure. Checking just gives the defender free cards to improve.
         final bet = _snapToBetSize(potSize * (texture.wetness < 0.30 ? 0.33 : 0.45));
-        action = 'Bet'; amount = bet; evFinal = 0.04;
+        action = 'Bet'; amount = bet;
       } else {
-        action = 'Check'; amount = 0; evFinal = 0;
+        action = 'Check'; amount = 0;
       }
     } else {
       // Value-raise needs real equity AND, on the river, a genuinely STRONG
@@ -505,24 +509,24 @@ class EquityCalculator {
           ev > 0.12 + callPenalty &&
           (!isRiver || strongMade)) {
         final raise = _snapToBetSize(callAmount * 2.8);
-        action = 'Raise'; amount = raise; evFinal = ev;
+        action = 'Raise'; amount = raise;
       } else if (analysis != null &&
           (analysis.bucket == HandBucket.comboDraw || analysis.bucket == HandBucket.strongDraw) &&
           !isRiver &&
           canBluff) {
         final raise = _snapToBetSize(callAmount * 2.8);
-        action = 'Raise'; amount = raise; evFinal = ev + 0.10;
+        action = 'Raise'; amount = raise;
       } else if (analysis != null && blockers != null && texture != null &&
           !isRiver && ev < -0.03 &&
           (analysis.bucket == HandBucket.air || analysis.bucket == HandBucket.weakShowdown) &&
           blockers.goodBluffBlockers && texture.wetness < 0.45 &&
           canBluff && !isMultiway) {
         final raise = _snapToBetSize(callAmount * 2.8);
-        action = 'Raise'; amount = raise; evFinal = 0.05;
+        action = 'Raise'; amount = raise;
       } else if (ev >= -0.03 + callPenalty) {
-        action = 'Call'; amount = callAmount; evFinal = ev;
+        action = 'Call'; amount = callAmount;
       } else {
-        action = 'Fold'; amount = 0; evFinal = ev;
+        action = 'Fold'; amount = 0;
       }
     }
 
@@ -551,7 +555,7 @@ class EquityCalculator {
       amount: amount,
       equity: equity,
       potOdds: odds,
-      ev: evFinal,
+      ev: ev, // real pot-odds edge (equity - odds), consistent everywhere
       reasoning: reasoning,
     );
   }
