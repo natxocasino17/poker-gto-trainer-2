@@ -1191,7 +1191,20 @@ class PokerEngine extends ChangeNotifier {
           '📏 Stack estándar (~${effBB.toStringAsFixed(0)}bb): los rangos '
           'estudiados de la base aplican directamente.';
     }
-    final explanationWithDepth = '$explanation\n\n$depthNote';
+    // Isolation raise: limpers in front and no raise yet → raise bigger to
+    // isolate their capped, weak limping range and play heads-up in position.
+    // Standard iso is ~3-4bb + 1bb per limper; only resizes an already-advised
+    // open (doesn't turn a fold/flat into a raise).
+    var explanationWithDepth = '$explanation\n\n$depthNote';
+    final limpedPot = numRaisers == 0 && numCallers > 0;
+    if (limpedPot && finalAction == 'open') {
+      finalAmount = (bigBlind * (3.0 + numCallers))
+          .clamp(min(bigBlind.toDouble(), human.stack), human.stack);
+      explanationWithDepth = '$explanationWithDepth\n\n'
+          '🎯 Hay $numCallers limper(s): sube a iso-raise (~${(3 + numCallers)}bb) '
+          'para aislar su rango débil y capado; los limpeos no resuben casi nunca, '
+          'así que castígalos y juega el bote en posición.';
+    }
 
     // Preflop equity for display — vs the villain's ESTIMATED range for this
     // spot (open/3bet/4bet/squeeze/BvB), not vs random cards. Showing "AKo 65%"

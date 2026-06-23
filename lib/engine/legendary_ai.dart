@@ -1696,6 +1696,10 @@ class LegendaryBotEngine {
         // Symmetric read: a passive villain rarely bluffs, so their bets are
         // value-weighted → fold more bluff-catchers against them.
         if (human.aggressionFactor < 0.8 || human.overFolds) callThreshold += 0.04;
+        // Hand-specific blockers: holding a card that blocks the villain's nut
+        // value combos (nut-flush / obvious-straight blocker) removes value
+        // hands from their range, so bluff-catch a touch wider.
+        if (blockers.goodBluffBlockers) callThreshold -= 0.03;
         // Board texture: on monotone/paired boards tighten (risk of flush/full)
         if (texture.wetness > 0.65) callThreshold += 0.04;
         // POSITION: in position we realise more equity and control the pot, so we
