@@ -921,38 +921,117 @@ class PokerEngine extends ChangeNotifier {
     });
   }
 
+  /// Pure side-pot distribution math (no game state) so it can be unit-tested.
+  /// Splits the total contributed chips into layers by distinct contribution
+  /// levels and assigns each layer to the best hand among the players who
+  /// reached that level and didn't fold ([bestAmong] resolves ties/winners).
+  /// Dead layers where everyone folded are refunded to their contributors
+  /// (uncalled bets). Returns chips won per seat; the sum equals the total
+  /// contributed. [onContestedWin] is notified for seats that win a real layer.
+  static List<double> computeSidePotWinnings({
+    required List<double> contrib,
+    required List<bool> folded,
+    required List<int> Function(List<int> eligible) bestAmong,
+    void Function(int seat)? onContestedWin,
+  }) {
+    final n = contrib.length;
+    final winnings = List<double>.filled(n, 0.0);
+    final levels = (contrib.where((c) => c > 1e-9).toSet().toList())..sort();
+    double prev = 0.0;
+    for (final level in levels) {
+      double layerPot = 0.0;
+      for (int i = 0; i < n; i++) {
+        final c = min(contrib[i], level) - min(contrib[i], prev);
+        if (c > 0) layerPot += c;
+      }
+      if (layerPot > 1e-9) {
+        final fullContributors = [
+          for (int i = 0; i < n; i++) if (contrib[i] >= level - 1e-9) i
+        ];
+        final eligible = fullContributors.where((i) => !folded[i]).toList();
+        if (eligible.isNotEmpty) {
+          final w = bestAmong(eligible);
+          final share = layerPot / w.length;
+          for (final i in w) {
+            winnings[i] += share;
+            onContestedWin?.call(i);
+          }
+        } else {
+          // Everyone who reached this layer folded → refund (uncalled bet).
+          final share = layerPot / fullContributors.length;
+          for (final i in fullContributors) winnings[i] += share;
+        }
+      }
+      prev = level;
+    }
+    return winnings;
+  }
+
+  /// Best hand(s) among the given seat indices, by evaluating their hole cards
+  /// over the community board. Used per side-pot layer.
+  List<int> _bestAmongEligible(List<int> eligible, List<PlayerModel> players) {
+    if (eligible.length <= 1) return eligible;
+    try {
+      final cards = eligible.map((i) => players[i].holeCards).toList();
+      final local = HandEvaluator.findWinners(cards, _state.communityCards);
+      final winners = local.map((li) => eligible[li]).toList();
+      return winners.isEmpty ? eligible : winners;
+    } catch (_) {
+      return eligible;
+    }
+  }
+
+  /// Distributes the pot with PROPER SIDE POTS by contribution. Each player can
+  /// only win up to what they put in: the pot is split into layers by distinct
+  /// contribution levels, and each layer goes to the best hand among the players
+  /// who reached that level (folded players' chips are dead money; an uncalled
+  /// top bet is refunded to whoever bet it). [winnerPlayerIndices] is accepted
+  /// for backwards-compat but distribution is computed here from contributions
+  /// + hand strength, never an equal split.
   void _awardPot({List<int>? winnerPlayerIndices}) {
     if (_disposed) return;
 
-    final notFolded = _state.players.asMap().entries
-        .where((e) => !e.value.isFolded)
-        .map((e) => e.key)
-        .toList();
+    var players = List<PlayerModel>.from(_state.players);
+    final n = players.length;
+    final contrib = [
+      for (final p in players) p.totalHandBet.isFinite ? p.totalHandBet : 0.0
+    ];
+    final notFolded = [for (int i = 0; i < n; i++) if (!players[i].isFolded) i];
 
-    var winners = winnerPlayerIndices ?? notFolded;
-    if (winners.isEmpty) winners = notFolded;
-    // Last-resort guard: never divide by zero (would make stacks NaN → grey
-    // screen). If somehow nobody is eligible, just start a fresh hand.
-    if (winners.isEmpty) {
+    // Last-resort guard: nobody eligible → just start a fresh hand (no NaN).
+    if (notFolded.isEmpty || contrib.every((c) => c <= 0)) {
       Future.delayed(const Duration(milliseconds: 800), () {
         if (!_disposed) startNewHand();
       });
       return;
     }
-    final pot = _state.pot.isFinite ? _state.pot : 0.0;
-    final share = pot / winners.length;
 
-    var players = List<PlayerModel>.from(_state.players);
-    for (final idx in winners) {
-      players[idx] = players[idx].copyWith(
-        stack: players[idx].stack + share,
-        isWinner: true,
-        cardsVisible: true,
-      );
+    // Build contribution layers (ascending distinct levels) and award each.
+    final contestedWinners = <int>{}; // won a real (non-refund) layer → highlight
+    final winnings = computeSidePotWinnings(
+      contrib: contrib,
+      folded: [for (int i = 0; i < n; i++) players[i].isFolded],
+      bestAmong: (eligible) => _bestAmongEligible(eligible, players),
+      onContestedWin: contestedWinners.add,
+    );
+
+    for (int i = 0; i < n; i++) {
+      if (winnings[i] > 0) {
+        players[i] = players[i].copyWith(
+          stack: players[i].stack + winnings[i],
+          isWinner: contestedWinners.contains(i),
+          cardsVisible: !players[i].isFolded,
+        );
+      }
     }
 
-    final winnerNames = winners.map((i) => players[i].name).join(' & ');
-    final resultMsg = I18n.t('wins_msg', {'who': winnerNames, 'amt': _state.pot.toStringAsFixed(0)});
+    // Headline = the player(s) who actually won chips at showdown / fold-out.
+    final headline = (contestedWinners.isNotEmpty
+        ? contestedWinners.toList()
+        : notFolded);
+    final winnerNames = headline.map((i) => players[i].name).join(' & ');
+    final resultMsg = I18n.t('wins_msg',
+        {'who': winnerNames, 'amt': _state.pot.toStringAsFixed(0)});
 
     _state = _state.copyWith(
       players: players,
