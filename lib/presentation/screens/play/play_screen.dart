@@ -749,6 +749,15 @@ class _CenterDisplay extends StatelessWidget {
                         fontSize: 9,
                         fontWeight: FontWeight.w600),
                   ),
+                // Side pots (when someone is all-in for less): main + side split.
+                for (int i = 0; i < gp.sidePots.length; i++)
+                  Text(
+                    '${i == 0 ? "principal" : "side ${i}"} ${gp.money(gp.sidePots[i].amount)}',
+                    style: const TextStyle(
+                        color: Color(0xFF9AD0C2),
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w700),
+                  ),
               ],
             ),
           ),

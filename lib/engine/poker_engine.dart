@@ -967,6 +967,44 @@ class PokerEngine extends ChangeNotifier {
     return winnings;
   }
 
+  /// The pot split into contribution layers (main + side pots) for DISPLAY:
+  /// each layer is its amount and the seats still eligible to win it.
+  static List<({double amount, List<int> eligible})> sidePotLayers({
+    required List<double> contrib,
+    required List<bool> folded,
+  }) {
+    final n = contrib.length;
+    final pots = <({double amount, List<int> eligible})>[];
+    final levels = (contrib.where((c) => c > 1e-9).toSet().toList())..sort();
+    double prev = 0.0;
+    for (final level in levels) {
+      double amt = 0.0;
+      for (int i = 0; i < n; i++) {
+        final c = min(contrib[i], level) - min(contrib[i], prev);
+        if (c > 0) amt += c;
+      }
+      if (amt > 1e-9) {
+        final eligible = [
+          for (int i = 0; i < n; i++)
+            if (contrib[i] >= level - 1e-9 && !folded[i]) i
+        ];
+        pots.add((amount: amt, eligible: eligible));
+      }
+      prev = level;
+    }
+    return pots;
+  }
+
+  /// Current pot broken into main + side pots (for the UI). Empty unless there's
+  /// an all-in AND the pot actually splits into more than one layer.
+  List<({double amount, List<int> eligible})> get currentSidePots {
+    if (!_state.players.any((p) => p.isAllIn)) return const [];
+    final contrib = [for (final p in _state.players) p.totalHandBet];
+    final folded = [for (final p in _state.players) p.isFolded];
+    final layers = sidePotLayers(contrib: contrib, folded: folded);
+    return layers.length > 1 ? layers : const [];
+  }
+
   /// Best hand(s) among the given seat indices, by evaluating their hole cards
   /// over the community board. Used per side-pot layer.
   List<int> _bestAmongEligible(List<int> eligible, List<PlayerModel> players) {

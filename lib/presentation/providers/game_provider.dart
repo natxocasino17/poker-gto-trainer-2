@@ -82,6 +82,10 @@ class GameProvider extends ChangeNotifier {
   /// when there's no specific preflop range to show right now.
   ({TablePosition villainPos, String heroHand, String label})? preflopRangeSpot() =>
       _engine?.preflopRangeSpot();
+
+  /// Main + side pots (by contribution) when there's an all-in; empty otherwise.
+  List<({double amount, List<int> eligible})> get sidePots =>
+      _engine?.currentSidePots ?? const [];
   double get bankroll => _bankroll;
   bool get displayInBB => _displayInBB;
   bool get canAffordBuyIn => _bankroll >= _startingStack;
