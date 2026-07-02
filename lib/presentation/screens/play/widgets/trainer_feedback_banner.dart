@@ -33,7 +33,7 @@ class _TrainerFeedbackBannerState extends State<TrainerFeedbackBanner> {
 
   void _arm() {
     _timer?.cancel();
-    _timer = Timer(const Duration(milliseconds: 1800), widget.onDismiss);
+    _timer = Timer(const Duration(seconds: 4), widget.onDismiss);
   }
 
   @override

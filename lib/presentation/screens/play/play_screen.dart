@@ -302,14 +302,26 @@ class _PokerTable extends StatelessWidget {
     // the bet chips / dealer button inward to sit ON the felt (not on the rail).
     // Each image table fine-tunes via its own `scale` (felt width).
     final onImg = bgAsset != null;
-    final chipFx = onImg ? 0.65 * bgScale : 0.84;
-    final chipFy = onImg ? 0.69 * bgScale : 0.82;
     final dealerFx = onImg ? 0.70 * bgScale : 0.89;
     final dealerFy = onImg ? 0.72 * bgScale : 0.86;
     // Seats/avatars sit on the rail, just outside the felt. On image tables the
     // ring scales with the felt (bgScale) and an extra per-background
     // seatSpread that pushes seats out further without moving chips/dealer.
     final seatRx = onImg ? rx * 1.12 * bgScale * seatSpread : rx + 50;
+
+    // Bet chip center for seat [i]: a fixed fraction of the way from the pot
+    // center toward that player's seat, so every chip lines up RADIALLY in
+    // front of its own player (no per-seat fudge factors).
+    Offset chipCenterFor(int i) {
+      final ang = _seatAngles[i];
+      final seatVf = players[i].isHuman
+          ? ry * 1.282
+          : (onImg ? ry * 1.14 * bgScale * seatSpread : ry + 52);
+      final anchorX = cx + seatRx * cos(ang);
+      final anchorY = cy + seatVf * sin(ang);
+      const t = 0.66; // 0 = pot center, 1 = the player; on the felt in front.
+      return Offset(cx + (anchorX - cx) * t, cy + (anchorY - cy) * t);
+    }
 
     return Stack(
       clipBehavior: Clip.none,
@@ -338,18 +350,9 @@ class _PokerTable extends StatelessWidget {
         for (int i = 0; i < 6; i++)
           if (players[i].streetBet > 0)
             Positioned(
-              // Bottom-left/right bots (1,5) sit half-way up the felt and their
-              // chips used to crowd the center / the human's chip — push them
-              // outward (toward their own seat) so each chip is centered in
-              // front of its bot. The human's own chip (0) pulls slightly in.
-              left: cx + rx * chipFx * cos(_seatAngles[i]) - 32 +
-                  (i == 1 ? -18 : (i == 5 ? 18 : 0)),
-              // Bottom-left/right seats (1, 5) sit at sin=0.5, half the pole
-              // seats' offset — drop those two chips well below center so they
-              // line up in front of their bot and clear the human. The human's
-              // chip (0) nudges down a touch to sit closer to the seat.
-              top: cy + ry * chipFy * sin(_seatAngles[i]) - 11 +
-                  (i == 1 || i == 5 ? 24 : (i == 0 ? 14 : 0)),
+              // Radially aligned in front of each player (see chipCenterFor).
+              left: chipCenterFor(i).dx - 32,
+              top: chipCenterFor(i).dy - 11,
               width: 64,
               child: Center(
                 child: _BetChip(

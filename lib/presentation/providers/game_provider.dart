@@ -429,14 +429,24 @@ class GameProvider extends ChangeNotifier {
     if (engine == null) return;
     if (engine.state.awaitingHumanAction) {
       // Capture the GTO recommendation for THIS exact decision/snapshot.
-      final rec = engine.getGTOAdvice();
-      _liveAdvice[engine.state.street] = rec;
-      if (_trainerMode) {
-        _trainerFeedback = TrainerGrader.grade(type, amount, rec);
-        _sfx.trainerResult(_trainerFeedback!.quality);
-      } else {
+      // A solver hiccup here must NEVER suppress the Trainer banner nor block
+      // the human's action, so the advice/grade runs inside try/catch and the
+      // action is always applied afterwards.
+      try {
+        final rec = engine.getGTOAdvice();
+        _liveAdvice[engine.state.street] = rec;
+        if (_trainerMode) {
+          _trainerFeedback = TrainerGrader.grade(type, amount, rec);
+          _sfx.trainerResult(_trainerFeedback!.quality);
+        } else {
+          _trainerFeedback = null;
+        }
+      } catch (_) {
         _trainerFeedback = null;
       }
+      // Mount the banner immediately instead of relying solely on the engine's
+      // change propagation timing.
+      notifyListeners();
     } else {
       _trainerFeedback = null;
     }
