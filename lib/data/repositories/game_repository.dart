@@ -25,7 +25,6 @@ class GameRepository {
   static const _startingStackKey = 'opt_starting_stack';
   static const _tutorialSeenKey = 'opt_tutorial_seen';
   static const _trainerModeKey = 'opt_trainer_mode';
-  static const _soundEnabledKey = 'opt_sound_enabled';
   static const _tableBgKey = 'opt_table_bg';
 
   static const double initialBankroll = 1000.0;
@@ -210,10 +209,6 @@ class GameRepository {
 
   bool getTrainerMode() => _prefs.getBool(_trainerModeKey) ?? false;
   Future<void> saveTrainerMode(bool v) => _prefs.setBool(_trainerModeKey, v);
-
-  bool getSoundEnabled() => _prefs.getBool(_soundEnabledKey) ?? true;
-  Future<void> saveSoundEnabled(bool v) =>
-      _prefs.setBool(_soundEnabledKey, v);
 
   int getTableBackground() => _prefs.getInt(_tableBgKey) ?? 0;
   Future<void> saveTableBackground(int i) => _prefs.setInt(_tableBgKey, i);
